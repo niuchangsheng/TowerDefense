@@ -1,0 +1,9 @@
+// 导出所有类型
+export * from './wuxing.types'
+export * from './hero.types'
+export * from './enemy.types'
+export * from './equipment.types'
+export * from './skill.types'
+export * from './level.types'
+export * from './battle.types'
+export * from './save.types'

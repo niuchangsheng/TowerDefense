@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(git add *)",
+      "Bash(git commit -m 'docs: 添加三国五行塔防PRD文档 *)",
+      "Bash(npm install *)",
+      "Bash(timeout 120 bash -c 'while ! test -d node_modules; do sleep 1; done; echo \"Dependencies installed\"')",
+      "Bash(npm run *)",
+      "Bash(node_modules/.bin/vite)",
+      "Bash(git commit -m 'feat: Phase 1 - 项目初始化与基础框架 *)"
+    ]
+  }
+}
