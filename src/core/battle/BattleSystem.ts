@@ -18,6 +18,7 @@ import { HeroFactory } from '@/core/hero/HeroFactory'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { EnemyEntity } from '@/entities/EnemyEntity'
 import { COST_CONFIG, PLAYER_HEALTH_CONFIG } from '@/config/constants'
+import { getEnemyConfig } from '@/data/enemies'
 
 /**
  * 战斗主控制器
@@ -247,20 +248,36 @@ export class BattleSystem {
    * 更新波次
    */
   private updateWaves(deltaTime: number): void {
+    // 更新波次并获取待生成的敌人ID
+    const enemyIdsToSpawn = this.waveManager.update(deltaTime)
+
+    // 生成敌人
+    for (const enemyId of enemyIdsToSpawn) {
+      this.spawnEnemy(enemyId)
+    }
+
     // 检查是否需要开始下一波
     if (this.waveManager.isWaiting() && !this.waveManager.isWaveInProgress()) {
-      // 简化：等待一定时间后自动开始下一波
-      // 实际游戏中可以添加"开始下一波"按钮
-      if (this.enemyManager.getEnemyCount() === 0) {
+      // 所有敌人被消灭后自动开始下一波
+      if (this.enemyManager.getEnemyCount() === 0 && !this.waveManager.isAllWavesComplete()) {
         this.waveManager.startNextWave()
         if (this.onWaveStartCallback) {
           this.onWaveStartCallback(this.waveManager.getCurrentWave())
         }
       }
     }
+  }
 
-    // 更新波次，生成敌人（简化实现）
-    // 完整实现需要在WaveManager中返回EnemyConfig[]
+  /**
+   * 生成单个敌人
+   */
+  private spawnEnemy(enemyId: string): void {
+    const config = getEnemyConfig(enemyId)
+
+    if (config) {
+      const enemyEntity = this.enemyManager.spawnEnemy(config)
+      console.log(`生成敌人: ${config.name}`)
+    }
   }
 
   /**

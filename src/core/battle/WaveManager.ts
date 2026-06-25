@@ -1,4 +1,4 @@
-import { WaveConfig, WaveEnemyConfig, EnemyConfig } from '@/types'
+import { WaveConfig, WaveEnemyConfig } from '@/types'
 
 /**
  * 波次管理器
@@ -12,6 +12,7 @@ export class WaveManager {
   private isWaveActive: boolean
   private isWaitingForNextWave: boolean
   private waitingTimer: number           // 等待下一波的计时器
+  private spawnedEnemyCount: Map<string, number>  // 每种敌人已生成数量
 
   constructor(waves: WaveConfig[]) {
     this.waves = waves
@@ -21,6 +22,7 @@ export class WaveManager {
     this.isWaveActive = false
     this.isWaitingForNextWave = false
     this.waitingTimer = 0
+    this.spawnedEnemyCount = new Map()
   }
 
   /**
@@ -37,27 +39,39 @@ export class WaveManager {
     this.enemySpawnQueue = [...wave.enemies]
     this.isWaveActive = true
     this.isWaitingForNextWave = false
+    this.spawnedEnemyCount.clear()
+
+    // 初始化已生成计数
+    for (const config of this.enemySpawnQueue) {
+      this.spawnedEnemyCount.set(config.enemyId, 0)
+    }
   }
 
   /**
-   * 更新（生成敌人）
+   * 更新波次（生成敌人）
    * @param deltaTime 时间增量（毫秒）
-   * @returns 需要生成的敌人配置列表
+   * @returns 需要生成的敌人ID列表
    */
-  update(deltaTime: number): EnemyConfig[] {
-    const enemiesToSpawn: EnemyConfig[] = []
+  update(deltaTime: number): string[] {
+    const enemiesToSpawn: string[] = []
 
     // 如果正在等待下一波
     if (this.isWaitingForNextWave) {
       this.waitingTimer += deltaTime
 
-      // 等待时间结束，开始下一波
-      if (this.currentWave < this.waves.length) {
-        const nextWave = this.waves[this.currentWave]
-        if (this.waitingTimer >= nextWave.delayBeforeWave) {
-          this.startNextWave()
-        }
+      // 检查是否是最后一波（所有波次已开始）
+      if (this.currentWave >= this.waves.length) {
+        // 最后一波等待结束后，标记为完成
+        this.isWaitingForNextWave = false
+        return enemiesToSpawn
       }
+
+      // 非最后一波，等待时间结束后开始下一波
+      const nextWave = this.waves[this.currentWave]
+      if (this.waitingTimer >= nextWave.delayBeforeWave) {
+        this.startNextWave()
+      }
+
       return enemiesToSpawn
     }
 
@@ -65,27 +79,34 @@ export class WaveManager {
     if (this.isWaveActive && this.enemySpawnQueue.length > 0) {
       this.waveTimer += deltaTime
 
-      // 检查队列中的敌人是否需要生成
       const wave = this.waves[this.currentWave - 1]
       const spawnInterval = wave.spawnInterval
 
-      // 按间隔生成敌人
-      while (this.enemySpawnQueue.length > 0) {
-        const enemyConfig = this.enemySpawnQueue[0]
-        const spawnDelay = enemyConfig.spawnDelay || 0
+      // 检查每个敌人配置是否需要生成
+      for (const enemyConfig of this.enemySpawnQueue) {
+        const spawnedCount = this.spawnedEnemyCount.get(enemyConfig.enemyId) || 0
 
-        // 如果当前时间超过了生成延迟时间，生成敌人
-        if (this.waveTimer >= spawnDelay && this.waveTimer % spawnInterval < deltaTime) {
-          // 这里返回enemyId，需要EnemyFactory处理
-          // 暂时返回空，后续在BattleSystem中处理
-          this.enemySpawnQueue.shift()
-        } else {
-          break
+        // 如果还没生成完所有敌人
+        if (spawnedCount < enemyConfig.count) {
+          const spawnDelay = enemyConfig.spawnDelay || 0
+
+          // 检查是否应该生成（时间到了）
+          const shouldSpawnTime = spawnDelay + spawnedCount * spawnInterval
+
+          if (this.waveTimer >= shouldSpawnTime) {
+            enemiesToSpawn.push(enemyConfig.enemyId)
+            this.spawnedEnemyCount.set(enemyConfig.enemyId, spawnedCount + 1)
+          }
         }
       }
 
-      // 检查当前波次是否完成
-      if (this.enemySpawnQueue.length === 0) {
+      // 检查当前波次是否完成（所有敌人都已生成）
+      const allSpawned = this.enemySpawnQueue.every(config => {
+        const count = this.spawnedEnemyCount.get(config.enemyId) || 0
+        return count >= config.count
+      })
+
+      if (allSpawned) {
         this.isWaveActive = false
         this.isWaitingForNextWave = true
         this.waitingTimer = 0
@@ -134,7 +155,10 @@ export class WaveManager {
    * 获取待生成敌人数量
    */
   getPendingEnemyCount(): number {
-    return this.enemySpawnQueue.reduce((sum, config) => sum + config.count, 0)
+    return this.enemySpawnQueue.reduce((sum, config) => {
+      const spawned = this.spawnedEnemyCount.get(config.enemyId) || 0
+      return sum + (config.count - spawned)
+    }, 0)
   }
 
   /**
@@ -147,5 +171,6 @@ export class WaveManager {
     this.isWaveActive = false
     this.isWaitingForNextWave = false
     this.waitingTimer = 0
+    this.spawnedEnemyCount.clear()
   }
 }

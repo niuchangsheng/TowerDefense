@@ -102,22 +102,25 @@ export default class PreloadScene extends Phaser.Scene {
    */
   private createPlaceholderTextures(): void {
     // 英雄占位（简单矩形）
-    const heroGraphics = this.make.graphics({ x: 0, y: 0, add: false })
+    const heroGraphics = this.add.graphics()
     heroGraphics.fillStyle(0x00ff00)
     heroGraphics.fillRect(0, 0, 64, 64)
     heroGraphics.generateTexture('hero_placeholder', 64, 64)
+    heroGraphics.destroy()
 
     // 敌人占位
-    const enemyGraphics = this.make.graphics({ x: 0, y: 0, add: false })
+    const enemyGraphics = this.add.graphics()
     enemyGraphics.fillStyle(0xff0000)
     enemyGraphics.fillRect(0, 0, 32, 32)
     enemyGraphics.generateTexture('enemy_placeholder', 32, 32)
+    enemyGraphics.destroy()
 
     // UI按钮占位
-    const buttonGraphics = this.make.graphics({ x: 0, y: 0, add: false })
+    const buttonGraphics = this.add.graphics()
     buttonGraphics.fillStyle(0x4444ff)
     buttonGraphics.fillRect(0, 0, 200, 50)
     buttonGraphics.generateTexture('button_placeholder', 200, 50)
+    buttonGraphics.destroy()
   }
 
   /**
