@@ -27,7 +27,11 @@
       "Bash(ls \"/mnt/c/Program Files/San11pk Tc/Media/\")",
       "Read(//mnt/c/Program Files/San11pk Tc/Media/**)",
       "Bash(git commit -m 'assets: 添加三国志11武将头像素材 *)",
-      "Bash(git commit -m 'feat: 应用三国志11武将头像到游戏 *)"
+      "Bash(git commit -m 'feat: 应用三国志11武将头像到游戏 *)",
+      "Bash(git rm *)",
+      "Bash(git commit -m 'fix: 移除虚拟环境目录，添加到gitignore *)",
+      "Bash(git commit -m 'feat: 地形系统核心模块（Step 1-6） *)",
+      "Bash(git commit -m 'feat: 地形系统完整实现（Step 7-9） *)"
     ],
     "additionalDirectories": [
       "/mnt/c/Program Files/San11pk Tc/Media/face",

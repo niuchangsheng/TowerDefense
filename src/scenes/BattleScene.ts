@@ -3,6 +3,10 @@ import { BattleSystem } from '@/core/battle/BattleSystem'
 import { level1Config } from '@/data/levels/chapter1'
 import { createDefaultHeroes } from '@/data/heroes'
 import { getEnemyConfig } from '@/data/enemies'
+import { TerrainManager } from '@/core/terrain/TerrainManager'
+import { PathRenderer } from '@/core/terrain/PathRenderer'
+import { DeploymentZoneRenderer } from '@/core/terrain/DeploymentZoneRenderer'
+import { Point, Hero } from '@/types'
 
 /**
  * 战斗场景
@@ -11,6 +15,15 @@ import { getEnemyConfig } from '@/data/enemies'
 export default class BattleScene extends Phaser.Scene {
   private levelId: string = ''
   private battleSystem!: BattleSystem
+
+  // 地形系统
+  private terrainManager!: TerrainManager
+  private pathRenderer!: PathRenderer
+  private deploymentZoneRenderer!: DeploymentZoneRenderer
+
+  // 英雄选择面板
+  private heroSelectionPanel: Phaser.GameObjects.Container | null = null
+  private selectedZoneIndex: number | null = null
 
   // UI元素
   private costText!: Phaser.GameObjects.Text
@@ -37,47 +50,234 @@ export default class BattleScene extends Phaser.Scene {
     const width = this.cameras.main.width
     const height = this.cameras.main.height
 
-    // 创建背景
-    this.createBackground()
+    // 1. 创建地形系统
+    this.createTerrainSystem()
 
-    // 初始化战斗系统
+    // 2. 渲染地形
+    this.terrainManager.renderTerrain()
+
+    // 3. 渲染路径
+    this.pathRenderer.renderStaticPath()
+
+    // 4. 渲染部署区域
+    this.deploymentZoneRenderer.renderDeploymentZones()
+
+    // 5. 初始化战斗系统
     const heroes = createDefaultHeroes()
     this.battleSystem = new BattleSystem(this, level1Config, heroes)
 
-    // 创建UI
+    // 6. 创建UI（覆盖在最上层）
     this.createUI(width, height)
 
-    // 注册战斗事件回调
+    // 7. 注册战斗事件回调
     this.registerBattleCallbacks()
 
-    // 启动战斗
+    // 8. 注册部署区域交互
+    this.registerDeploymentInteraction()
+
+    // 9. 启动战斗
     this.battleSystem.startBattle()
 
     console.log('BattleScene: 战斗系统初始化完成')
   }
 
   /**
-   * 创建背景
+   * 创建地形系统
    */
-  private createBackground(): void {
-    // 简单背景（后续可替换为地图图片）
-    this.add.rectangle(640, 360, 1280, 720, 0x2a2a3a)
+  private createTerrainSystem(): void {
+    const mapConfig = level1Config.map
 
-    // 绘制敌人路径（可视化）
-    const graphics = this.add.graphics()
-    graphics.lineStyle(3, 0x444444)
+    this.terrainManager = new TerrainManager(
+      this,
+      mapConfig.terrainAreas || [],
+      mapConfig.defaultTerrain || 'grass'
+    )
 
-    const path = level1Config.map.path
-    graphics.beginPath()
-    graphics.moveTo(path[0].x, path[0].y)
-    for (let i = 1; i < path.length; i++) {
-      graphics.lineTo(path[i].x, path[i].y)
+    this.pathRenderer = new PathRenderer(this, mapConfig.path)
+
+    this.deploymentZoneRenderer = new DeploymentZoneRenderer(this, mapConfig.deployableAreas)
+  }
+
+  /**
+   * 注册部署区域交互
+   */
+  private registerDeploymentInteraction(): void {
+    // 监听鼠标移动
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      const zoneIndex = this.deploymentZoneRenderer.isPointInZone({ x: pointer.x, y: pointer.y })
+
+      if (zoneIndex !== null) {
+        this.deploymentZoneRenderer.highlightZone(zoneIndex)
+      } else {
+        this.deploymentZoneRenderer.unhighlightAll()
+      }
+    })
+
+    // 监听鼠标点击部署区域
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const zoneIndex = this.deploymentZoneRenderer.isPointInZone({ x: pointer.x, y: pointer.y })
+
+      if (zoneIndex !== null) {
+        this.showHeroSelectionPanel(zoneIndex)
+      } else if (this.heroSelectionPanel) {
+        this.hideHeroSelectionPanel()
+      }
+    })
+  }
+
+  /**
+   * 显示英雄选择面板
+   */
+  private showHeroSelectionPanel(zoneIndex: number): void {
+    // 如果已有面板，先隐藏
+    if (this.heroSelectionPanel) {
+      this.hideHeroSelectionPanel()
     }
-    graphics.strokePath()
 
-    // 标记起点和终点
-    this.add.circle(path[0].x, path[0].y, 10, 0x00ff00)  // 绿色起点
-    this.add.circle(path[path.length - 1].x, path[path.length - 1].y, 10, 0xff0000)  // 红色终点
+    this.selectedZoneIndex = zoneIndex
+    const area = level1Config.map.deployableAreas[zoneIndex]
+    const heroes = createDefaultHeroes()
+    const heroList = Array.from(heroes.values())
+
+    // 面板位置（在部署区域上方）
+    const panelX = area.x + area.width / 2
+    const panelY = area.y - 80
+
+    // 创建面板容器
+    this.heroSelectionPanel = this.add.container(panelX, panelY)
+
+    // 面板背景
+    const panelBg = this.add.rectangle(0, 0, 280, 160, 0x333333, 0.9)
+    this.heroSelectionPanel.add(panelBg)
+
+    // 面板标题
+    const title = this.add.text(0, -70, '选择英雄', {
+      fontSize: '16px',
+      color: '#ffffff'
+    }).setOrigin(0.5)
+    this.heroSelectionPanel.add(title)
+
+    // 英雄选项
+    const startX = -120
+    const startY = -40
+    const spacing = 90
+
+    for (let i = 0; i < heroList.length; i++) {
+      const hero = heroList[i]
+      const heroX = startX + i * spacing
+
+      // 英雄头像
+      const imageKey = this.getHeroImageKey(hero.id)
+      if (this.textures.exists(imageKey)) {
+        const heroImage = this.add.image(heroX, startY, imageKey)
+        heroImage.setDisplaySize(50, 50)
+        heroImage.setInteractive({ useHandCursor: true })
+
+        // 悬停效果
+        heroImage.on('pointerover', () => {
+          heroImage.setScale(1.1)
+        })
+        heroImage.on('pointerout', () => {
+          heroImage.setScale(1)
+        })
+
+        // 点击选择英雄
+        heroImage.on('pointerdown', () => {
+          this.selectHeroForDeployment(hero)
+        })
+
+        this.heroSelectionPanel.add(heroImage)
+      }
+
+      // 英雄名称
+      const nameText = this.add.text(heroX, startY + 30, hero.name, {
+        fontSize: '12px',
+        color: '#ffffff'
+      }).setOrigin(0.5)
+      this.heroSelectionPanel.add(nameText)
+
+      // 费用
+      const costText = this.add.text(heroX, startY + 45, `费用:${hero.deploymentCost}`, {
+        fontSize: '10px',
+        color: '#ffaa00'
+      }).setOrigin(0.5)
+      this.heroSelectionPanel.add(costText)
+    }
+
+    // 关闭按钮
+    const closeBtn = this.add.rectangle(120, -70, 30, 20, 0xff0000)
+    closeBtn.setInteractive({ useHandCursor: true })
+    closeBtn.on('pointerdown', () => {
+      this.hideHeroSelectionPanel()
+    })
+
+    const closeText = this.add.text(120, -70, 'X', {
+      fontSize: '12px',
+      color: '#ffffff'
+    }).setOrigin(0.5)
+
+    this.heroSelectionPanel.add(closeBtn)
+    this.heroSelectionPanel.add(closeText)
+
+    // 设置深度（最上层）
+    this.heroSelectionPanel.setDepth(30)
+
+    // 淡入动画
+    this.heroSelectionPanel.setAlpha(0)
+    this.tweens.add({
+      targets: this.heroSelectionPanel,
+      alpha: 1,
+      duration: 200
+    })
+  }
+
+  /**
+   * 隐藏英雄选择面板
+   */
+  private hideHeroSelectionPanel(): void {
+    if (this.heroSelectionPanel) {
+      this.heroSelectionPanel.destroy()
+      this.heroSelectionPanel = null
+      this.selectedZoneIndex = null
+    }
+  }
+
+  /**
+   * 选择英雄进行部署
+   */
+  private selectHeroForDeployment(hero: Hero): void {
+    if (this.selectedZoneIndex === null) return
+
+    const area = level1Config.map.deployableAreas[this.selectedZoneIndex]
+    const position: Point = {
+      x: area.x + area.width / 2,
+      y: area.y + area.height / 2
+    }
+
+    const result = this.battleSystem.placeHero(hero.id, position)
+
+    if (result.success) {
+      console.log(`成功在区域${this.selectedZoneIndex + 1}部署英雄 ${hero.name}`)
+      this.deploymentZoneRenderer.showZoneInfo(this.selectedZoneIndex, `已部署: ${hero.name}`)
+      this.hideHeroSelectionPanel()
+    } else {
+      console.log(`部署失败: ${result.reason}`)
+      this.showTemporaryMessage(`部署失败: ${result.reason}`)
+    }
+  }
+
+  /**
+   * 显示临时消息
+   */
+  private showTemporaryMessage(message: string): void {
+    const msg = this.add.text(this.cameras.main.width / 2, 100, message, {
+      fontSize: '20px',
+      color: '#ff0000'
+    }).setOrigin(0.5).setDepth(25)
+
+    this.time.delayedCall(2000, () => {
+      msg.destroy()
+    })
   }
 
   /**
@@ -117,10 +317,16 @@ export default class BattleScene extends Phaser.Scene {
       color: '#ffffff'
     }).setOrigin(0.5)
 
+    // 地形信息提示
+    this.add.text(width - 200, height - 30, '点击蓝色区域部署英雄', {
+      fontSize: '12px',
+      color: '#4a90d9'
+    }).setOrigin(0.5)
+
     // 返回按钮
     this.createBackButton(width, height)
 
-    // 英雄选择面板（简化版）
+    // 英雄选择面板（右侧）
     this.createHeroPanel(width, height)
   }
 
@@ -139,18 +345,16 @@ export default class BattleScene extends Phaser.Scene {
     buttonBg.on('pointerover', () => {
       buttonBg.setFillStyle(0x666666)
     })
-
     buttonBg.on('pointerout', () => {
       buttonBg.setFillStyle(0x444444)
     })
-
     buttonBg.on('pointerdown', () => {
       this.scene.start('TitleScene')
     })
   }
 
   /**
-   * 创建英雄选择面板
+   * 创建英雄选择面板（右侧固定面板）
    */
   private createHeroPanel(width: number, height: number): void {
     const panelX = width - 150
@@ -165,26 +369,22 @@ export default class BattleScene extends Phaser.Scene {
 
     let yOffset = -150
     for (const hero of heroList) {
-      // 英雄头像图片
       const imageKey = this.getHeroImageKey(hero.id)
       if (this.textures.exists(imageKey)) {
         const heroImage = this.add.image(panelX, panelY + yOffset - 20, imageKey)
-        heroImage.setDisplaySize(60, 60)  // 缩小显示
+        heroImage.setDisplaySize(60, 60)
         heroImage.setInteractive({ useHandCursor: true })
 
-        // 点击放置英雄
         heroImage.on('pointerdown', () => {
           this.placeHeroAtRandomPosition(hero.id)
         })
       }
 
-      // 英雄名称
       this.add.text(panelX, panelY + yOffset + 20, hero.name, {
         fontSize: '12px',
         color: '#ffffff'
       }).setOrigin(0.5)
 
-      // 费用显示
       this.add.text(panelX, panelY + yOffset + 35, `费用: ${hero.deploymentCost}`, {
         fontSize: '10px',
         color: '#ffaa00'
@@ -207,14 +407,14 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 在随机位置放置英雄（简化实现）
+   * 在随机位置放置英雄（保留原有功能）
    */
   private placeHeroAtRandomPosition(heroId: string): void {
     const areas = level1Config.map.deployableAreas
     if (areas.length === 0) return
 
     const area = areas[Math.floor(Math.random() * areas.length)]
-    const position = {
+    const position: Point = {
       x: area.x + area.width / 2,
       y: area.y + area.height / 2
     }
@@ -225,61 +425,28 @@ export default class BattleScene extends Phaser.Scene {
       console.log(`成功放置英雄 ${heroId}，剩余费用: ${result.remainingCost}`)
     } else {
       console.log(`放置失败: ${result.reason}`)
-      // 显示提示
       this.showTemporaryMessage(`放置失败: ${result.reason}`)
     }
-  }
-
-  /**
-   * 显示临时消息
-   */
-  private showTemporaryMessage(message: string): void {
-    const msg = this.add.text(this.cameras.main.width / 2, 100, message, {
-      fontSize: '20px',
-      color: '#ff0000'
-    }).setOrigin(0.5)
-
-    this.time.delayedCall(2000, () => {
-      msg.destroy()
-    })
-  }
-
-  /**
-   * 获取英雄颜色
-   */
-  private getHeroColor(wuXing: string): number {
-    const colors: Record<string, number> = {
-      metal: 0xcccccc,
-      wood: 0x00aa00,
-      water: 0x0088ff,
-      fire: 0xff4400,
-      earth: 0xffcc00
-    }
-    return colors[wuXing] || 0x888888
   }
 
   /**
    * 注册战斗事件回调
    */
   private registerBattleCallbacks(): void {
-    // 敌人被击杀
     this.battleSystem.onEnemyKilled((enemy) => {
       console.log(`敌人 ${enemy.getEnemyData().name} 被击杀`)
     })
 
-    // 敌人到达终点
     this.battleSystem.onEnemyReachedExit((enemy) => {
       console.log(`敌人 ${enemy.getEnemyData().name} 到达终点`)
       this.showTemporaryMessage('敌人突破了防线！')
     })
 
-    // 波次开始
     this.battleSystem.onWaveStart((wave) => {
       console.log(`波次 ${wave} 开始`)
       this.showTemporaryMessage(`波次 ${wave} 开始！`)
     })
 
-    // 战斗结束
     this.battleSystem.onBattleEnd((result) => {
       if (result.isVictory) {
         this.statusText.setText('胜利！')
@@ -297,14 +464,8 @@ export default class BattleScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     if (!this.battleSystem) return
 
-    // 更新战斗系统
     this.battleSystem.update(delta)
-
-    // 更新UI
     this.updateUI()
-
-    // 敌人生成（简化实现：手动触发）
-    this.spawnEnemiesIfNeeded()
   }
 
   /**
@@ -316,20 +477,5 @@ export default class BattleScene extends Phaser.Scene {
     this.costText.setText(`费用: ${state.currentCost}`)
     this.healthText.setText(`生命: ${state.playerHealth}`)
     this.waveText.setText(`波次: ${state.currentWave}/${state.totalWaves}`)
-  }
-
-  /**
-   * 敌人生成（简化实现）
-   */
-  private spawnEnemiesIfNeeded(): void {
-    // 简化实现：根据波次配置手动生成敌人
-    // 完整实现需要在BattleSystem中集成WaveManager的生成逻辑
-    // 这里作为tracer bullet，暂时手动生成一些敌人测试
-
-    const state = this.battleSystem.getState()
-    if (state.status === 'running' && state.activeEnemies.length < 3) {
-      // 手动生成敌人测试
-      // 完整实现后删除这段代码
-    }
   }
 }

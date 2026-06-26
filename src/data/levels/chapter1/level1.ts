@@ -27,7 +27,19 @@ export const level1Config: LevelConfig = {
       { x: 350, y: 150, width: 100, height: 50 },
       { x: 600, y: 350, width: 100, height: 80 },
       { x: 900, y: 200, width: 100, height: 50 }
-    ]
+    ],
+    // 地形区域配置
+    terrainAreas: [
+      // 整体背景草地
+      { type: 'grass', area: { x: 0, y: 0, width: 1280, height: 720 } },
+      // 山地障碍（路径上方）
+      { type: 'mountain', area: { x: 250, y: 100, width: 300, height: 60 } },
+      // 河流区域（路径右侧）
+      { type: 'river', area: { x: 850, y: 280, width: 150, height: 200 } },
+      // 森林区域（左下角）
+      { type: 'forest', area: { x: 50, y: 500, width: 200, height: 150 } }
+    ],
+    defaultTerrain: 'grass'
   },
   waves: [
     {
