@@ -33,7 +33,7 @@ export class SkillManager {
           skillId: activeSkillId,
           currentCooldown: 0,
           isReady: true,
-          isAutoActive: false // 主动技能默认手动触发
+          isAutoActive: true // 主动技能默认自动触发（玩家可以关闭）
         })
       }
     }

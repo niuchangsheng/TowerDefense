@@ -36,6 +36,11 @@ export default class PreloadScene extends Phaser.Scene {
       console.log('PreloadScene: 资源加载完成')
     })
 
+    // 添加错误处理
+    this.load.on('loaderror', (file: any) => {
+      console.error(`加载失败: ${file.key} - ${file.path}`)
+    })
+
     // 加载真实资源
     this.loadRealAssets()
 

@@ -1,2 +1,3 @@
 export { SkillManager } from './SkillManager'
-export { SkillExecutor, SkillExecutionResult } from './SkillExecutor'
+export { SkillExecutor } from './SkillExecutor'
+export type { SkillExecutionResult } from './SkillExecutor'

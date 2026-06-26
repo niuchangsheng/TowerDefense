@@ -11,9 +11,7 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   private enemySprite: Phaser.GameObjects.Rectangle
   private wuXingText: Phaser.GameObjects.Text
 
-  // 状态效果
-  private stunEndTime: number = 0
-  private slowEndTime: number = 0
+  // 减速状态
   private slowPercent: number = 0
 
   constructor(scene: Phaser.Scene, enemy: Enemy) {
@@ -166,10 +164,9 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
    * @param duration 眩晕持续时间（毫秒）
    */
   applyStun(duration: number): void {
-    this.stunEndTime = Date.now() + duration
-
-    // 眩晕视觉效果
-    this.enemySprite.setFillStyle(0xffff00)  // 变黄
+    // 眩晕视觉效果（简化版，不使用定时器）
+    const originalColor = this.getWuXingColor(this.enemyData.wuXing)
+    this.enemySprite.setFillStyle(0xffff00)  // 变黄表示眩晕
 
     // 添加眩晕标记
     const stunText = this.scene.add.text(0, -40, '眩晕', {
@@ -178,11 +175,14 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     }).setOrigin(0.5)
     this.add(stunText)
 
-    // 定时恢复
+    // 使用场景定时器恢复
     this.scene.time.delayedCall(duration, () => {
-      this.stunEndTime = 0
-      this.enemySprite.setFillStyle(this.getWuXingColor(this.enemyData.wuXing))
-      stunText.destroy()
+      if (this.enemySprite) {
+        this.enemySprite.setFillStyle(originalColor)
+      }
+      if (stunText && stunText.active) {
+        stunText.destroy()
+      }
     })
   }
 
@@ -193,10 +193,10 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
    */
   applySlow(percent: number, duration: number): void {
     this.slowPercent = percent
-    this.slowEndTime = Date.now() + duration
 
-    // 减速视觉效果
-    this.enemySprite.setFillStyle(0x0088ff)  // 变蓝
+    // 减速视觉效果（简化版）
+    const originalColor = this.getWuXingColor(this.enemyData.wuXing)
+    this.enemySprite.setFillStyle(0x0088ff)  // 变蓝表示减速
 
     // 添加减速标记
     const slowText = this.scene.add.text(0, -40, '减速', {
@@ -205,33 +205,29 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     }).setOrigin(0.5)
     this.add(slowText)
 
-    // 定时恢复
+    // 使用场景定时器恢复
     this.scene.time.delayedCall(duration, () => {
       this.slowPercent = 0
-      this.slowEndTime = 0
-      this.enemySprite.setFillStyle(this.getWuXingColor(this.enemyData.wuXing))
-      slowText.destroy()
+      if (this.enemySprite) {
+        this.enemySprite.setFillStyle(originalColor)
+      }
+      if (slowText && slowText.active) {
+        slowText.destroy()
+      }
     })
-  }
-
-  /**
-   * 检查是否处于眩晕状态
-   */
-  isStunned(): boolean {
-    return Date.now() < this.stunEndTime
   }
 
   /**
    * 检查是否处于减速状态
    */
   isSlowed(): boolean {
-    return Date.now() < this.slowEndTime
+    return this.slowPercent > 0
   }
 
   /**
    * 获取减速百分比
    */
   getSlowPercent(): number {
-    return this.isSlowed() ? this.slowPercent : 0
+    return this.slowPercent
   }
 }
