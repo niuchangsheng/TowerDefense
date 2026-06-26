@@ -4,12 +4,14 @@ import { Hero, DeployedHero, Point, HeroStats } from '@/types'
 /**
  * 英雄渲染实体
  * Phaser游戏对象，负责英雄的渲染和动画
+ * 使用三国志11真实头像
  */
 export class HeroEntity extends Phaser.GameObjects.Container {
   private heroData: Hero
   private deployedData: DeployedHero
-  private heroSprite: Phaser.GameObjects.Rectangle
-  private wuXingText: Phaser.GameObjects.Text
+  private heroImage: Phaser.GameObjects.Image  // 改为图片类型
+  private heroNameText: Phaser.GameObjects.Text  // 英雄名称
+  private wuXingText: Phaser.GameObjects.Text   // 五行属性
   private rangeIndicator: Phaser.GameObjects.Graphics
 
   constructor(scene: Phaser.Scene, hero: Hero, deployed: DeployedHero) {
@@ -18,15 +20,30 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.heroData = hero
     this.deployedData = deployed
 
-    // 创建英雄图形（占位：使用矩形）
-    const color = this.getWuXingColor(hero.wuXing)
-    this.heroSprite = scene.add.rectangle(0, 0, 60, 60, color)
-    this.add(this.heroSprite)
+    // 获取头像图片key（根据英雄ID）
+    const imageKey = this.getHeroImageKey(hero.id)
 
-    // 创建五行文字
-    this.wuXingText = scene.add.text(0, 0, this.getWuXingText(hero.wuXing), {
-      fontSize: '16px',
-      color: '#000000'
+    // 创建英雄头像图片（缩放到合适大小）
+    // 原图240x240，缩放到80x80显示
+    this.heroImage = scene.add.image(0, 0, imageKey)
+    this.heroImage.setDisplaySize(80, 80)  // 显示尺寸
+    this.add(this.heroImage)
+
+    // 创建英雄名称文字
+    this.heroNameText = scene.add.text(0, -50, hero.name, {
+      fontSize: '14px',
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { x: 4, y: 2 }
+    }).setOrigin(0.5)
+    this.add(this.heroNameText)
+
+    // 创建五行文字（显示在头像下方）
+    this.wuXingText = scene.add.text(0, 50, this.getWuXingText(hero.wuXing), {
+      fontSize: '12px',
+      color: this.getWuXingTextColor(hero.wuXing),
+      backgroundColor: '#000000',
+      padding: { x: 3, y: 1 }
     }).setOrigin(0.5)
     this.add(this.wuXingText)
 
@@ -41,10 +58,30 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     // 添加到场景
     scene.add.existing(this)
 
-    // 设置交互
-    this.setInteractive({ useHandCursor: true })
-    this.on('pointerover', () => this.showRangeIndicator())
-    this.on('pointerout', () => this.hideRangeIndicator())
+    // 设置交互区域（基于头像大小）
+    this.heroImage.setInteractive({ useHandCursor: true })
+    this.heroImage.on('pointerover', () => this.showRangeIndicator())
+    this.heroImage.on('pointerout', () => this.hideRangeIndicator())
+  }
+
+  /**
+   * 获取英雄头像图片key
+   */
+  private getHeroImageKey(heroId: string): string {
+    // 映射英雄ID到预加载的图片key
+    const imageKeyMap: Record<string, string> = {
+      'hero_guanyu': 'hero_guanyu',
+      'hero_zhangfei': 'hero_zhangfei',
+      'hero_zhaoyun': 'hero_zhaoyun'
+    }
+
+    const key = imageKeyMap[heroId]
+    if (key && this.scene.textures.exists(key)) {
+      return key
+    }
+
+    // 如果没有找到真实头像，使用占位符
+    return 'hero_placeholder'
   }
 
   /**
@@ -52,9 +89,17 @@ export class HeroEntity extends Phaser.GameObjects.Container {
    */
   playAttackAnimation(): void {
     this.scene.tweens.add({
-      targets: this.heroSprite,
-      scale: 1.2,
+      targets: this.heroImage,
+      scale: 1.3,  // 攻击时放大
       duration: 100,
+      yoyo: true
+    })
+
+    // 攻击时闪烁效果
+    this.scene.tweens.add({
+      targets: this.heroImage,
+      alpha: 0.7,
+      duration: 50,
       yoyo: true
     })
   }
@@ -64,8 +109,12 @@ export class HeroEntity extends Phaser.GameObjects.Container {
    */
   showRangeIndicator(): void {
     this.rangeIndicator.clear()
-    this.rangeIndicator.lineStyle(2, 0x00ff00, 0.5)
+    this.rangeIndicator.lineStyle(2, 0x00ff00, 0.3)
     this.rangeIndicator.strokeCircle(0, 0, this.heroData.baseStats.attackRange)
+
+    // 显示英雄信息提示
+    this.heroNameText.setAlpha(1)
+    this.wuXingText.setAlpha(1)
   }
 
   /**
@@ -112,10 +161,8 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
   /**
    * 获取英雄属性（包含等级和装备加成）
-   * TODO: Phase 4实现完整的属性计算
    */
   getEffectiveStats(): HeroStats {
-    // 基础属性 + 等级加成（简化：每级+5%）
     const levelMultiplier = 1 + (this.heroData.level - 1) * 0.05
     return {
       attack: Math.floor(this.heroData.baseStats.attack * levelMultiplier),
@@ -125,17 +172,17 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   }
 
   /**
-   * 获取五行颜色
+   * 获取五行文字颜色
    */
-  private getWuXingColor(wuXing: string): number {
-    const colors: Record<string, number> = {
-      metal: 0xcccccc,   // 灰白色
-      wood: 0x00aa00,    // 深绿色
-      water: 0x0088ff,   // 蓝色
-      fire: 0xff4400,    // 橙红色
-      earth: 0xffcc00    // 金黄色
+  private getWuXingTextColor(wuXing: string): string {
+    const colors: Record<string, string> = {
+      metal: '#cccccc',   // 灰白色
+      wood: '#00aa00',    // 深绿色
+      water: '#0088ff',   // 蓝色
+      fire: '#ff4400',    // 橙红色
+      earth: '#ffcc00'    // 金黄色
     }
-    return colors[wuXing] || 0x888888
+    return colors[wuXing] || '#888888'
   }
 
   /**

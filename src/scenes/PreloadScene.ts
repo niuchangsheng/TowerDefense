@@ -36,8 +36,11 @@ export default class PreloadScene extends Phaser.Scene {
       console.log('PreloadScene: 资源加载完成')
     })
 
-    // 加载资源（暂时使用占位图片）
-    this.loadPlaceholderAssets()
+    // 加载真实资源
+    this.loadRealAssets()
+
+    // 加载占位资源（备用）
+    this.createPlaceholderTextures()
   }
 
   /**
@@ -82,26 +85,27 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   /**
-   * 加载占位资源（开发阶段）
+   * 加载真实资源（三国志11素材）
    */
-  private loadPlaceholderAssets(): void {
-    // 创建占位图片（用于开发阶段）
-    // 后续会替换为实际资源
+  private loadRealAssets(): void {
+    // 加载武将头像
+    this.load.image('hero_guanyu', 'assets/images/heroes/San11/face/0002_关羽_1.jpg')
+    this.load.image('hero_zhangfei', 'assets/images/heroes/San11/face/0001_张飞_1.jpg')
+    this.load.image('hero_zhaoyun', 'assets/images/heroes/San11/face/0009_赵云_1.jpg')
 
-    // 创建简单的占位纹理
-    this.createPlaceholderTextures()
+    // 可以加载更多武将头像（后续扩展）
+    // this.load.image('hero_lvbu', 'assets/images/heroes/San11/face/0003_吕布_1.jpg')
+    // this.load.image('hero_machao', 'assets/images/heroes/San11/face/0004_马超_1.jpg')
+    // ...
 
-    // 模拟加载延迟（开发阶段）
-    for (let i = 0; i < 10; i++) {
-      this.load.image(`placeholder_${i}`, `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==`)
-    }
+    console.log('PreloadScene: 武将头像加载完成')
   }
 
   /**
-   * 创建占位纹理
+   * 创建占位纹理（备用）
    */
   private createPlaceholderTextures(): void {
-    // 英雄占位（简单矩形）
+    // 英雄占位（简单矩形）- 作为备用
     const heroGraphics = this.add.graphics()
     heroGraphics.fillStyle(0x00ff00)
     heroGraphics.fillRect(0, 0, 64, 64)

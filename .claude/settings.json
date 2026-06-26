@@ -12,7 +12,26 @@
       "Bash(git commit -m 'docs: 添加技术架构设计文档 *)",
       "Bash(git commit -m 'feat: Phase 2 - 核心战斗系统实现 *)",
       "Bash(node_modules/.bin/tsc --noEmit)",
-      "Bash(git commit -m 'feat: Phase 2完成 - BattleScene集成战斗系统 *)"
+      "Bash(git commit -m 'feat: Phase 2完成 - BattleScene集成战斗系统 *)",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=三国志11+素材&sort=stars\")",
+      "Bash(ls -la \"/mnt/c/Program Files/San11pk Tc/Media/face\" 2>&1 | head -20)",
+      "Read(//mnt/c/Program Files/San11pk Tc/Media/face/**)",
+      "Bash(mkdir -p assets/images/source && cp \"/mnt/c/Program Files/San11pk Tc/Media/face/San11Face00.fce\" assets/images/source/)",
+      "Bash(python3 scripts/extract_fce.py)",
+      "Bash(pip install *)",
+      "Bash(mkdir -p assets/images/heroes/San11 && mv assets/images/heroes_extracted/*.png assets/images/heroes/San11/ && rmdir assets/images/heroes_extracted && ls assets/images/heroes/San11/ | wc -l)",
+      "Bash(mkdir -p assets/images/heroes/San11 && ls \"/mnt/c/Users/chang/Codes/\" | grep -E \"face|baoji\")",
+      "Read(//mnt/c/Users/chang/Codes/**)",
+      "Bash(cp -r \"/mnt/c/Users/chang/Codes/face\" assets/images/heroes/San11/)",
+      "Bash(cp -r \"/mnt/c/Users/chang/Codes/baoji\" assets/images/heroes/San11/)",
+      "Bash(ls \"/mnt/c/Program Files/San11pk Tc/Media/\")",
+      "Read(//mnt/c/Program Files/San11pk Tc/Media/**)",
+      "Bash(git commit -m 'assets: 添加三国志11武将头像素材 *)",
+      "Bash(git commit -m 'feat: 应用三国志11武将头像到游戏 *)"
+    ],
+    "additionalDirectories": [
+      "/mnt/c/Program Files/San11pk Tc/Media/face",
+      "/home/chang/TowerDefense/assets/images/heroes_extracted"
     ]
   }
 }

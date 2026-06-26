@@ -159,32 +159,51 @@ export default class BattleScene extends Phaser.Scene {
     // 面板背景
     this.add.rectangle(panelX, panelY, 120, 400, 0x333333)
 
-    // 英雄按钮
+    // 英雄按钮（使用真实头像）
     const heroes = createDefaultHeroes()
     const heroList = Array.from(heroes.values())
 
     let yOffset = -150
     for (const hero of heroList) {
-      const heroButton = this.add.rectangle(panelX, panelY + yOffset, 100, 80, this.getHeroColor(hero.wuXing))
-      heroButton.setInteractive({ useHandCursor: true })
+      // 英雄头像图片
+      const imageKey = this.getHeroImageKey(hero.id)
+      if (this.textures.exists(imageKey)) {
+        const heroImage = this.add.image(panelX, panelY + yOffset - 20, imageKey)
+        heroImage.setDisplaySize(60, 60)  // 缩小显示
+        heroImage.setInteractive({ useHandCursor: true })
 
-      this.add.text(panelX, panelY + yOffset - 20, hero.name, {
-        fontSize: '16px',
+        // 点击放置英雄
+        heroImage.on('pointerdown', () => {
+          this.placeHeroAtRandomPosition(hero.id)
+        })
+      }
+
+      // 英雄名称
+      this.add.text(panelX, panelY + yOffset + 20, hero.name, {
+        fontSize: '12px',
         color: '#ffffff'
       }).setOrigin(0.5)
 
-      this.add.text(panelX, panelY + yOffset + 10, `费用: ${hero.deploymentCost}`, {
-        fontSize: '12px',
+      // 费用显示
+      this.add.text(panelX, panelY + yOffset + 35, `费用: ${hero.deploymentCost}`, {
+        fontSize: '10px',
         color: '#ffaa00'
       }).setOrigin(0.5)
 
-      // 点击放置英雄（简化：放置在固定位置）
-      heroButton.on('pointerdown', () => {
-        this.placeHeroAtRandomPosition(hero.id)
-      })
-
       yOffset += 100
     }
+  }
+
+  /**
+   * 获取英雄头像图片key
+   */
+  private getHeroImageKey(heroId: string): string {
+    const imageKeyMap: Record<string, string> = {
+      'hero_guanyu': 'hero_guanyu',
+      'hero_zhangfei': 'hero_zhangfei',
+      'hero_zhaoyun': 'hero_zhaoyun'
+    }
+    return imageKeyMap[heroId] || 'hero_placeholder'
   }
 
   /**
