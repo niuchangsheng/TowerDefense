@@ -13,6 +13,12 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   private heroNameText: Phaser.GameObjects.Text  // 英雄名称
   private wuXingText: Phaser.GameObjects.Text   // 五行属性
   private rangeIndicator: Phaser.GameObjects.Graphics
+  private skillCooldownBar: Phaser.GameObjects.Graphics  // 技能冷却进度条
+  private skillCooldownOverlay: Phaser.GameObjects.Graphics  // 技能冷却遮罩
+  private skillReadyIndicator: Phaser.GameObjects.Text  // 技能就绪提示
+
+  // 技能冷却状态（主动技能）
+  private activeSkillCooldownPercent: number = 0
 
   constructor(scene: Phaser.Scene, hero: Hero, deployed: DeployedHero) {
     super(scene, deployed.position.x, deployed.position.y)
@@ -51,6 +57,23 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.rangeIndicator = scene.add.graphics()
     this.add(this.rangeIndicator)
     this.hideRangeIndicator()
+
+    // 创建技能冷却进度条
+    this.skillCooldownBar = scene.add.graphics()
+    this.add(this.skillCooldownBar)
+
+    // 创建技能冷却遮罩（覆盖在头像上）
+    this.skillCooldownOverlay = scene.add.graphics()
+    this.add(this.skillCooldownOverlay)
+
+    // 技能就绪提示（显示在头像上方）
+    this.skillReadyIndicator = scene.add.text(0, -65, '技能就绪', {
+      fontSize: '10px',
+      color: '#00ff00',
+      backgroundColor: '#000000',
+      padding: { x: 2, y: 1 }
+    }).setOrigin(0.5).setAlpha(0)  // 初始隐藏
+    this.add(this.skillReadyIndicator)
 
     // 设置深度
     this.setDepth(15)
@@ -153,6 +176,45 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   }
 
   /**
+   * 更新技能冷却显示
+   * @param cooldownPercent 冷却百分比（0-1，1表示就绪）
+   */
+  updateSkillCooldownDisplay(cooldownPercent: number): void {
+    this.activeSkillCooldownPercent = cooldownPercent
+
+    // 更新冷却进度条（底部）
+    this.skillCooldownBar.clear()
+    const barWidth = 60
+    const barHeight = 4
+    const barY = 55
+
+    // 背景
+    this.skillCooldownBar.fillStyle(0x333333, 0.8)
+    this.skillCooldownBar.fillRect(-barWidth / 2, barY, barWidth, barHeight)
+
+    // 进度
+    const progressColor = cooldownPercent >= 1 ? 0x00ff00 : 0x0088ff
+    this.skillCooldownBar.fillStyle(progressColor, 0.8)
+    this.skillCooldownBar.fillRect(-barWidth / 2, barY, barWidth * cooldownPercent, barHeight)
+
+    // 更新冷却遮罩（覆盖头像）
+    this.skillCooldownOverlay.clear()
+    if (cooldownPercent < 1) {
+      // 冷却中：显示半透明遮罩
+      this.skillCooldownOverlay.fillStyle(0x000000, 0.3 * (1 - cooldownPercent))
+      this.skillCooldownOverlay.fillRect(-40, -40, 80, 80)
+    }
+
+    // 更新技能就绪提示
+    if (cooldownPercent >= 1) {
+      this.skillReadyIndicator.setAlpha(1)
+      this.skillReadyIndicator.setText('技能就绪')
+    } else {
+      this.skillReadyIndicator.setAlpha(0)
+    }
+  }
+
+  /**
    * 更新上次攻击时间
    */
   updateLastAttackTime(time: number): void {
@@ -160,14 +222,30 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   }
 
   /**
-   * 获取英雄属性（包含等级和装备加成）
+   * 获取英雄属性（包含等级、装备和被动技能加成）
    */
   getEffectiveStats(): HeroStats {
     const levelMultiplier = 1 + (this.heroData.level - 1) * 0.05
+
+    // 基础属性
+    let attack = Math.floor(this.heroData.baseStats.attack * levelMultiplier)
+    let attackSpeed = this.heroData.baseStats.attackSpeed
+    const attackRange = this.heroData.baseStats.attackRange
+
+    // 应用被动技能buff
+    const passiveSkillId = this.heroData.passiveSkillId
+    if (passiveSkillId === 'skill_passive_zhangfei') {
+      // 猛将：攻击力+10%
+      attack = Math.floor(attack * 1.1)
+    } else if (passiveSkillId === 'skill_passive_zhaoyun') {
+      // 龙胆：攻速+20%
+      attackSpeed = attackSpeed * 1.2
+    }
+
     return {
-      attack: Math.floor(this.heroData.baseStats.attack * levelMultiplier),
-      attackSpeed: this.heroData.baseStats.attackSpeed,
-      attackRange: this.heroData.baseStats.attackRange
+      attack,
+      attackSpeed,
+      attackRange
     }
   }
 

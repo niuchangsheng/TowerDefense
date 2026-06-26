@@ -71,7 +71,7 @@ export class BattleSystem {
     )
 
     // 初始化英雄战斗管理
-    this.heroBattleManager = new HeroBattleManager(this.enemyManager)
+    this.heroBattleManager = new HeroBattleManager(scene, this.enemyManager)
 
     // 初始化部署英雄列表
     this.deployedHeroEntities = new Map()

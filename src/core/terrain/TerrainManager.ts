@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { TerrainType, TerrainArea, Point, Area } from '@/types'
+import { TerrainType, TerrainArea, TerrainConfig, Point, Area } from '@/types'
 import { TERRAIN_CONFIGS, getTerrainConfig } from '@/config/terrain.config'
 
 /**

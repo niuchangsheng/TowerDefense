@@ -2,18 +2,24 @@ import { EnemyEntity } from '@/entities/EnemyEntity'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { DamageCalculator } from '../battle/DamageCalculator'
 import { ATTACK_CONFIG } from '@/config/constants'
+import { SkillManager, SkillExecutor } from '../skill'
+import Phaser from 'phaser'
 
 /**
  * 英雄战斗管理器
- * 管理英雄的攻击逻辑
+ * 管理英雄的攻击逻辑和技能触发
  */
 export class HeroBattleManager {
   private deployedHeroes: Map<string, HeroEntity>
   private enemyManager: any  // EnemyManager类型，避免循环依赖
+  private skillManager: SkillManager
+  private skillExecutor: SkillExecutor
 
-  constructor(enemyManager: any) {
+  constructor(scene: Phaser.Scene, enemyManager: any) {
     this.deployedHeroes = new Map()
     this.enemyManager = enemyManager
+    this.skillManager = new SkillManager()
+    this.skillExecutor = new SkillExecutor(scene, this.skillManager, enemyManager)
   }
 
   /**
@@ -21,7 +27,14 @@ export class HeroBattleManager {
    */
   addHero(heroEntity: HeroEntity): void {
     const deployedData = heroEntity.getDeployedData()
+    const heroData = heroEntity.getHeroData()
     this.deployedHeroes.set(deployedData.instanceId, heroEntity)
+
+    // 初始化英雄技能
+    this.skillManager.initHeroSkills(
+      heroData.passiveSkillId,
+      heroData.activeSkillId
+    )
   }
 
   /**
@@ -37,7 +50,7 @@ export class HeroBattleManager {
   }
 
   /**
-   * 更新所有英雄的攻击
+   * 更新所有英雄的攻击和技能
    * @param deltaTime 时间增量（毫秒）
    * @param currentTime 当前时间（毫秒）
    * @returns 死亡的敌人列表
@@ -45,7 +58,17 @@ export class HeroBattleManager {
   update(deltaTime: number, currentTime: number): EnemyEntity[] {
     const killedEnemies: EnemyEntity[] = []
 
+    // 更新技能冷却
+    this.skillManager.updateCooldowns(deltaTime)
+
     for (const heroEntity of this.deployedHeroes.values()) {
+      // 更新技能冷却显示
+      this.updateSkillCooldownDisplay(heroEntity)
+
+      // 检查并触发主动技能（自动模式）
+      this.checkAutoSkill(heroEntity)
+
+      // 执行普攻
       const killed = this.checkAndAttack(heroEntity, currentTime)
       if (killed) {
         killedEnemies.push(killed)
@@ -53,6 +76,40 @@ export class HeroBattleManager {
     }
 
     return killedEnemies
+  }
+
+  /**
+   * 更新英雄技能冷却显示
+   */
+  private updateSkillCooldownDisplay(hero: HeroEntity): void {
+    const heroData = hero.getHeroData()
+    const activeSkillId = heroData.activeSkillId
+
+    if (!activeSkillId) return
+
+    const progress = this.skillManager.getCooldownProgress(activeSkillId)
+    hero.updateSkillCooldownDisplay(progress)
+  }
+
+  /**
+   * 检查主动技能自动触发
+   */
+  private checkAutoSkill(hero: HeroEntity): void {
+    const heroData = hero.getHeroData()
+    const activeSkillId = heroData.activeSkillId
+
+    if (!activeSkillId) return
+
+    const skillState = this.skillManager.getSkillState(activeSkillId)
+    if (!skillState || !skillState.isAutoActive || !skillState.isReady) return
+
+    // 执行主动技能
+    const deployedData = hero.getDeployedData()
+    this.skillExecutor.executeSkill(
+      activeSkillId,
+      deployedData.position,
+      hero
+    )
   }
 
   /**
@@ -103,6 +160,7 @@ export class HeroBattleManager {
     const heroData = hero.getHeroData()
     const stats = hero.getEffectiveStats()
     const targetData = target.getEnemyData()
+    const deployedData = hero.getDeployedData()
 
     // 计算伤害
     const damage = DamageCalculator.calculateDamage(
@@ -117,6 +175,9 @@ export class HeroBattleManager {
     // 播放攻击动画
     hero.playAttackAnimation()
 
+    // 触发被动技能（攻击时触发）
+    this.triggerPassiveSkill(hero, target)
+
     // 检查是否死亡
     if (targetData.currentHealth <= 0) {
       target.die()
@@ -124,6 +185,34 @@ export class HeroBattleManager {
     }
 
     return null
+  }
+
+  /**
+   * 触发被动技能
+   */
+  private triggerPassiveSkill(hero: HeroEntity, target: EnemyEntity): void {
+    const heroData = hero.getHeroData()
+    const passiveSkillId = heroData.passiveSkillId
+
+    if (!passiveSkillId) return
+
+    const skillState = this.skillManager.getSkillState(passiveSkillId)
+    if (!skillState || !skillState.isReady) return
+
+    // 关羽武圣：15%概率触发横扫
+    if (passiveSkillId === 'skill_passive_guanyu') {
+      if (Math.random() < 0.15) {
+        const deployedData = hero.getDeployedData()
+        this.skillExecutor.executeSkill(
+          passiveSkillId,
+          deployedData.position,
+          hero
+        )
+      }
+    }
+
+    // 张飞猛将、赵云龙胆：永久buff，不需要触发
+    // buff效果已在HeroEntity.getEffectiveStats()中应用
   }
 
   /**

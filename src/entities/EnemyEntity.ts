@@ -11,6 +11,11 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   private enemySprite: Phaser.GameObjects.Rectangle
   private wuXingText: Phaser.GameObjects.Text
 
+  // 状态效果
+  private stunEndTime: number = 0
+  private slowEndTime: number = 0
+  private slowPercent: number = 0
+
   constructor(scene: Phaser.Scene, enemy: Enemy) {
     super(scene, enemy.position.x, enemy.position.y)
 
@@ -154,5 +159,79 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
       earth: '土'
     }
     return texts[wuXing] || '?'
+  }
+
+  /**
+   * 应用眩晕效果
+   * @param duration 眩晕持续时间（毫秒）
+   */
+  applyStun(duration: number): void {
+    this.stunEndTime = Date.now() + duration
+
+    // 眩晕视觉效果
+    this.enemySprite.setFillStyle(0xffff00)  // 变黄
+
+    // 添加眩晕标记
+    const stunText = this.scene.add.text(0, -40, '眩晕', {
+      fontSize: '10px',
+      color: '#ffff00'
+    }).setOrigin(0.5)
+    this.add(stunText)
+
+    // 定时恢复
+    this.scene.time.delayedCall(duration, () => {
+      this.stunEndTime = 0
+      this.enemySprite.setFillStyle(this.getWuXingColor(this.enemyData.wuXing))
+      stunText.destroy()
+    })
+  }
+
+  /**
+   * 应用减速效果
+   * @param percent 减速百分比（0.3 = 30%减速）
+   * @param duration 持续时间（毫秒）
+   */
+  applySlow(percent: number, duration: number): void {
+    this.slowPercent = percent
+    this.slowEndTime = Date.now() + duration
+
+    // 减速视觉效果
+    this.enemySprite.setFillStyle(0x0088ff)  // 变蓝
+
+    // 添加减速标记
+    const slowText = this.scene.add.text(0, -40, '减速', {
+      fontSize: '10px',
+      color: '#0088ff'
+    }).setOrigin(0.5)
+    this.add(slowText)
+
+    // 定时恢复
+    this.scene.time.delayedCall(duration, () => {
+      this.slowPercent = 0
+      this.slowEndTime = 0
+      this.enemySprite.setFillStyle(this.getWuXingColor(this.enemyData.wuXing))
+      slowText.destroy()
+    })
+  }
+
+  /**
+   * 检查是否处于眩晕状态
+   */
+  isStunned(): boolean {
+    return Date.now() < this.stunEndTime
+  }
+
+  /**
+   * 检查是否处于减速状态
+   */
+  isSlowed(): boolean {
+    return Date.now() < this.slowEndTime
+  }
+
+  /**
+   * 获取减速百分比
+   */
+  getSlowPercent(): number {
+    return this.isSlowed() ? this.slowPercent : 0
   }
 }
