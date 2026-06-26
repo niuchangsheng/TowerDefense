@@ -1,4 +1,5 @@
 import { WaveConfig, DropItem } from './enemy.types'
+import { TerrainType, TerrainArea } from './terrain.types'
 
 // 坐标点
 export interface Point {
@@ -23,6 +24,8 @@ export interface LevelMapConfig {
   spawnPoint: Point          // 敌人生成点
   exitPoint: Point           // 敌人离开点（到达此处扣玩家生命）
   deployableAreas: Area[]    // 可部署英雄的区域
+  terrainAreas?: TerrainArea[] // 地形区域配置
+  defaultTerrain?: TerrainType // 默认地形类型
 }
 
 // 关卡奖励配置
