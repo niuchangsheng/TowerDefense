@@ -312,6 +312,7 @@ export class SkillExecutor {
 
   /**
    * 展示暴击图（三国志11风格）
+   * 动画：从右侧滑入 → 中间停留 → 左侧滑出
    * @param heroId 英雄ID
    * @param skillName 技能名称
    */
@@ -336,86 +337,62 @@ export class SkillExecutor {
     // 半透明黑色背景（增加视觉冲击）
     const bg = this.scene.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3)
 
-    // 暴击图（放大显示，偏左位置）
-    const baojiImage = this.scene.add.image(width * 0.35, height / 2, baojiKey)
-    baojiImage.setDisplaySize(400, 400) // 大尺寸展示
+    // 暴击图（适中尺寸，屏幕中央）
+    const baojiImage = this.scene.add.image(0, height / 2, baojiKey)
+    baojiImage.setDisplaySize(300, 300) // 适中尺寸
 
     // 技能名称（白色粗体，显示在暴击图下方）
-    const skillText = this.scene.add.text(width * 0.35, height / 2 + 220, skillName, {
-      fontSize: '32px',
+    const skillText = this.scene.add.text(0, height / 2 + 170, skillName, {
+      fontSize: '28px',
       color: '#ffffff',
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 4
     }).setOrigin(0.5)
 
-    // 闪光特效（从左到右的光线）
-    const flashGraphics = this.scene.add.graphics()
-    flashGraphics.fillStyle(0xffffff, 0.8)
-    const flash = this.scene.add.rectangle(0, height / 2, 60, height * 1.5, 0xffffff, 0.6)
-    flash.setOrigin(0.5, 0.5)
-    flash.setX(-100)
-
     // 将所有元素添加到容器
-    container.add([bg, baojiImage, skillText, flash])
+    container.add([bg, baojiImage, skillText])
 
-    // 设置初始状态
-    container.setAlpha(0)
-    baojiImage.setScale(0.5)
-    flash.setAlpha(0)
+    // 设置初始状态：在右侧屏幕外
+    container.setX(width + 250)
+    bg.setAlpha(0)
 
     // 动画序列
-    // 1. 暴击图快速放大出现
+    // 1. 背景快速淡入
     this.scene.tweens.add({
-      targets: container,
-      alpha: 1,
-      duration: 100,
+      targets: bg,
+      alpha: 0.3,
+      duration: 150,
       ease: 'Power2'
     })
 
+    // 2. 从右侧滑入到中间（快速）
     this.scene.tweens.add({
-      targets: baojiImage,
-      scale: 1.2,
-      duration: 150,
-      ease: 'Back.easeOut'
-    })
-
-    // 2. 闪光特效（从左滑过）
-    this.scene.tweens.add({
-      targets: flash,
-      alpha: 0.8,
-      duration: 50,
+      targets: container,
+      x: width / 2,
+      duration: 300,
+      ease: 'Power2.easeOut',
       onComplete: () => {
-        this.scene.tweens.add({
-          targets: flash,
-          x: width + 100,
-          alpha: 0,
-          duration: 300,
-          ease: 'Power1'
+        // 3. 在中间停留一段时间
+        this.scene.time.delayedCall(500, () => {
+          // 4. 从左侧滑出
+          this.scene.tweens.add({
+            targets: container,
+            x: -250,
+            duration: 300,
+            ease: 'Power2.easeIn',
+            onComplete: () => {
+              // 5. 背景淡出并销毁
+              this.scene.tweens.add({
+                targets: bg,
+                alpha: 0,
+                duration: 150,
+                onComplete: () => container.destroy()
+              })
+            }
+          })
         })
       }
-    })
-
-    // 3. 技能名称震动效果
-    this.scene.tweens.add({
-      targets: skillText,
-      x: skillText.x + 5,
-      duration: 50,
-      yoyo: true,
-      repeat: 5
-    })
-
-    // 4. 持续展示后淡出消失
-    this.scene.time.delayedCall(800, () => {
-      this.scene.tweens.add({
-        targets: container,
-        alpha: 0,
-        duration: 200,
-        ease: 'Power2',
-        onComplete: () => {
-          container.destroy()
-        }
-      })
     })
   }
 
