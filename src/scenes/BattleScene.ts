@@ -7,6 +7,7 @@ import { TerrainManager } from '@/core/terrain/TerrainManager'
 import { PathRenderer } from '@/core/terrain/PathRenderer'
 import { DeploymentZoneRenderer } from '@/core/terrain/DeploymentZoneRenderer'
 import { Point, Hero } from '@/types'
+import { SaveManager } from '@/core/save/SaveManager'
 
 /**
  * 战斗场景
@@ -137,7 +138,8 @@ export default class BattleScene extends Phaser.Scene {
 
     this.selectedZoneIndex = zoneIndex
     const area = level1Config.map.deployableAreas[zoneIndex]
-    const heroes = createDefaultHeroes()
+    const saveManager = SaveManager.getInstance()
+    const heroes = saveManager.loadHeroes()
     const heroList = Array.from(heroes.values())
 
     // 面板位置（在部署区域上方）
@@ -365,7 +367,8 @@ export default class BattleScene extends Phaser.Scene {
     this.add.rectangle(panelX, panelY, 120, 400, 0x333333)
 
     // 英雄按钮（使用真实头像）
-    const heroes = createDefaultHeroes()
+    const saveManager = SaveManager.getInstance()
+    const heroes = saveManager.loadHeroes()
     const heroList = Array.from(heroes.values())
 
     let yOffset = -150

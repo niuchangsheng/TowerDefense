@@ -370,6 +370,9 @@ export class BattleSystem {
     // 给上场的武将发放经验奖励
     this.rewardExperienceToHeroes()
 
+    // 更新 SaveManager 的当前存档（让 autoSave 能读取到更新的武将数据）
+    this.updateSaveManagerHeroes()
+
     const result = this.endBattle()
 
     // 自动存档
@@ -420,6 +423,38 @@ export class BattleSystem {
       } else {
         console.log(`${heroConfig.name} 获得 ${expPerHero} 经验，当前总经验: ${heroConfig.experience}`)
       }
+    }
+  }
+
+  /**
+   * 更新 SaveManager 的当前存档武将数据
+   */
+  private updateSaveManagerHeroes(): void {
+    const saveManager = SaveManager.getInstance()
+    const currentSave = saveManager.getCurrentSave()
+
+    if (!currentSave) {
+      // 如果没有当前存档，初始化一个
+      saveManager.createNewSave(1)
+    }
+
+    // 更新当前存档中的武将数据
+    const updatedHeroes = Array.from(this.heroConfigs.values())
+      .filter(hero => hero.isUnlocked)
+      .map(hero => ({
+        id: hero.id,
+        level: hero.level,
+        star: hero.star,
+        experience: hero.experience,
+        isUnlocked: hero.isUnlocked,
+        equipment: hero.equipment
+      }))
+
+    // 更新 SaveManager 的 currentSave
+    const save = saveManager.getCurrentSave() || saveManager.loadFromSlot(1)
+    if (save) {
+      save.heroes = updatedHeroes
+      saveManager.setCurrentSave(save)
     }
   }
 

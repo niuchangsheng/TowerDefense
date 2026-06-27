@@ -179,6 +179,24 @@ export class SaveManager {
 
       // 添加奖励
       autoSaveData.inventory.gold += battleResult.rewards.gold || 0
+
+      // 更新上场武将的经验（从当前存档的武将数据中更新）
+      if (this.currentSave) {
+        for (const savedHero of this.currentSave.heroes) {
+          // 找到存档中的对应武将，更新其经验和等级
+          const heroIndex = autoSaveData.heroes.findIndex(h => h.id === savedHero.id)
+          if (heroIndex >= 0) {
+            autoSaveData.heroes[heroIndex] = {
+              ...autoSaveData.heroes[heroIndex],
+              level: savedHero.level,
+              experience: savedHero.experience,
+              star: savedHero.star,
+              isUnlocked: savedHero.isUnlocked,
+              equipment: savedHero.equipment
+            }
+          }
+        }
+      }
     }
 
     return this.saveToSlot(0, autoSaveData)

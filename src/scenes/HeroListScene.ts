@@ -25,7 +25,8 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   init(): void {
-    this.heroes = createDefaultHeroes()
+    const saveManager = SaveManager.getInstance()
+    this.heroes = saveManager.loadHeroes()
     this.selectedHeroId = null
     this.heroCards = []
     this.detailPanel = null
