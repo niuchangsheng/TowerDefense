@@ -25,4 +25,10 @@ coverage/
 
 # Temporary files
 *.tmp
-*.swp.venv/
+*.swp
+
+# Python virtual environment
+.venv/
+
+# Claude Code
+.claude/
