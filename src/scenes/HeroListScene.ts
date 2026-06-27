@@ -240,18 +240,19 @@ export default class HeroListScene extends Phaser.Scene {
     if (hero.level < 60) {
       const progress = getExpProgress(hero.experience, hero.level)
       const expToNext = getExpToNextLevel(hero.level)
-      const currentExpInLevel = Math.floor(hero.experience - getExpRequiredForLevel(hero.level))
+      const currentExpInLevel = Math.max(0, Math.floor(hero.experience - getExpRequiredForLevel(hero.level))) // 确保最小为0
 
       // 进度条背景
       const progressBarBg = this.add.rectangle(50, infoY, 150, 16, 0x333355, 0.9)
       progressBarBg.setStrokeStyle(1, 0x666688)
       this.detailPanel!.add(progressBarBg)
 
-      // 进度条填充
+      // 进度条填充（确保最小宽度为0）
+      const fillWidth = Math.max(0, 150 * progress)
       const progressBarFill = this.add.rectangle(
-        50 - 75 + 75 * progress,
+        50 - 75 + fillWidth / 2,
         infoY,
-        150 * progress,
+        fillWidth,
         14,
         0x00aa00,
         0.95
@@ -261,8 +262,9 @@ export default class HeroListScene extends Phaser.Scene {
       // 进度文字
       this.addDetailText(50, infoY, `${currentExpInLevel}/${expToNext}`, '#ffffff', false, 12)
 
-      // 进度百分比
-      this.addDetailText(130, infoY, `${Math.floor(progress * 100)}%`, '#88ff88', false, 11)
+      // 进度百分比（确保显示合理）
+      const percentText = Math.floor(Math.max(0, Math.min(1, progress)) * 100)
+      this.addDetailText(130, infoY, `${percentText}%`, '#88ff88', false, 11)
     } else {
       // 顶级
       this.addDetailText(50, infoY, '已达顶级', '#ffcc00', true, 12)

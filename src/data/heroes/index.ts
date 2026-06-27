@@ -3,6 +3,9 @@ import { HeroConfig, Hero } from '@/types'
 // 导出等级和经验配置
 export * from './levelConfig'
 
+// 导入经验配置函数
+import { getExpRequiredForLevel } from './levelConfig'
+
 /**
  * 关羽配置
  */
@@ -74,7 +77,7 @@ export function createDefaultHeroes(): Map<string, Hero> {
     ...guanyuConfig,
     level: 5,
     star: 1,
-    experience: 0,
+    experience: getExpRequiredForLevel(5), // 设置为等级5所需的经验（500）
     equipment: {
       weapon: null,
       artifact: null
@@ -87,7 +90,7 @@ export function createDefaultHeroes(): Map<string, Hero> {
     ...zhangfeiConfig,
     level: 3,
     star: 1,
-    experience: 0,
+    experience: getExpRequiredForLevel(3), // 设置为等级3所需的经验（200）
     equipment: {
       weapon: null,
       artifact: null
@@ -100,7 +103,7 @@ export function createDefaultHeroes(): Map<string, Hero> {
     ...zhaoyunConfig,
     level: 1,
     star: 1,
-    experience: 0,
+    experience: getExpRequiredForLevel(1), // 设置为等级1所需的经验（0）
     equipment: {
       weapon: null,
       artifact: null
