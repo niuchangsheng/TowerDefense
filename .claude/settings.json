@@ -31,11 +31,31 @@
       "Bash(git rm *)",
       "Bash(git commit -m 'fix: 移除虚拟环境目录，添加到gitignore *)",
       "Bash(git commit -m 'feat: 地形系统核心模块（Step 1-6） *)",
-      "Bash(git commit -m 'feat: 地形系统完整实现（Step 7-9） *)"
+      "Bash(git commit -m 'feat: 地形系统完整实现（Step 7-9） *)",
+      "Bash(git commit -m 'fix: 移除虚拟环境目录 *)",
+      "Bash(git commit -m 'feat: 技能系统Phase 1 - 技能数据定义 *)",
+      "Bash(git commit *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000/assets/images/heroes/San11/face/0002_关羽_1.jpg -o /tmp/test.jpg)",
+      "Read(//tmp/**)",
+      "Bash(npx tsc *)",
+      "WebFetch(domain:wiki.biligame.com)",
+      "WebFetch(domain:www.hanpamono.net)",
+      "WebFetch(domain:github.com)",
+      "Bash(python3 scripts/extract_san11/extract_san11_resources.py)",
+      "Bash(git restore *)",
+      "Bash(python3 /home/chang/TowerDefense/scripts/extract_san11/quick_analyze.py)",
+      "Bash(python3 /home/chang/TowerDefense/scripts/extract_san11/extract_fce_faces.py)",
+      "Bash(python3 /home/chang/TowerDefense/scripts/extract_san11/deep_analyze_fce.py)",
+      "Bash(cp /mnt/c/Users/chang/Codes/dixing/*.png /home/chang/TowerDefense/assets/images/terrains/)",
+      "Bash(file *.png)",
+      "Bash(python3 scripts/quick_select_tiles.py)",
+      "Bash(awk '{print $5, $9}')"
     ],
     "additionalDirectories": [
       "/mnt/c/Program Files/San11pk Tc/Media/face",
-      "/home/chang/TowerDefense/assets/images/heroes_extracted"
+      "/home/chang/TowerDefense/assets/images/heroes_extracted",
+      "/mnt/c/Users/chang/Codes/dixing"
     ]
   }
 }

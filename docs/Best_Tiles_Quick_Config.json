@@ -1,0 +1,92 @@
+{
+  "城塞": {
+    "recommended": "城塞_02_02.png",
+    "alternatives": [
+      "城塞_01_03.png",
+      "城塞_02_02.png",
+      "城塞_01_02.png"
+    ],
+    "total_tiles": 64
+  },
+  "山地": {
+    "recommended": "山地_02_02.png",
+    "alternatives": [
+      "山地_02_02.png",
+      "山地_02_02.png",
+      "山地_06_07.png"
+    ],
+    "total_tiles": 64
+  },
+  "平原": {
+    "recommended": "平原_02_02.png",
+    "alternatives": [
+      "平原_05_04.png",
+      "平原_04_03.png",
+      "平原_10_04.png"
+    ],
+    "total_tiles": 66
+  },
+  "桥梁": {
+    "recommended": "桥梁_02_02.png",
+    "alternatives": [
+      "桥梁_05_04.png",
+      "桥梁_04_04.png",
+      "桥梁_01_04.png"
+    ],
+    "total_tiles": 64
+  },
+  "森林": {
+    "recommended": "森林_02_02.png",
+    "alternatives": [
+      "森林_06_04.png",
+      "森林_03_03.png",
+      "森林_10_02.png"
+    ],
+    "total_tiles": 66
+  },
+  "沙漠": {
+    "recommended": "沙漠_02_02.png",
+    "alternatives": [
+      "沙漠_02_02.png",
+      "沙漠_02_02.png",
+      "沙漠_00_00.png"
+    ],
+    "total_tiles": 16
+  },
+  "河流": {
+    "recommended": "河流_02_02.png",
+    "alternatives": [
+      "河流_02_02.png",
+      "河流_02_02.png",
+      "河流_02_03.png"
+    ],
+    "total_tiles": 64
+  },
+  "湿地": {
+    "recommended": "湿地_02_02.png",
+    "alternatives": [
+      "湿地_04_00.png",
+      "湿地_04_03.png",
+      "湿地_06_02.png"
+    ],
+    "total_tiles": 64
+  },
+  "道路": {
+    "recommended": "道路_02_02.png",
+    "alternatives": [
+      "道路_04_05.png",
+      "道路_04_04.png",
+      "道路_01_03.png"
+    ],
+    "total_tiles": 64
+  },
+  "雪地": {
+    "recommended": "雪地_02_02.png",
+    "alternatives": [
+      "雪地_07_01.png",
+      "雪地_02_02.png",
+      "雪地_03_03.png"
+    ],
+    "total_tiles": 64
+  }
+}

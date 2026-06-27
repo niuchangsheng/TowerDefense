@@ -106,22 +106,40 @@ export default class TitleScene extends Phaser.Scene {
   private createMenuButtons(width: number, height: number): void {
     const buttonX = width / 2
     const buttonY = height / 2 + 120
+    const buttonSpacing = 50
 
     // 武将按钮
-    const heroBtnBg = this.add.rectangle(0, 0, 200, 40, 0x666688)
-    const heroBtnText = this.add.text(0, 0, '武将', {
+    this.createMenuButton(buttonX, buttonY, '武将', () => {
+      this.scene.start('HeroListScene')
+    })
+
+    // 装备按钮
+    this.createMenuButton(buttonX, buttonY + buttonSpacing, '装备', () => {
+      this.scene.start('EquipmentScene')
+    })
+
+    // 存档按钮
+    this.createMenuButton(buttonX, buttonY + buttonSpacing * 2, '存档', () => {
+      this.scene.start('SaveScene')
+    })
+  }
+
+  /**
+   * 创建单个菜单按钮
+   */
+  private createMenuButton(x: number, y: number, text: string, callback: () => void): void {
+    const btnBg = this.add.rectangle(0, 0, 200, 40, 0x666688)
+    const btnText = this.add.text(0, 0, text, {
       fontSize: '20px',
       color: '#ffffff'
     }).setOrigin(0.5)
 
-    const heroBtn = this.add.container(buttonX, buttonY, [heroBtnBg, heroBtnText])
+    const btn = this.add.container(x, y, [btnBg, btnText])
 
-    heroBtnBg.setInteractive({ useHandCursor: true })
-    heroBtnBg.on('pointerover', () => heroBtnBg.setFillStyle(0x7777aa))
-    heroBtnBg.on('pointerout', () => heroBtnBg.setFillStyle(0x666688))
-    heroBtnBg.on('pointerdown', () => {
-      this.scene.start('HeroListScene')
-    })
+    btnBg.setInteractive({ useHandCursor: true })
+    btnBg.on('pointerover', () => btnBg.setFillStyle(0x7777aa))
+    btnBg.on('pointerout', () => btnBg.setFillStyle(0x666688))
+    btnBg.on('pointerdown', callback)
   }
 
   /**
@@ -160,11 +178,6 @@ export default class TitleScene extends Phaser.Scene {
    */
   private onStartGame(): void {
     console.log('TitleScene: 开始游戏')
-
-    // 转到关卡选择场景（后续实现）
-    // this.scene.start('LevelSelectScene')
-
-    // 暂时转到战斗场景进行测试
-    this.scene.start('BattleScene', { levelId: 'chapter1_level1' })
+    this.scene.start('LevelSelectScene')
   }
 }

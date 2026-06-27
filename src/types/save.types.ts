@@ -2,6 +2,7 @@
 export interface SaveData {
   version: string              // 存档版本
   timestamp: number            // 保存时间戳
+  slotId: number               // 存档槽位ID（0=自动存档，1-3=手动存档）
 
   // 英雄数据
   heroes: {
@@ -41,14 +42,18 @@ export interface SaveData {
 // 存档版本号（用于存档兼容性检查）
 export const SAVE_VERSION = '1.0.0'
 
-// 存档键名（localStorage使用）
-export const SAVE_KEY = 'tower_defense_save'
+// 存档槽位数量
+export const SAVE_SLOT_COUNT = 4  // 0=自动存档，1-3=手动存档
+
+// 存档键名前缀（localStorage使用）
+export const SAVE_KEY_PREFIX = 'tower_defense_save_'
 
 // 默认存档数据
-export function createDefaultSaveData(): SaveData {
+export function createDefaultSaveData(slotId: number = 0): SaveData {
   return {
     version: SAVE_VERSION,
     timestamp: Date.now(),
+    slotId,
     heroes: [],
     inventory: {
       soulStones: [],

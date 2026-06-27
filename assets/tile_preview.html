@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地形Tile快速预览 - 02_02推荐</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e1e2e, #2a2a4a);
+            color: #ffffff;
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #ffcc00;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaaaaa;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .terrain-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid #4a4a6a;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .terrain-card img {
+            width: 256px;
+            height: 256px;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .terrain-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ffaa;
+            margin-top: 10px;
+        }
+
+        .tile-coord {
+            font-size: 12px;
+            color: #88ff88;
+            margin-top: 5px;
+        }
+
+        .tile-path {
+            font-size: 10px;
+            color: #aaaaaa;
+            margin-top: 3px;
+            font-style: italic;
+        }
+
+        .tiling-test {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .tiling-test h2 {
+            color: #ffcc00;
+            margin-bottom: 20px;
+        }
+
+        .tiling-grid {
+            display: inline-grid;
+            grid-template-columns: repeat(3, 128px);
+            grid-template-rows: repeat(3, 128px);
+            gap: 0;
+            border: 2px solid #4a4a6a;
+            margin-right: 30px;
+        }
+
+        .tiling-grid img {
+            width: 128px;
+            height: 128px;
+            display: block;
+        }
+
+        .test-info {
+            display: inline-block;
+            vertical-align: top;
+            color: #aaaaaa;
+            line-height: 1.8;
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ffcc00;
+        }
+
+        .info-panel h3 {
+            color: #ffcc00;
+            margin-top: 0;
+        }
+
+        .info-panel ul {
+            color: #ffffff;
+            line-height: 1.6;
+        }
+
+        .info-panel li {
+            margin-bottom: 8px;
+        }
+
+        .success {
+            color: #88ff88;
+        }
+
+        .note {
+            color: #ffaa00;
+        }
+
+        .footer {
+            text-align: center;
+            color: #666666;
+            margin-top: 40px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 地形Tile快速预览</h1>
+        <p class="subtitle">快速方案推荐的每种地形最佳tile（坐标02_02，中心区域）</p>
+
+        <!-- 单Tile预览 -->
+        <div class="preview-grid">
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="平原">
+                <div class="terrain-name">平原</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">66个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/森林/森林_02_02.png" alt="森林">
+                <div class="terrain-name">森林</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">66个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/山地/山地_02_02.png" alt="山地">
+                <div class="terrain-name">山地</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">64个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/河流/河流_02_02.png" alt="河流">
+                <div class="terrain-name">河流</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">64个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/湿地/湿地_02_02.png" alt="湿地">
+                <div class="terrain-name">湿地</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">64个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/道路/道路_02_02.png" alt="道路">
+                <div class="terrain-name">道路</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">64个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/桥梁/桥梁_02_02.png" alt="桥梁">
+                <div class="terrain-name">桥梁</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">64个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/城塞/城塞_02_02.png" alt="城塞">
+                <div class="terrain-name">城塞</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">64个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/雪地/雪地_02_02.png" alt="雪地">
+                <div class="terrain-name">雪地</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">64个tile之一</div>
+            </div>
+
+            <div class="terrain-card">
+                <img src="../assets/images/terrains_tiles/沙漠/沙漠_02_02.png" alt="沙漠">
+                <div class="terrain-name">沙漠</div>
+                <div class="tile-coord">坐标: 02_02</div>
+                <div class="tile-path">16个tile之一</div>
+            </div>
+        </div>
+
+        <!-- 平铺测试 -->
+        <div class="tiling-test">
+            <h2>📐 平铺效果测试（平原示例）</h2>
+            <div class="tiling-grid">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+                <img src="../assets/images/terrains_tiles/平原/平原_02_02.png" alt="">
+            </div>
+            <div class="test-info">
+                <strong>测试说明：</strong><br>
+                ✅ 3×3网格平铺测试<br>
+                ✅ 使用同一tile（平原_02_02）<br>
+                ✅ 观察边缘衔接效果<br>
+                ✅ 检查无缝平铺性<br>
+                <br>
+                <span class="note">💡 如果边缘衔接自然，说明tile质量良好</span>
+            </div>
+        </div>
+
+        <!-- 信息面板 -->
+        <div class="info-panel">
+            <h3>📋 快速方案优势</h3>
+            <ul>
+                <li><span class="success">✅ 瞬时完成</span> - 无需复杂计算，立即得到结果</li>
+                <li><span class="success">✅ 中心位置</span> - 选择坐标02_02区域，避免边缘裁剪</li>
+                <li><span class="success">✅ 细节丰富</span> - 中心区域通常纹理更完整</li>
+                <li><span class="success">✅ 质量稳定</span> - 避开边界问题区域</li>
+                <li><span class="success">✅ 易于理解</span> - 基于位置而非复杂算法</li>
+            </ul>
+            <br>
+            <h3>🎯 使用建议</h3>
+            <ul>
+                <li>先用快速方案查看效果</li>
+                <li>在测试场景中验证平铺无缝性</li>
+                <li>如果有问题，可尝试备选tile（如03_03）</li>
+                <li>等待复杂分析脚本完成后对比结果</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            生成时间: 2026-06-28 | 快速方案 - 推荐02_02位置tile | 总共596个tile
+        </div>
+    </div>
+
+    <script>
+        // 如果图片加载失败，显示占位符
+        document.querySelectorAll('img').forEach(img => {
+            img.onerror = function() {
+                this.style.background = '#ff6666';
+                this.alt = '图片加载失败';
+                console.error('图片加载失败:', this.src);
+            };
+        });
+
+        // 点击tile放大查看
+        document.querySelectorAll('.terrain-card img').forEach(img => {
+            img.onclick = function() {
+                if (this.style.width === '512px') {
+                    this.style.width = '256px';
+                    this.style.height = '256px';
+                } else {
+                    this.style.width = '512px';
+                    this.style.height = '512px';
+                }
+            };
+        });
+    </script>
+</body>
+</html>

@@ -1,20 +1,25 @@
 import Phaser from 'phaser'
 import { createDefaultHeroes, getHeroConfig } from '@/data/heroes'
 import { getSkill } from '@/data/skills'
-import { Hero, RarityNames } from '@/types'
+import { Hero, RarityNames, Rarity } from '@/types'
+import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
+import { getWeapon, getArtifact } from '@/data/equipment'
 
 /**
  * 武将页面场景
- * 显示所有武将及其属性
+ * 显示所有武将及其属性，支持装备管理
  */
 export default class HeroListScene extends Phaser.Scene {
   private heroes!: Map<string, Hero>
   private selectedHeroId: string | null = null
   private heroCards: Phaser.GameObjects.Container[] = []
   private detailPanel: Phaser.GameObjects.Container | null = null
+  private equipmentManager: EquipmentManager
+  private equipmentSlots: { weapon: Phaser.GameObjects.Container | null; artifact: Phaser.GameObjects.Container | null } = { weapon: null, artifact: null }
 
   constructor() {
     super({ key: 'HeroListScene' })
+    this.equipmentManager = new EquipmentManager()
   }
 
   init(): void {
@@ -22,6 +27,7 @@ export default class HeroListScene extends Phaser.Scene {
     this.selectedHeroId = null
     this.heroCards = []
     this.detailPanel = null
+    this.equipmentSlots = { weapon: null, artifact: null }
   }
 
   create(): void {
@@ -169,7 +175,7 @@ export default class HeroListScene extends Phaser.Scene {
     const panelX = width - 250
     const panelY = height / 2
     const panelWidth = 400
-    const panelHeight = 500
+    const panelHeight = 550
 
     this.detailPanel = this.add.container(panelX, panelY)
 
@@ -179,7 +185,7 @@ export default class HeroListScene extends Phaser.Scene {
     this.detailPanel.add(panelBg)
 
     // 面板标题
-    const title = this.add.text(0, -220, '武将详情', {
+    const title = this.add.text(0, -250, '武将详情', {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -199,7 +205,7 @@ export default class HeroListScene extends Phaser.Scene {
       this.detailPanel.removeAt(2, true)
     }
 
-    const startY = -180
+    const startY = -220
     const lineHeight = 28
 
     // 大头像
@@ -237,16 +243,33 @@ export default class HeroListScene extends Phaser.Scene {
     this.addDetailText(0, infoY, '— 基础属性 —', '#aaaaaa', true)
     infoY += lineHeight
 
+    // 计算属性（含装备加成）
+    const effectiveStats = this.getEffectiveStatsWithEquipment(hero)
+
     // 攻击力
-    const attack = Math.floor(hero.baseStats.attack * (1 + (hero.level - 1) * 0.05))
-    this.addDetailText(-80, infoY, `攻击: ${attack}`, '#ff6666')
+    this.addDetailText(-80, infoY, `攻击: ${effectiveStats.attack}`, '#ff6666')
     this.addDetailText(80, infoY, `基础: ${hero.baseStats.attack}`, '#888888')
     infoY += lineHeight
 
     // 攻速
-    const attackSpeed = hero.baseStats.attackSpeed.toFixed(1)
+    const attackSpeed = effectiveStats.attackSpeed.toFixed(1)
     this.addDetailText(-80, infoY, `攻速: ${attackSpeed}/s`, '#66ff66')
-    this.addDetailText(80, infoY, `范围: ${hero.baseStats.attackRange}`, '#888888')
+    this.addDetailText(80, infoY, `范围: ${effectiveStats.attackRange}`, '#888888')
+    infoY += lineHeight * 2
+
+    // 装备区域标题
+    this.addDetailText(0, infoY, '— 装备栏 —', '#aaaaaa', true)
+    infoY += lineHeight
+
+    // 获取武将已装备的装备
+    const heroEquipment = this.equipmentManager.getHeroEquipment(heroId)
+
+    // 武器槽
+    this.createEquipmentSlot(infoY, '武器', heroEquipment.weapon, 'weapon', heroId)
+    infoY += lineHeight * 1.5
+
+    // 神器槽
+    this.createEquipmentSlot(infoY, '神器', heroEquipment.artifact, 'artifact', heroId)
     infoY += lineHeight * 2
 
     // 技能区域标题
@@ -273,6 +296,233 @@ export default class HeroListScene extends Phaser.Scene {
         this.addDetailText(0, infoY, `冷却: ${activeSkill.cooldown / 1000}秒`, '#888888', false, 12)
       }
     }
+  }
+
+  /**
+   * 创建装备槽位
+   */
+  private createEquipmentSlot(
+    y: number,
+    slotName: string,
+    equipment: EquipmentInstance | null,
+    type: 'weapon' | 'artifact',
+    heroId: string
+  ): void {
+    // 槽位名称
+    this.addDetailText(-120, y, slotName, '#888888', false, 12)
+
+    // 槽位背景
+    const slotBg = this.add.rectangle(0, y, 200, 30, 0x333355, 0.9)
+    slotBg.setStrokeStyle(1, equipment ? this.getRarityBorderColor(equipment.rarity) : 0x666688)
+    this.detailPanel!.add(slotBg)
+
+    if (equipment) {
+      // 已装备：显示装备信息
+      const detail = this.equipmentManager.getEquipmentDetail(equipment.instanceId)
+      if (detail) {
+        const nameText = this.add.text(-80, y, detail.name, {
+          fontSize: '14px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0, 0.5)
+        this.detailPanel!.add(nameText)
+
+        const rarityText = this.add.text(50, y, RarityNames[equipment.rarity as Rarity], {
+          fontSize: '10px',
+          color: this.getRarityTextColor(equipment.rarity)
+        }).setOrigin(0, 0.5)
+        this.detailPanel!.add(rarityText)
+
+        // 卸载按钮
+        const unequipBtn = this.add.rectangle(150, y, 40, 24, 0x884444)
+        unequipBtn.setInteractive({ useHandCursor: true })
+        const unequipText = this.add.text(150, y, '卸载', {
+          fontSize: '12px',
+          color: '#ffffff'
+        }).setOrigin(0.5)
+        this.detailPanel!.add(unequipBtn)
+        this.detailPanel!.add(unequipText)
+
+        unequipBtn.on('pointerover', () => unequipBtn.setFillStyle(0xaa5555))
+        unequipBtn.on('pointerout', () => unequipBtn.setFillStyle(0x884444))
+        unequipBtn.on('pointerdown', () => {
+          this.unequipEquipment(equipment.instanceId, heroId)
+        })
+      }
+    } else {
+      // 未装备：显示空槽
+      const emptyText = this.add.text(0, y, '空槽 - 点击选择装备', {
+        fontSize: '12px',
+        color: '#666666'
+      }).setOrigin(0.5)
+      this.detailPanel!.add(emptyText)
+
+      // 点击选择装备
+      slotBg.setInteractive({ useHandCursor: true })
+      slotBg.on('pointerover', () => slotBg.setFillStyle(0x444466, 0.9))
+      slotBg.on('pointerout', () => slotBg.setFillStyle(0x333355, 0.9))
+      slotBg.on('pointerdown', () => {
+        this.showEquipmentSelection(type, heroId)
+      })
+    }
+  }
+
+  /**
+   * 卸载装备
+   */
+  private unequipEquipment(instanceId: string, heroId: string): void {
+    this.equipmentManager.unequipFromHero(instanceId)
+    this.updateDetailPanel(heroId)
+    this.showMessage('装备已卸载')
+  }
+
+  /**
+   * 显示装备选择弹窗
+   */
+  private showEquipmentSelection(type: 'weapon' | 'artifact', heroId: string): void {
+    const unequipped = this.equipmentManager.getUnequippedEquipment().filter(e => e.type === type)
+
+    if (unequipped.length === 0) {
+      this.showMessage('没有可用的装备')
+      return
+    }
+
+    // 创建弹窗
+    const width = this.cameras.main.width
+    const height = this.cameras.main.height
+    const popup = this.add.container(width / 2, height / 2)
+    popup.setDepth(50)
+
+    // 弹窗背景
+    const popupBg = this.add.rectangle(0, 0, 350, 250, 0x222244, 0.98)
+    popupBg.setStrokeStyle(2, 0x4466aa)
+    popup.add(popupBg)
+
+    // 标题
+    const title = this.add.text(0, -100, `选择 ${type === 'weapon' ? '武器' : '神器'}`, {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5)
+    popup.add(title)
+
+    // 装备列表
+    const startY = -60
+    for (let i = 0; i < unequipped.length; i++) {
+      const equip = unequipped[i]
+      const detail = this.equipmentManager.getEquipmentDetail(equip.instanceId)
+      if (!detail) continue
+
+      const equipY = startY + i * 40
+
+      const btnBg = this.add.rectangle(0, equipY, 300, 35, this.getRarityBgColor(equip.rarity), 0.9)
+      btnBg.setStrokeStyle(1, this.getRarityBorderColor(equip.rarity))
+      btnBg.setInteractive({ useHandCursor: true })
+      popup.add(btnBg)
+
+      const btnName = this.add.text(-100, equipY, detail.name, {
+        fontSize: '14px',
+        color: '#ffffff'
+      }).setOrigin(0, 0.5)
+      popup.add(btnName)
+
+      const btnRarity = this.add.text(50, equipY, RarityNames[equip.rarity as Rarity], {
+        fontSize: '12px',
+        color: this.getRarityTextColor(equip.rarity)
+      }).setOrigin(0, 0.5)
+      popup.add(btnRarity)
+
+      // 属性加成
+      const bonuses = detail.bonuses
+      let bonusText = ''
+      if (bonuses.attack) bonusText += `攻+${bonuses.attack}`
+      if (bonuses.attackSpeed) bonusText += ` 速+${bonuses.attackSpeed.toFixed(1)}`
+      const btnBonus = this.add.text(100, equipY, bonusText, {
+        fontSize: '10px',
+        color: '#aaaaaa'
+      }).setOrigin(0, 0.5)
+      popup.add(btnBonus)
+
+      btnBg.on('pointerover', () => btnBg.setFillStyle(this.getRarityBgColor(equip.rarity), 1))
+      btnBg.on('pointerout', () => btnBg.setFillStyle(this.getRarityBgColor(equip.rarity), 0.9))
+      btnBg.on('pointerdown', () => {
+        this.equipmentManager.equipToHero(equip.instanceId, heroId)
+        popup.destroy()
+        this.updateDetailPanel(heroId)
+        this.showMessage('装备成功')
+      })
+    }
+
+    // 关闭按钮
+    const closeBtn = this.add.rectangle(0, 100, 100, 30, 0x666688)
+    closeBtn.setInteractive({ useHandCursor: true })
+    const closeText = this.add.text(0, 100, '关闭', {
+      fontSize: '14px',
+      color: '#ffffff'
+    }).setOrigin(0.5)
+    popup.add(closeBtn)
+    popup.add(closeText)
+
+    closeBtn.on('pointerover', () => closeBtn.setFillStyle(0x7777aa))
+    closeBtn.on('pointerout', () => closeBtn.setFillStyle(0x666688))
+    closeBtn.on('pointerdown', () => popup.destroy())
+  }
+
+  /**
+   * 计算含装备加成的属性
+   */
+  private getEffectiveStatsWithEquipment(hero: Hero): { attack: number; attackSpeed: number; attackRange: number } {
+    let attack = Math.floor(hero.baseStats.attack * (1 + (hero.level - 1) * 0.05))
+    let attackSpeed = hero.baseStats.attackSpeed
+    let attackRange = hero.baseStats.attackRange
+
+    // 应用被动技能加成
+    const passiveSkillId = hero.passiveSkillId
+    if (passiveSkillId === 'skill_passive_zhangfei') {
+      attack = Math.floor(attack * 1.1)
+    } else if (passiveSkillId === 'skill_passive_zhaoyun') {
+      attackSpeed = attackSpeed * 1.2
+    }
+
+    // 应用装备加成
+    const heroEquipment = this.equipmentManager.getHeroEquipment(hero.id)
+
+    if (heroEquipment.weapon) {
+      const weaponDetail = this.equipmentManager.getEquipmentDetail(heroEquipment.weapon.instanceId)
+      if (weaponDetail?.bonuses) {
+        attack += weaponDetail.bonuses.attack || 0
+        attackSpeed += weaponDetail.bonuses.attackSpeed || 0
+        attackRange += weaponDetail.bonuses.attackRange || 0
+      }
+    }
+
+    if (heroEquipment.artifact) {
+      const artifactDetail = this.equipmentManager.getEquipmentDetail(heroEquipment.artifact.instanceId)
+      if (artifactDetail?.bonuses) {
+        attack += artifactDetail.bonuses.attack || 0
+        attackSpeed += artifactDetail.bonuses.attackSpeed || 0
+        attackRange += artifactDetail.bonuses.attackRange || 0
+      }
+    }
+
+    return { attack, attackSpeed, attackRange }
+  }
+
+  /**
+   * 显示消息提示
+   */
+  private showMessage(msg: string): void {
+    const width = this.cameras.main.width
+    const height = this.cameras.main.height
+
+    const text = this.add.text(width / 2, height - 100, msg, {
+      fontSize: '18px',
+      color: '#ffffff',
+      backgroundColor: '#333333',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5).setDepth(100)
+
+    this.time.delayedCall(1500, () => text.destroy())
   }
 
   /**
@@ -365,6 +615,45 @@ export default class HeroListScene extends Phaser.Scene {
       common: '#888888',
       rare: '#00aaff',
       epic: '#aa00ff',
+      legendary: '#ffaa00'
+    }
+    return colors[rarity] || '#888888'
+  }
+
+  /**
+   * 获取稀有度背景色
+   */
+  private getRarityBgColor(rarity: string): number {
+    const colors: Record<string, number> = {
+      common: 0x444444,
+      rare: 0x2244aa,
+      epic: 0x4422aa,
+      legendary: 0x444400
+    }
+    return colors[rarity] || 0x444444
+  }
+
+  /**
+   * 获取稀有度边框色
+   */
+  private getRarityBorderColor(rarity: string): number {
+    const colors: Record<string, number> = {
+      common: 0x888888,
+      rare: 0x4488ff,
+      epic: 0x8844ff,
+      legendary: 0xffaa00
+    }
+    return colors[rarity] || 0x888888
+  }
+
+  /**
+   * 获取稀有度文字色
+   */
+  private getRarityTextColor(rarity: string): string {
+    const colors: Record<string, string> = {
+      common: '#888888',
+      rare: '#4488ff',
+      epic: '#aa44ff',
       legendary: '#ffaa00'
     }
     return colors[rarity] || '#888888'

@@ -448,13 +448,10 @@ export default class BattleScene extends Phaser.Scene {
     })
 
     this.battleSystem.onBattleEnd((result) => {
-      if (result.isVictory) {
-        this.statusText.setText('胜利！')
-        this.statusText.setColor('#00ff00')
-      } else {
-        this.statusText.setText('失败！')
-        this.statusText.setColor('#ff0000')
-      }
+      // 战斗结束后跳转到结算场景
+      this.time.delayedCall(1000, () => {
+        this.scene.start('SettlementScene', { battleResult: result })
+      })
     })
   }
 

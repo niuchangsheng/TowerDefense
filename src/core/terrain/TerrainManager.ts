@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { TerrainType, TerrainArea, TerrainConfig, Point, Area } from '@/types'
 import { TERRAIN_CONFIGS, getTerrainConfig } from '@/config/terrain.config'
+import { TerrainRenderer } from './TerrainRenderer'
 
 /**
  * 地形管理器
@@ -11,22 +12,49 @@ export class TerrainManager {
   private terrainAreas: TerrainArea[]
   private defaultTerrain: TerrainType
   private terrainGraphics: Phaser.GameObjects.Graphics[]
+  private terrainRenderer: TerrainRenderer
+  private useTiles: boolean = true // 是否使用tile渲染
 
   constructor(
     scene: Phaser.Scene,
     terrainAreas: TerrainArea[],
-    defaultTerrain: TerrainType = 'grass'
+    defaultTerrain: TerrainType = 'grass',
+    useTiles: boolean = true
   ) {
     this.scene = scene
     this.terrainAreas = terrainAreas
     this.defaultTerrain = defaultTerrain
     this.terrainGraphics = []
+    this.useTiles = useTiles
+    this.terrainRenderer = new TerrainRenderer(scene)
+  }
+
+  /**
+   * 预加载地形资源
+   */
+  preloadTerrains(): void {
+    if (this.useTiles) {
+      this.terrainRenderer.preloadTerrains()
+    }
   }
 
   /**
    * 渲染所有地形区域
    */
-  renderTerrain(): void {
+  renderTerrain(mapWidth: number = 10, mapHeight: number = 10): void {
+    if (this.useTiles) {
+      // 使用tile渲染器
+      this.terrainRenderer.renderTerrainAreas(this.terrainAreas, mapWidth, mapHeight)
+    } else {
+      // 使用旧的图形渲染方式（备用）
+      this.renderTerrainLegacy()
+    }
+  }
+
+  /**
+   * 旧版图形渲染方式（备用）
+   */
+  private renderTerrainLegacy(): void {
     // 先渲染默认地形（覆盖整个地图）
     this.renderDefaultTerrain()
 

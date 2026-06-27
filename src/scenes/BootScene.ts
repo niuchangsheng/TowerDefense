@@ -29,6 +29,12 @@ export default class BootScene extends Phaser.Scene {
   create(): void {
     console.log('BootScene: 系统初始化完成')
 
+    // 隐藏HTML加载提示
+    const loadingDiv = document.getElementById('loading')
+    if (loadingDiv) {
+      loadingDiv.classList.add('hidden')
+    }
+
     // 设置游戏配置
     this.setupGameConfig()
 

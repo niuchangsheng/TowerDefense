@@ -19,6 +19,7 @@ import { HeroEntity } from '@/entities/HeroEntity'
 import { EnemyEntity } from '@/entities/EnemyEntity'
 import { COST_CONFIG, PLAYER_HEALTH_CONFIG } from '@/config/constants'
 import { getEnemyConfig } from '@/data/enemies'
+import { SaveManager } from '@/core/save/SaveManager'
 
 /**
  * 战斗主控制器
@@ -233,11 +234,20 @@ export class BattleSystem {
       this.handleEnemyKilled(enemy)
     }
 
+    // 检查是否有其他死亡的敌人（技能杀死等）
+    const allEnemies = this.enemyManager.getActiveEnemies()
+    for (const enemy of allEnemies) {
+      if (!enemy.getEnemyData().isActive) {
+        this.handleEnemyKilled(enemy)
+      }
+    }
+
     // 更新战斗状态
     this.updateBattleState()
 
     // 检查胜负
     if (this.isVictory()) {
+      console.log('胜利判定触发！')
       this.handleVictory()
     } else if (this.isDefeat()) {
       this.handleDefeat()
@@ -331,8 +341,15 @@ export class BattleSystem {
    * 判断胜利
    */
   isVictory(): boolean {
-    return this.waveManager.isAllWavesComplete() &&
-           this.enemyManager.getEnemyCount() === 0
+    const wavesComplete = this.waveManager.isAllWavesComplete()
+    const enemyCount = this.enemyManager.getEnemyCount()
+    const result = wavesComplete && enemyCount === 0
+
+    if (wavesComplete) {
+      console.log(`胜利检查: 波次完成=${wavesComplete}, 敌人数量=${enemyCount}`)
+    }
+
+    return result
   }
 
   /**
@@ -350,6 +367,13 @@ export class BattleSystem {
     this.isRunning = false
 
     const result = this.endBattle()
+
+    // 自动存档
+    const saveManager = SaveManager.getInstance()
+    saveManager.autoSave(result)
+
+    console.log('战斗胜利，已自动存档')
+
     if (this.onBattleEndCallback) {
       this.onBattleEndCallback(result)
     }
@@ -372,12 +396,17 @@ export class BattleSystem {
    * 结束战斗
    */
   endBattle(): BattleResult {
+    // 获取上场英雄ID列表
+    const deployedHeroIds = Array.from(this.deployedHeroEntities.values())
+      .map(entity => entity.getHeroData().id)
+
     return {
       levelId: this.levelConfig.id,
       isVictory: this.battleState.status === 'victory',
       elapsedTime: this.elapsedTime,
       remainingHealth: this.playerHealth,
       wavesCompleted: this.waveManager.getCurrentWave(),
+      deployedHeroIds,
       rewards: {
         soulStones: [],
         equipment: [],

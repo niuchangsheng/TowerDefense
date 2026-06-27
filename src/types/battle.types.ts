@@ -24,6 +24,7 @@ export interface BattleResult {
   elapsedTime: number
   remainingHealth: number
   wavesCompleted: number
+  deployedHeroIds: string[]  // 上场的英雄ID列表
   rewards: {
     soulStones: { heroId: string; amount: number }[]
     equipment: string[]

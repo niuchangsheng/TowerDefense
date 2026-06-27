@@ -207,9 +207,9 @@ export class EnemyManager {
   }
 
   /**
-   * 获取敌人数量
+   * 获取敌人数量（活跃的敌人）
    */
   getEnemyCount(): number {
-    return this.activeEnemies.size
+    return this.getActiveEnemies().length
   }
 }
