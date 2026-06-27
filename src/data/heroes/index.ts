@@ -1,5 +1,8 @@
 import { HeroConfig, Hero } from '@/types'
 
+// 导出等级和经验配置
+export * from './levelConfig'
+
 /**
  * 关羽配置
  */

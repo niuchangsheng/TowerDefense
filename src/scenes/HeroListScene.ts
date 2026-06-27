@@ -4,6 +4,7 @@ import { getSkill } from '@/data/skills'
 import { Hero, RarityNames, Rarity } from '@/types'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
 import { getWeapon, getArtifact } from '@/data/equipment'
+import { getExpToNextLevel, getExpProgress, getExpRequiredForLevel } from '@/data/heroes/levelConfig'
 
 /**
  * 武将页面场景
@@ -231,8 +232,41 @@ export default class HeroListScene extends Phaser.Scene {
     this.addDetailText(50, infoY, `五行: ${this.getWuXingText(hero.wuXing)}`, this.getWuXingColor(hero.wuXing))
     infoY += lineHeight
 
-    // 等级
+    // 等级和升级进度
     this.addDetailText(50, infoY, `等级: Lv.${hero.level}`, '#88ff88')
+    infoY += lineHeight
+
+    // 升级进度条
+    if (hero.level < 60) {
+      const progress = getExpProgress(hero.experience, hero.level)
+      const expToNext = getExpToNextLevel(hero.level)
+      const currentExpInLevel = Math.floor(hero.experience - getExpRequiredForLevel(hero.level))
+
+      // 进度条背景
+      const progressBarBg = this.add.rectangle(50, infoY, 150, 16, 0x333355, 0.9)
+      progressBarBg.setStrokeStyle(1, 0x666688)
+      this.detailPanel!.add(progressBarBg)
+
+      // 进度条填充
+      const progressBarFill = this.add.rectangle(
+        50 - 75 + 75 * progress,
+        infoY,
+        150 * progress,
+        14,
+        0x00aa00,
+        0.95
+      )
+      this.detailPanel!.add(progressBarFill)
+
+      // 进度文字
+      this.addDetailText(50, infoY, `${currentExpInLevel}/${expToNext}`, '#ffffff', false, 12)
+
+      // 进度百分比
+      this.addDetailText(130, infoY, `${Math.floor(progress * 100)}%`, '#88ff88', false, 11)
+    } else {
+      // 顶级
+      this.addDetailText(50, infoY, '已达顶级', '#ffcc00', true, 12)
+    }
     infoY += lineHeight
 
     // 星级

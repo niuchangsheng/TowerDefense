@@ -20,6 +20,7 @@ import { EnemyEntity } from '@/entities/EnemyEntity'
 import { COST_CONFIG, PLAYER_HEALTH_CONFIG } from '@/config/constants'
 import { getEnemyConfig } from '@/data/enemies'
 import { SaveManager } from '@/core/save/SaveManager'
+import { calculateLevelFromExp } from '@/data/heroes/levelConfig'
 
 /**
  * 战斗主控制器
@@ -366,6 +367,9 @@ export class BattleSystem {
     this.battleState.status = 'victory'
     this.isRunning = false
 
+    // 给上场的武将发放经验奖励
+    this.rewardExperienceToHeroes()
+
     const result = this.endBattle()
 
     // 自动存档
@@ -376,6 +380,46 @@ export class BattleSystem {
 
     if (this.onBattleEndCallback) {
       this.onBattleEndCallback(result)
+    }
+  }
+
+  /**
+   * 给上场的武将发放经验奖励
+   */
+  private rewardExperienceToHeroes(): void {
+    // 获取关卡配置的经验奖励
+    const expReward = this.levelConfig.rewards?.experience || 0
+
+    if (expReward === 0) return
+
+    // 获取所有上场武将
+    const deployedHeroIds = Array.from(this.deployedHeroEntities.values())
+      .map(entity => entity.getHeroData().id)
+
+    if (deployedHeroIds.length === 0) return
+
+    console.log(`关卡胜利，奖励 ${expReward} 经验给 ${deployedHeroIds.length} 位武将`)
+
+    // 平均分配经验给上场武将
+    const expPerHero = Math.floor(expReward / deployedHeroIds.length)
+
+    for (const heroId of deployedHeroIds) {
+      const heroConfig = this.heroConfigs.get(heroId)
+      if (!heroConfig) continue
+
+      // 添加经验
+      heroConfig.experience += expPerHero
+
+      // 计算新等级
+      const newLevel = calculateLevelFromExp(heroConfig.experience)
+
+      // 升级提示
+      if (newLevel > heroConfig.level) {
+        console.log(`${heroConfig.name} 从 Lv.${heroConfig.level} 升级到 Lv.${newLevel}！`)
+        heroConfig.level = newLevel
+      } else {
+        console.log(`${heroConfig.name} 获得 ${expPerHero} 经验，当前总经验: ${heroConfig.experience}`)
+      }
     }
   }
 

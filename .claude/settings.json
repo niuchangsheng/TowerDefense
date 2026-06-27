@@ -50,7 +50,8 @@
       "Bash(cp /mnt/c/Users/chang/Codes/dixing/*.png /home/chang/TowerDefense/assets/images/terrains/)",
       "Bash(file *.png)",
       "Bash(python3 scripts/quick_select_tiles.py)",
-      "Bash(awk '{print $5, $9}')"
+      "Bash(awk '{print $5, $9}')",
+      "Bash(grep -E \"\\\\.ts$\")"
     ],
     "additionalDirectories": [
       "/mnt/c/Program Files/San11pk Tc/Media/face",
