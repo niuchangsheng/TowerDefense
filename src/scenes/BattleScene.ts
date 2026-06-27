@@ -62,8 +62,9 @@ export default class BattleScene extends Phaser.Scene {
     // 4. 渲染部署区域
     this.deploymentZoneRenderer.renderDeploymentZones()
 
-    // 5. 初始化战斗系统
-    const heroes = createDefaultHeroes()
+    // 5. 初始化战斗系统（使用存档中的武将数据）
+    const saveManager = SaveManager.getInstance()
+    const heroes = saveManager.loadHeroes()
     this.battleSystem = new BattleSystem(this, level1Config, heroes)
 
     // 6. 创建UI（覆盖在最上层）

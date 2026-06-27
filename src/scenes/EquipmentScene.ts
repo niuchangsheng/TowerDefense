@@ -3,6 +3,7 @@ import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentM
 import { getWeapon, getArtifact } from '@/data/equipment'
 import { getGemName } from '@/data/equipment/gems'
 import { RarityNames, Rarity, Gem } from '@/types'
+import { SaveManager } from '@/core/save/SaveManager'
 
 /**
  * 装备页面场景
@@ -502,8 +503,31 @@ export default class EquipmentScene extends Phaser.Scene {
     btnBg.on('pointerover', () => btnBg.setFillStyle(0x555588))
     btnBg.on('pointerout', () => btnBg.setFillStyle(0x444466))
     btnBg.on('pointerdown', () => {
+      // 自动存档
+      this.autoSave()
       this.scene.start('TitleScene')
     })
+  }
+
+  /**
+   * 自动存档
+   */
+  private autoSave(): void {
+    const saveManager = SaveManager.getInstance()
+    const saveData = saveManager.getCurrentSave()
+
+    if (!saveData) return
+
+    // 更新装备数据到存档
+    saveData.inventory.equipment = this.equipmentManager.getOwnedEquipment()
+      .map(e => e.equipmentId)
+
+    // 更新宝石数据
+    saveData.inventory.gems = this.equipmentManager.getOwnedGems()
+
+    // 保存
+    saveManager.saveCurrent()
+    console.log('装备页面退出，已自动存档')
   }
 
   /**

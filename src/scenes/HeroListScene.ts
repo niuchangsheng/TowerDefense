@@ -5,6 +5,7 @@ import { Hero, RarityNames, Rarity } from '@/types'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
 import { getWeapon, getArtifact } from '@/data/equipment'
 import { getExpToNextLevel, getExpProgress, getExpRequiredForLevel } from '@/data/heroes/levelConfig'
+import { SaveManager } from '@/core/save/SaveManager'
 
 /**
  * 武将页面场景
@@ -599,8 +600,42 @@ export default class HeroListScene extends Phaser.Scene {
     btnBg.on('pointerover', () => btnBg.setFillStyle(0x555588))
     btnBg.on('pointerout', () => btnBg.setFillStyle(0x444466))
     btnBg.on('pointerdown', () => {
+      // 自动存档
+      this.autoSave()
       this.scene.start('TitleScene')
     })
+  }
+
+  /**
+   * 自动存档
+   */
+  private autoSave(): void {
+    const saveManager = SaveManager.getInstance()
+    const saveData = saveManager.getCurrentSave()
+
+    if (!saveData) return
+
+    // 更新武将数据
+    for (const [heroId, hero] of this.heroes) {
+      const heroData = saveData.heroes.find(h => h.id === heroId)
+      if (heroData) {
+        heroData.level = hero.level
+        heroData.star = hero.star
+        heroData.experience = hero.experience
+        heroData.isUnlocked = hero.isUnlocked
+        heroData.equipment = hero.equipment
+      }
+    }
+
+    // 更新装备数据
+    saveData.inventory.equipment = this.equipmentManager.getOwnedEquipment()
+      .map(e => e.equipmentId)
+
+    saveData.inventory.gems = this.equipmentManager.getOwnedGems()
+
+    // 保存
+    saveManager.saveCurrent()
+    console.log('武将页面退出，已自动存档')
   }
 
   /**
