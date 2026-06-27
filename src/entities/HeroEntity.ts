@@ -4,7 +4,7 @@ import { Hero, DeployedHero, Point, HeroStats } from '@/types'
 /**
  * 英雄渲染实体
  * Phaser游戏对象，负责英雄的渲染和动画
- * 使用三国志11真实头像
+ * 支持全身模型（部分武将）和头像显示
  */
 export class HeroEntity extends Phaser.GameObjects.Container {
   private heroData: Hero
@@ -20,23 +20,35 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   // 技能冷却状态（主动技能）
   private activeSkillCooldownPercent: number = 0
 
+  // 全身模型标志
+  private useFullbody: boolean = false
+
   constructor(scene: Phaser.Scene, hero: Hero, deployed: DeployedHero) {
     super(scene, deployed.position.x, deployed.position.y)
 
     this.heroData = hero
     this.deployedData = deployed
 
-    // 获取头像图片key（根据英雄ID）
+    // 判断是否使用全身模型
+    this.useFullbody = this.shouldUseFullbody(hero.id)
+
+    // 获取图片key（根据英雄ID和模型类型）
     const imageKey = this.getHeroImageKey(hero.id)
 
-    // 创建英雄头像图片（缩放到合适大小）
-    // 原图240x240，缩放到80x80显示
+    // 创建英雄图片（根据类型调整尺寸）
     this.heroImage = scene.add.image(0, 0, imageKey)
-    this.heroImage.setDisplaySize(80, 80)  // 显示尺寸
+    if (this.useFullbody) {
+      // 全身模型：较大尺寸
+      this.heroImage.setDisplaySize(120, 150)
+    } else {
+      // 头像：标准尺寸
+      this.heroImage.setDisplaySize(80, 80)
+    }
     this.add(this.heroImage)
 
-    // 创建英雄名称文字
-    this.heroNameText = scene.add.text(0, -50, hero.name, {
+    // 创建英雄名称文字（位置根据模型类型调整）
+    const nameY = this.useFullbody ? -85 : -50
+    this.heroNameText = scene.add.text(0, nameY, hero.name, {
       fontSize: '14px',
       color: '#ffffff',
       backgroundColor: '#000000',
@@ -44,8 +56,9 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     }).setOrigin(0.5)
     this.add(this.heroNameText)
 
-    // 创建五行文字（显示在头像下方）
-    this.wuXingText = scene.add.text(0, 50, this.getWuXingText(hero.wuXing), {
+    // 创建五行文字（位置根据模型类型调整）
+    const wuXingY = this.useFullbody ? 85 : 50
+    this.wuXingText = scene.add.text(0, wuXingY, this.getWuXingText(hero.wuXing), {
       fontSize: '12px',
       color: this.getWuXingTextColor(hero.wuXing),
       backgroundColor: '#000000',
@@ -58,16 +71,17 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.add(this.rangeIndicator)
     this.hideRangeIndicator()
 
-    // 创建技能冷却进度条
+    // 创建技能冷却进度条（位置根据模型类型调整）
     this.skillCooldownBar = scene.add.graphics()
     this.add(this.skillCooldownBar)
 
-    // 创建技能冷却遮罩（覆盖在头像上）
+    // 创建技能冷却遮罩（覆盖在图片上）
     this.skillCooldownOverlay = scene.add.graphics()
     this.add(this.skillCooldownOverlay)
 
-    // 技能就绪提示（显示在头像上方）
-    this.skillReadyIndicator = scene.add.text(0, -65, '技能就绪', {
+    // 技能就绪提示（位置根据模型类型调整）
+    const skillY = this.useFullbody ? -100 : -65
+    this.skillReadyIndicator = scene.add.text(0, skillY, '技能就绪', {
       fontSize: '10px',
       color: '#00ff00',
       backgroundColor: '#000000',
@@ -81,17 +95,34 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     // 添加到场景
     scene.add.existing(this)
 
-    // 设置交互区域（基于头像大小）
+    // 设置交互区域
     this.heroImage.setInteractive({ useHandCursor: true })
     this.heroImage.on('pointerover', () => this.showRangeIndicator())
     this.heroImage.on('pointerout', () => this.hideRangeIndicator())
   }
 
   /**
-   * 获取英雄头像图片key
+   * 判断是否使用全身模型
+   */
+  private shouldUseFullbody(heroId: string): boolean {
+    // 目前只有赵云有全身模型
+    const fullbodyHeroes = ['hero_zhaoyun']
+    return fullbodyHeroes.includes(heroId) && this.scene.textures.exists(`fullbody_${heroId.replace('hero_', '')}_stand`)
+  }
+
+  /**
+   * 获取英雄图片key
    */
   private getHeroImageKey(heroId: string): string {
-    // 映射英雄ID到预加载的图片key
+    // 如果使用全身模型，返回站立状态的纹理
+    if (this.useFullbody) {
+      const fullbodyKey = `fullbody_${heroId.replace('hero_', '')}_stand`
+      if (this.scene.textures.exists(fullbodyKey)) {
+        return fullbodyKey
+      }
+    }
+
+    // 否则使用头像
     const imageKeyMap: Record<string, string> = {
       'hero_guanyu': 'hero_guanyu',
       'hero_zhangfei': 'hero_zhangfei',
@@ -103,28 +134,54 @@ export class HeroEntity extends Phaser.GameObjects.Container {
       return key
     }
 
-    // 如果没有找到真实头像，使用占位符
+    // 如果没有找到，使用占位符
     return 'hero_placeholder'
   }
 
   /**
-   * 更新攻击动画
+   * 更新攻击动画（全身模型切换纹理，头像缩放效果）
    */
   playAttackAnimation(): void {
-    this.scene.tweens.add({
-      targets: this.heroImage,
-      scale: 1.3,  // 攻击时放大
-      duration: 100,
-      yoyo: true
-    })
+    if (this.useFullbody) {
+      // 全身模型：切换到攻击帧
+      const attackKey = `fullbody_${this.heroData.id.replace('hero_', '')}_attack`
+      if (this.scene.textures.exists(attackKey)) {
+        this.heroImage.setTexture(attackKey)
+        this.heroImage.setDisplaySize(120, 150)
 
-    // 攻击时闪烁效果
-    this.scene.tweens.add({
-      targets: this.heroImage,
-      alpha: 0.7,
-      duration: 50,
-      yoyo: true
-    })
+        // 攻击动画效果（轻微前冲）
+        this.scene.tweens.add({
+          targets: this.heroImage,
+          x: 10,
+          duration: 100,
+          yoyo: true,
+          ease: 'Power2',
+          onComplete: () => {
+            // 攻击结束后切换回站立帧
+            const standKey = `fullbody_${this.heroData.id.replace('hero_', '')}_stand`
+            if (this.scene.textures.exists(standKey)) {
+              this.heroImage.setTexture(standKey)
+              this.heroImage.setDisplaySize(120, 150)
+            }
+          }
+        })
+      }
+    } else {
+      // 头像：缩放+闪烁效果
+      this.scene.tweens.add({
+        targets: this.heroImage,
+        scale: 1.3,
+        duration: 100,
+        yoyo: true
+      })
+
+      this.scene.tweens.add({
+        targets: this.heroImage,
+        alpha: 0.7,
+        duration: 50,
+        yoyo: true
+      })
+    }
   }
 
   /**
@@ -186,7 +243,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.skillCooldownBar.clear()
     const barWidth = 60
     const barHeight = 4
-    const barY = 55
+    const barY = this.useFullbody ? 90 : 55
 
     // 背景
     this.skillCooldownBar.fillStyle(0x333333, 0.8)
@@ -197,12 +254,18 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.skillCooldownBar.fillStyle(progressColor, 0.8)
     this.skillCooldownBar.fillRect(-barWidth / 2, barY, barWidth * cooldownPercent, barHeight)
 
-    // 更新冷却遮罩（覆盖头像）
+    // 更新冷却遮罩（覆盖图片）
     this.skillCooldownOverlay.clear()
     if (cooldownPercent < 1) {
       // 冷却中：显示半透明遮罩
+      const overlaySize = this.useFullbody ? { width: 120, height: 150 } : { width: 80, height: 80 }
       this.skillCooldownOverlay.fillStyle(0x000000, 0.3 * (1 - cooldownPercent))
-      this.skillCooldownOverlay.fillRect(-40, -40, 80, 80)
+      this.skillCooldownOverlay.fillRect(
+        -overlaySize.width / 2,
+        -overlaySize.height / 2,
+        overlaySize.width,
+        overlaySize.height
+      )
     }
 
     // 更新技能就绪提示

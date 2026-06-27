@@ -43,9 +43,6 @@ export default class PreloadScene extends Phaser.Scene {
 
     // 加载真实资源
     this.loadRealAssets()
-
-    // 加载占位资源（备用）
-    this.createPlaceholderTextures()
   }
 
   /**
@@ -108,7 +105,11 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('baoji_zhugeliang', 'assets/images/heroes/San11/baoji/诸葛亮.jpg')
     this.load.image('baoji_diaochan', 'assets/images/heroes/San11/baoji/貂蝉.jpg')
 
-    console.log('PreloadScene: 武将头像和暴击图加载完成')
+    // 加载武将全身模型（部署后显示）
+    this.load.image('fullbody_zhaoyun_stand', 'assets/images/heroes/fullbody/zhaoyun/赵云站立.png')
+    this.load.image('fullbody_zhaoyun_attack', 'assets/images/heroes/fullbody/zhaoyun/赵云攻击.png')
+
+    console.log('PreloadScene: 武将头像、暴击图和全身模型加载完成')
   }
 
   /**
@@ -141,6 +142,9 @@ export default class PreloadScene extends Phaser.Scene {
    * 创建场景内容
    */
   create(): void {
+    // 创建占位纹理（备用）
+    this.createPlaceholderTextures()
+
     // 隐藏加载UI
     this.loadingBar.destroy()
     this.progressBar.destroy()
