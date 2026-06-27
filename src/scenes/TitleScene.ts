@@ -33,8 +33,8 @@ export default class TitleScene extends Phaser.Scene {
     // 创建开始按钮
     this.createStartButton(width, height)
 
-    // 创建其他菜单按钮（后续添加）
-    // this.createMenuButtons(width, height)
+    // 创建菜单按钮
+    this.createMenuButtons(width, height)
 
     // 添加背景动画效果（可选）
     this.createBackgroundEffect()
@@ -97,6 +97,30 @@ export default class TitleScene extends Phaser.Scene {
     // 点击事件
     buttonBg.on('pointerdown', () => {
       this.onStartGame()
+    })
+  }
+
+  /**
+   * 创建菜单按钮
+   */
+  private createMenuButtons(width: number, height: number): void {
+    const buttonX = width / 2
+    const buttonY = height / 2 + 120
+
+    // 武将按钮
+    const heroBtnBg = this.add.rectangle(0, 0, 200, 40, 0x666688)
+    const heroBtnText = this.add.text(0, 0, '武将', {
+      fontSize: '20px',
+      color: '#ffffff'
+    }).setOrigin(0.5)
+
+    const heroBtn = this.add.container(buttonX, buttonY, [heroBtnBg, heroBtnText])
+
+    heroBtnBg.setInteractive({ useHandCursor: true })
+    heroBtnBg.on('pointerover', () => heroBtnBg.setFillStyle(0x7777aa))
+    heroBtnBg.on('pointerout', () => heroBtnBg.setFillStyle(0x666688))
+    heroBtnBg.on('pointerdown', () => {
+      this.scene.start('HeroListScene')
     })
   }
 
