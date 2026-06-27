@@ -98,12 +98,17 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('hero_zhangfei', 'assets/images/heroes/San11/face/0001_张飞_1.jpg')
     this.load.image('hero_zhaoyun', 'assets/images/heroes/San11/face/0009_赵云_1.jpg')
 
-    // 可以加载更多武将头像（后续扩展）
-    // this.load.image('hero_lvbu', 'assets/images/heroes/San11/face/0003_吕布_1.jpg')
-    // this.load.image('hero_machao', 'assets/images/heroes/San11/face/0004_马超_1.jpg')
-    // ...
+    // 加载武将暴击图（技能释放时展示）
+    this.load.image('baoji_guanyu', 'assets/images/heroes/San11/baoji/关羽.jpg')
+    this.load.image('baoji_zhangfei', 'assets/images/heroes/San11/baoji/张飞.jpg')
+    this.load.image('baoji_zhaoyun', 'assets/images/heroes/San11/baoji/赵云.jpg')
+    this.load.image('baoji_lvbu', 'assets/images/heroes/San11/baoji/吕布.jpg')
+    this.load.image('baoji_zhouyu', 'assets/images/heroes/San11/baoji/周瑜.jpg')
+    this.load.image('baoji_caocao', 'assets/images/heroes/San11/baoji/曹操.jpg')
+    this.load.image('baoji_zhugeliang', 'assets/images/heroes/San11/baoji/诸葛亮.jpg')
+    this.load.image('baoji_diaochan', 'assets/images/heroes/San11/baoji/貂蝉.jpg')
 
-    console.log('PreloadScene: 武将头像加载完成')
+    console.log('PreloadScene: 武将头像和暴击图加载完成')
   }
 
   /**

@@ -60,6 +60,9 @@ export class SkillExecutor {
     // 触发冷却
     this.skillManager.triggerCooldown(skillId)
 
+    // 展示暴击图（技能释放前的特写）
+    this.showBaojiImage(hero.getHeroData().id, skill.name)
+
     // 根据效果类型执行
     const result = this.executeEffect(skill, skill.effect, casterPos, hero, targetPos)
 
@@ -305,5 +308,131 @@ export class SkillExecutor {
       duration: 1000,
       onComplete: () => text.destroy()
     })
+  }
+
+  /**
+   * 展示暴击图（三国志11风格）
+   * @param heroId 英雄ID
+   * @param skillName 技能名称
+   */
+  private showBaojiImage(heroId: string, skillName: string): void {
+    // 获取对应的暴击图key
+    const baojiKey = this.getBaojiImageKey(heroId)
+    if (!baojiKey) return
+
+    // 检查纹理是否存在
+    if (!this.scene.textures.exists(baojiKey)) {
+      console.warn(`暴击图未加载: ${baojiKey}`)
+      return
+    }
+
+    const width = this.scene.cameras.main.width
+    const height = this.scene.cameras.main.height
+
+    // 创建暴击图容器
+    const container = this.scene.add.container(0, 0)
+    container.setDepth(1000) // 确保在最上层显示
+
+    // 半透明黑色背景（增加视觉冲击）
+    const bg = this.scene.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3)
+
+    // 暴击图（放大显示，偏左位置）
+    const baojiImage = this.scene.add.image(width * 0.35, height / 2, baojiKey)
+    baojiImage.setDisplaySize(400, 400) // 大尺寸展示
+
+    // 技能名称（白色粗体，显示在暴击图下方）
+    const skillText = this.scene.add.text(width * 0.35, height / 2 + 220, skillName, {
+      fontSize: '32px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4
+    }).setOrigin(0.5)
+
+    // 闪光特效（从左到右的光线）
+    const flashGraphics = this.scene.add.graphics()
+    flashGraphics.fillStyle(0xffffff, 0.8)
+    const flash = this.scene.add.rectangle(0, height / 2, 60, height * 1.5, 0xffffff, 0.6)
+    flash.setOrigin(0.5, 0.5)
+    flash.setX(-100)
+
+    // 将所有元素添加到容器
+    container.add([bg, baojiImage, skillText, flash])
+
+    // 设置初始状态
+    container.setAlpha(0)
+    baojiImage.setScale(0.5)
+    flash.setAlpha(0)
+
+    // 动画序列
+    // 1. 暴击图快速放大出现
+    this.scene.tweens.add({
+      targets: container,
+      alpha: 1,
+      duration: 100,
+      ease: 'Power2'
+    })
+
+    this.scene.tweens.add({
+      targets: baojiImage,
+      scale: 1.2,
+      duration: 150,
+      ease: 'Back.easeOut'
+    })
+
+    // 2. 闪光特效（从左滑过）
+    this.scene.tweens.add({
+      targets: flash,
+      alpha: 0.8,
+      duration: 50,
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: flash,
+          x: width + 100,
+          alpha: 0,
+          duration: 300,
+          ease: 'Power1'
+        })
+      }
+    })
+
+    // 3. 技能名称震动效果
+    this.scene.tweens.add({
+      targets: skillText,
+      x: skillText.x + 5,
+      duration: 50,
+      yoyo: true,
+      repeat: 5
+    })
+
+    // 4. 持续展示后淡出消失
+    this.scene.time.delayedCall(800, () => {
+      this.scene.tweens.add({
+        targets: container,
+        alpha: 0,
+        duration: 200,
+        ease: 'Power2',
+        onComplete: () => {
+          container.destroy()
+        }
+      })
+    })
+  }
+
+  /**
+   * 根据英雄ID获取暴击图key
+   */
+  private getBaojiImageKey(heroId: string): string | null {
+    const baojiKeyMap: Record<string, string> = {
+      'hero_guanyu': 'baoji_guanyu',
+      'hero_zhangfei': 'baoji_zhangfei',
+      'hero_zhaoyun': 'baoji_zhaoyun',
+      'hero_lvbu': 'baoji_lvbu',
+      'hero_zhouyu': 'baoji_zhouyu',
+      'hero_caocao': 'baoji_caocao',
+      'hero_zhugeliang': 'baoji_zhugeliang',
+      'hero_diaochan': 'baoji_diaochan'
+    }
+    return baojiKeyMap[heroId] || null
   }
 }
