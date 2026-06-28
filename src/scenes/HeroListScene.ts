@@ -275,6 +275,39 @@ export default class HeroListScene extends Phaser.Scene {
 
     // 星级
     this.addDetailText(50, infoY, `星级: ${'★'.repeat(hero.star)}${'☆'.repeat(5 - hero.star)}`, '#ffaa00')
+    infoY += lineHeight
+
+    // 升星进度和按钮
+    if (hero.star < 5) {
+      const soulStones = this.getSoulStones(hero.id)
+      const required = hero.starUpgradeRequirements[hero.star - 1] || 0
+      const canUpgrade = soulStones >= required
+
+      // 碎片数量
+      this.addDetailText(50, infoY, `碎片: ${soulStones}/${required}`, canUpgrade ? '#88ff88' : '#888888')
+      infoY += lineHeight
+
+      // 升星按钮
+      if (canUpgrade) {
+        const upgradeBtnBg = this.add.rectangle(50, infoY, 100, 25, 0x448844)
+        upgradeBtnBg.setInteractive({ useHandCursor: true })
+        const upgradeBtnText = this.add.text(50, infoY, '升星', {
+          fontSize: '14px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0.5)
+        this.detailPanel!.add(upgradeBtnBg)
+        this.detailPanel!.add(upgradeBtnText)
+
+        upgradeBtnBg.on('pointerover', () => upgradeBtnBg.setFillStyle(0x66aa66))
+        upgradeBtnBg.on('pointerout', () => upgradeBtnBg.setFillStyle(0x448844))
+        upgradeBtnBg.on('pointerdown', () => {
+          this.showUpgradeConfirmDialog(hero, soulStones, required)
+        })
+      }
+    } else {
+      this.addDetailText(50, infoY, '已满星', '#ffcc00', true)
+    }
     infoY += lineHeight * 2
 
     // 属性区域标题
@@ -514,6 +547,9 @@ export default class HeroListScene extends Phaser.Scene {
     let attackSpeed = hero.baseStats.attackSpeed
     let attackRange = hero.baseStats.attackRange
 
+    // 应用升星加成（每星+5%攻击力）
+    attack = Math.floor(attack * (1 + (hero.star - 1) * 0.05))
+
     // 应用被动技能加成
     const passiveSkillId = hero.passiveSkillId
     if (passiveSkillId === 'skill_passive_zhangfei') {
@@ -582,6 +618,140 @@ export default class HeroListScene extends Phaser.Scene {
 
     this.detailPanel!.add(textObj)
     return textObj
+  }
+
+  /**
+   * 获取武将碎片数量
+   */
+  private getSoulStones(heroId: string): number {
+    const saveManager = SaveManager.getInstance()
+    const saveData = saveManager.getCurrentSave()
+
+    if (!saveData) return 0
+
+    const stoneData = saveData.inventory.soulStones.find(s => s.heroId === heroId)
+    return stoneData?.amount || 0
+  }
+
+  /**
+   * 显示升星确认对话框
+   */
+  private showUpgradeConfirmDialog(hero: Hero, currentStones: number, required: number): void {
+    const width = this.cameras.main.width
+    const height = this.cameras.main.height
+
+    // 弹窗背景
+    const dialogBg = this.add.rectangle(width / 2, height / 2, 350, 200, 0x222222, 0.95)
+    dialogBg.setStrokeStyle(2, 0xffaa00)
+    dialogBg.setDepth(50)
+
+    // 标题
+    const titleText = this.add.text(width / 2, height / 2 - 70, `升星确认`, {
+      fontSize: '20px',
+      color: '#ffaa00',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(50)
+
+    // 当前星级
+    const currentStarText = this.add.text(width / 2, height / 2 - 40,
+      `当前: ${'★'.repeat(hero.star)} → 升星后: ${'★'.repeat(hero.star + 1)}`, {
+      fontSize: '16px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setDepth(50)
+
+    // 消耗信息
+    const costText = this.add.text(width / 2, height / 2 - 10,
+      `消耗碎片: ${required} (拥有: ${currentStones})`, {
+      fontSize: '14px',
+      color: '#88ff88'
+    }).setOrigin(0.5).setDepth(50)
+
+    // 属性提升预览
+    const buffText = this.add.text(width / 2, height / 2 + 20,
+      `升星后属性提升: 攻击力+${5 * hero.star}%`, {
+      fontSize: '12px',
+      color: '#aaaaaa'
+    }).setOrigin(0.5).setDepth(50)
+
+    // 确认按钮
+    const confirmBtn = this.add.rectangle(width / 2 - 80, height / 2 + 60, 80, 30, 0x448844)
+    confirmBtn.setInteractive({ useHandCursor: true })
+    confirmBtn.setDepth(50)
+    const confirmBtnText = this.add.text(width / 2 - 80, height / 2 + 60, '确认升星', {
+      fontSize: '14px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setDepth(50)
+
+    // 取消按钮
+    const cancelBtn = this.add.rectangle(width / 2 + 80, height / 2 + 60, 80, 30, 0x444444)
+    cancelBtn.setInteractive({ useHandCursor: true })
+    cancelBtn.setDepth(50)
+    const cancelBtnText = this.add.text(width / 2 + 80, height / 2 + 60, '取消', {
+      fontSize: '14px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setDepth(50)
+
+    const cleanup = () => {
+      dialogBg.destroy()
+      titleText.destroy()
+      currentStarText.destroy()
+      costText.destroy()
+      buffText.destroy()
+      confirmBtn.destroy()
+      confirmBtnText.destroy()
+      cancelBtn.destroy()
+      cancelBtnText.destroy()
+    }
+
+    confirmBtn.on('pointerover', () => confirmBtn.setFillStyle(0x66aa66))
+    confirmBtn.on('pointerout', () => confirmBtn.setFillStyle(0x448844))
+    confirmBtn.on('pointerdown', () => {
+      cleanup()
+      this.upgradeHeroStar(hero.id, required)
+    })
+
+    cancelBtn.on('pointerover', () => cancelBtn.setFillStyle(0x555555))
+    cancelBtn.on('pointerout', () => cancelBtn.setFillStyle(0x444444))
+    cancelBtn.on('pointerdown', cleanup)
+  }
+
+  /**
+   * 升星武将
+   */
+  private upgradeHeroStar(heroId: string, cost: number): void {
+    const saveManager = SaveManager.getInstance()
+    const saveData = saveManager.getCurrentSave()
+
+    if (!saveData) return
+
+    // 消耗碎片
+    const stoneData = saveData.inventory.soulStones.find(s => s.heroId === heroId)
+    if (stoneData) {
+      stoneData.amount -= cost
+      if (stoneData.amount <= 0) {
+        saveData.inventory.soulStones = saveData.inventory.soulStones.filter(s => s.heroId !== heroId)
+      }
+    }
+
+    // 升星
+    const heroData = saveData.heroes.find(h => h.id === heroId)
+    if (heroData && heroData.star < 5) {
+      heroData.star += 1
+    }
+
+    // 更新本地武将数据
+    const hero = this.heroes.get(heroId)
+    if (hero && hero.star < 5) {
+      hero.star += 1
+    }
+
+    // 保存
+    saveManager.saveCurrent()
+
+    // 更新显示
+    this.updateDetailPanel(heroId)
+    this.showMessage('升星成功！')
+    console.log(`武将 ${heroId} 升星到 ${hero?.star} 星`)
   }
 
   /**
