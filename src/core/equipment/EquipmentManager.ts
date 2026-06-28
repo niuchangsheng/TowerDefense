@@ -206,6 +206,62 @@ export class EquipmentManager {
   }
 
   /**
+   * 按五行和等级获取宝石数量
+   */
+  getGemCountByWuXingAndLevel(wuXing: string, level: number): number {
+    return Array.from(this.ownedGems.values())
+      .filter(g => g.wuXing === wuXing && g.level === level)
+      .length
+  }
+
+  /**
+   * 获取指定五行和等级的宝石列表
+   */
+  getGemsByWuXingAndLevel(wuXing: string, level: number): Gem[] {
+    return Array.from(this.ownedGems.values())
+      .filter(g => g.wuXing === wuXing && g.level === level)
+  }
+
+  /**
+   * 宝石合成（3个同级宝石合成1个高级宝石）
+   * @param wuXing 五行属性
+   * @param level 当前等级（合成前的等级）
+   * @returns 合成后的新宝石，或null（合成失败）
+   */
+  synthesizeGems(wuXing: string, level: number): Gem | null {
+    // 不能合成5级宝石（已经是最高级）
+    if (level >= 5) {
+      console.warn('5级宝石无法继续合成')
+      return null
+    }
+
+    // 检查是否有足够的宝石（至少3个）
+    const gems = this.getGemsByWuXingAndLevel(wuXing, level)
+    if (gems.length < 3) {
+      console.warn(`${wuXing}系${level}级宝石不足，需要至少3个`)
+      return null
+    }
+
+    // 删除3个低级宝石
+    for (let i = 0; i < 3; i++) {
+      this.ownedGems.delete(gems[i].id)
+    }
+
+    // 创建1个高级宝石
+    const newGem = this.addGem(wuXing, level + 1)
+
+    console.log(`合成成功：3个${wuXing}系Lv.${level}宝石 → 1个${wuXing}系Lv.${level + 1}宝石`)
+    return newGem
+  }
+
+  /**
+   * 检查是否可以合成
+   */
+  canSynthesize(wuXing: string, level: number): boolean {
+    return level < 5 && this.getGemCountByWuXingAndLevel(wuXing, level) >= 3
+  }
+
+  /**
    * 镶嵌宝石到神器
    */
   socketGemToArtifact(artifactInstanceId: string, gemId: string): boolean {

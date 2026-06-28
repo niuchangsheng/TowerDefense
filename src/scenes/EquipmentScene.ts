@@ -42,6 +42,9 @@ export default class EquipmentScene extends Phaser.Scene {
     // 创建宝石列表
     this.createGemList()
 
+    // 创建宝石合成按钮
+    this.createGemSynthesisButton()
+
     // 创建详情面板
     this.createDetailPanel()
 
@@ -305,6 +308,160 @@ export default class EquipmentScene extends Phaser.Scene {
       const bg = card.getAt(0) as Phaser.GameObjects.Rectangle
       bg.setStrokeStyle(equip.isEquipped ? 3 : 2, equip.isEquipped ? 0x88ff88 : this.getRarityBorderColor(equip.rarity))
     }
+  }
+
+  /**
+   * 创建宝石合成按钮
+   */
+  private createGemSynthesisButton(): void {
+    const startX = 80
+    const startY = 450
+
+    // 合成按钮背景
+    const btnBg = this.add.rectangle(startX, startY, 120, 40, 0x44aa44, 0.9)
+    btnBg.setStrokeStyle(2, 0x66ff66)
+
+    // 合成按钮文字
+    const btnText = this.add.text(startX, startY, '宝石合成', {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5)
+
+    // 点击交互
+    btnBg.setInteractive({ useHandCursor: true })
+    btnBg.on('pointerover', () => {
+      btnBg.setFillStyle(0x66cc66, 1)
+      this.equipmentManager.getOwnedGems()
+    })
+    btnBg.on('pointerout', () => {
+      btnBg.setFillStyle(0x44aa44, 0.9)
+    })
+    btnBg.on('pointerdown', () => {
+      this.showGemSynthesisPanel()
+    })
+  }
+
+  /**
+   * 显示宝石合成弹窗
+   */
+  private showGemSynthesisPanel(): void {
+    const width = this.cameras.main.width
+    const height = this.cameras.main.height
+
+    // 创建弹窗容器
+    const popup = this.add.container(width / 2, height / 2)
+    popup.setDepth(50)
+
+    // 弹窗背景
+    const popupBg = this.add.rectangle(0, 0, 500, 400, 0x222244, 0.98)
+    popupBg.setStrokeStyle(3, 0x4466aa)
+    popup.add(popupBg)
+
+    // 标题
+    const title = this.add.text(0, -180, '宝石合成', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5)
+    popup.add(title)
+
+    // 说明文字
+    const descText = this.add.text(0, -150, '3个同级宝石可合成1个高级宝石', {
+      fontSize: '14px',
+      color: '#aaaaaa'
+    }).setOrigin(0.5)
+    popup.add(descText)
+
+    // 按五行分组显示宝石
+    const wuXingList = ['metal', 'wood', 'water', 'fire', 'earth']
+    const wuXingNames = ['金', '木', '水', '火', '土']
+    const startY = -120
+    const lineHeight = 70
+
+    for (let i = 0; i < wuXingList.length; i++) {
+      const wuXing = wuXingList[i]
+      const wuXingName = wuXingNames[i]
+      const rowY = startY + i * lineHeight
+
+      // 五行标签
+      const wuXingLabel = this.add.text(-200, rowY, wuXingName, {
+        fontSize: '18px',
+        color: this.getWuXingColor(wuXing),
+        fontStyle: 'bold'
+      }).setOrigin(0, 0.5)
+      popup.add(wuXingLabel)
+
+      // 显示1-5级宝石数量
+      for (let level = 1; level <= 5; level++) {
+        const count = this.equipmentManager.getGemCountByWuXingAndLevel(wuXing, level)
+        const x = -150 + (level - 1) * 80
+
+        // 宝石等级框
+        const gemBg = this.add.rectangle(x, rowY, 70, 50, this.getWuXingBgColor(wuXing), count > 0 ? 0.9 : 0.4)
+        gemBg.setStrokeStyle(2, this.getWuXingBorderColor(wuXing))
+        popup.add(gemBg)
+
+        // 等级文字
+        const levelText = this.add.text(x, rowY - 15, `Lv.${level}`, {
+          fontSize: '12px',
+          color: '#ffffff'
+        }).setOrigin(0.5)
+        popup.add(levelText)
+
+        // 数量文字
+        const countText = this.add.text(x, rowY + 10, `${count}`, {
+          fontSize: '16px',
+          color: count > 0 ? '#ffffff' : '#666666',
+          fontStyle: 'bold'
+        }).setOrigin(0.5)
+        popup.add(countText)
+
+        // 合成按钮（1-4级可以合成，数量>=3）
+        if (level < 5 && count >= 3) {
+          const synthBtn = this.add.rectangle(x + 35, rowY, 30, 30, 0x44aa44)
+          synthBtn.setStrokeStyle(1, 0x66ff66)
+          synthBtn.setInteractive({ useHandCursor: true })
+
+          const synthIcon = this.add.text(x + 35, rowY, '↑', {
+            fontSize: '16px',
+            color: '#ffffff',
+            fontStyle: 'bold'
+          }).setOrigin(0.5)
+
+          popup.add(synthBtn)
+          popup.add(synthIcon)
+
+          synthBtn.on('pointerover', () => synthBtn.setFillStyle(0x66cc66))
+          synthBtn.on('pointerout', () => synthBtn.setFillStyle(0x44aa44))
+          synthBtn.on('pointerdown', () => {
+            const result = this.equipmentManager.synthesizeGems(wuXing, level)
+            if (result) {
+              popup.destroy()
+              this.showGemSynthesisPanel() // 重新显示更新后的面板
+              this.showMessage(`合成成功！获得 ${getGemName(result)}`)
+              this.refreshGemList()
+            }
+          })
+        }
+      }
+    }
+
+    // 关闭按钮
+    const closeBtnBg = this.add.rectangle(0, 170, 100, 35, 0x666688)
+    closeBtnBg.setStrokeStyle(2, 0x8888aa)
+    const closeBtnText = this.add.text(0, 170, '关闭', {
+      fontSize: '16px',
+      color: '#ffffff'
+    }).setOrigin(0.5)
+
+    popup.add(closeBtnBg)
+    popup.add(closeBtnText)
+
+    closeBtnBg.setInteractive({ useHandCursor: true })
+    closeBtnBg.on('pointerover', () => closeBtnBg.setFillStyle(0x7777aa))
+    closeBtnBg.on('pointerout', () => closeBtnBg.setFillStyle(0x666688))
+    closeBtnBg.on('pointerdown', () => popup.destroy())
   }
 
   /**

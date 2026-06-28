@@ -52,7 +52,9 @@
       "Bash(python3 scripts/quick_select_tiles.py)",
       "Bash(awk '{print $5, $9}')",
       "Bash(grep -E \"\\\\.ts$\")",
-      "Bash(top -b -n 1)"
+      "Bash(top -b -n 1)",
+      "Bash(lsof -ti:3002)",
+      "Bash(xargs kill -9)"
     ],
     "additionalDirectories": [
       "/mnt/c/Program Files/San11pk Tc/Media/face",
