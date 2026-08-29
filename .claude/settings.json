@@ -54,12 +54,33 @@
       "Bash(grep -E \"\\\\.ts$\")",
       "Bash(top -b -n 1)",
       "Bash(lsof -ti:3002)",
-      "Bash(xargs kill -9)"
+      "Bash(xargs kill -9)",
+      "Bash(ls -lh /mnt/c/Users/chang/Downloads/Gemini_Generated_Image_kzsedokzsedokzse.png 2>&1)",
+      "Read(//mnt/c/Users/chang/Downloads/**)",
+      "Bash(file /mnt/c/Users/chang/Downloads/Gemini_Generated_Image_kzsedokzsedokzse.png 2>&1)",
+      "Bash(cp /mnt/c/Users/chang/Downloads/Gemini_Generated_Image_kzsedokzse.png /home/chang/TowerDefense/assets/images/test_tile/test_plains.png)",
+      "Bash(unzip -l \"Elf Lashers.zip\")",
+      "Bash(unzip -q \"Elf Lashers.zip\" -d /tmp/war3_preview)",
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 install *)",
+      "Bash(python3 -m venv /tmp/blp_env)",
+      "Bash(/tmp/blp_env/bin/pip install *)",
+      "Bash(/tmp/blp_env/bin/python3)",
+      "Bash(/tmp/blp_env/bin/python3 -c \"import blp; print\\(blp.__file__\\); import os; print\\(os.listdir\\(os.path.dirname\\(blp.__file__\\)\\)\\)\")",
+      "Bash(/tmp/blp_env/bin/python3 -c \"from blp import blp; print\\([name for name in dir\\(blp\\) if not name.startswith\\('_'\\)]\\)\")",
+      "Bash(/tmp/blp_env/bin/python3 /tmp/blp_decoder.py \"/tmp/war3_preview/Elf Lashers/Dark Elf Beastmaster hero/Beastmaster.blp\" \"/tmp/war3_preview/converted_Beastmaster.png\")",
+      "WebFetch(domain:www.gameres.com)",
+      "WebFetch(domain:zhuanlan.zhihu.com)",
+      "Bash(awk '{print $1}')",
+      "Bash(git reset *)"
     ],
     "additionalDirectories": [
       "/mnt/c/Program Files/San11pk Tc/Media/face",
       "/home/chang/TowerDefense/assets/images/heroes_extracted",
-      "/mnt/c/Users/chang/Codes/dixing"
+      "/mnt/c/Users/chang/Codes/dixing",
+      "/mnt/c/Users/chang/Downloads",
+      "/tmp/war3_preview",
+      "/tmp"
     ]
   }
 }
