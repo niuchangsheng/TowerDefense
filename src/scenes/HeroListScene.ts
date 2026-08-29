@@ -17,7 +17,10 @@ import {
   inkText,
   inkRule,
   sectionHeader,
-  createInkButton
+  createInkButton,
+  renderPageHeader,
+  createPageBackButton,
+  inkToast
 } from '@/ui/InkTheme'
 
 /**
@@ -85,38 +88,17 @@ export default class HeroListScene extends Phaser.Scene {
    * 标题栏：左侧标题 + 印章 + 副标，下方一条墨线
    */
   private renderHeader(): void {
-    const L = HeroListScene.ROSTER_X
-
-    const title = inkText(this, L, 40, '武将', {
-      size: InkFontSize.title,
-      color: InkText.strong,
-      bold: true
-    })
-    // 印章红方块
-    this.add.rectangle(L + title.width + 18, 40, 14, 14, InkColor.cinnabar)
-    inkText(this, L + title.width + 36, 40, '· 名册', {
-      size: 18,
-      color: InkText.faint
-    })
-
-    inkRule(this, null, L, 68, 1216, 0.4)
+    renderPageHeader(this, '武将', '· 名册')
   }
 
   /**
    * 创建返回按钮（右上角）
    */
   private createBackButton(): void {
-    createInkButton(this, 1192, 40, 112, 36, '返回', {
-      fill: InkColor.paperPanel,
-      hoverFill: InkColor.paperDeep,
-      textColor: InkText.ink,
-      fontSize: InkFontSize.md,
-      stroke: InkColor.ink,
-      onClick: () => {
-        // 自动存档
-        this.autoSave()
-        this.scene.start('TitleScene')
-      }
+    createPageBackButton(this, () => {
+      // 自动存档
+      this.autoSave()
+      this.scene.start('TitleScene')
     })
   }
 
@@ -743,26 +725,7 @@ export default class HeroListScene extends Phaser.Scene {
    * 显示消息提示
    */
   private showMessage(msg: string): void {
-    const width = this.cameras.main.width
-
-    const toast = this.add.container(width / 2, 626)
-    toast.setDepth(InkDepth.toast)
-
-    const text = inkText(this, 0, 0, msg, {
-      size: InkFontSize.md,
-      color: InkText.paper,
-      originX: 0.5
-    })
-    const padX = 12
-    const padY = 6
-    const w = text.width + padX * 2
-    const h = text.height + padY * 2
-    const bg = this.add.graphics()
-    bg.fillStyle(InkColor.ink, 0.92)
-    bg.fillRoundedRect(-w / 2, -h / 2, w, h, InkRadius.sm)
-    toast.add([bg, text])
-
-    this.time.delayedCall(1500, () => toast.destroy())
+    inkToast(this, msg)
   }
 
   /**

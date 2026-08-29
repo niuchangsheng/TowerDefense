@@ -268,6 +268,118 @@ export interface InkButtonOptions {
 }
 
 /**
+ * 页面头部横幅：左侧大标题 + 印章红方块 + 副标，下方一条墨线。
+ * 与武将页页眉像素一致，供所有页面场景复用。
+ */
+export function renderPageHeader(
+  scene: Phaser.Scene,
+  title: string,
+  subtitle?: string
+): void {
+  const L = InkSpacing.xl // 32，页边距
+
+  const titleObj = inkText(scene, L, 40, title, {
+    size: InkFontSize.title,
+    color: InkText.strong,
+    bold: true
+  })
+  // 印章红方块
+  scene.add.rectangle(L + titleObj.width + 18, 40, 14, 14, InkColor.cinnabar)
+  if (subtitle) {
+    inkText(scene, L + titleObj.width + 36, 40, subtitle, {
+      size: 18,
+      color: InkText.faint
+    })
+  }
+
+  inkRule(scene, null, L, 68, scene.cameras.main.width - L * 2, 0.4)
+}
+
+/**
+ * 页面右上角返回按钮（中心 1192,40，112×36）。
+ */
+export function createPageBackButton(
+  scene: Phaser.Scene,
+  onClick: () => void
+): Phaser.GameObjects.Container {
+  return createInkButton(scene, 1192, 40, 112, 36, '返回', {
+    fill: InkColor.paperPanel,
+    hoverFill: InkColor.paperDeep,
+    textColor: InkText.ink,
+    fontSize: InkFontSize.md,
+    stroke: InkColor.ink,
+    onClick
+  })
+}
+
+/**
+ * 居中墨块消息提示：圆角墨底 + 纸色字，1.5 秒后自动销毁。
+ * 返回容器（调用方可提前手动销毁）。
+ */
+export function inkToast(
+  scene: Phaser.Scene,
+  content: string,
+  y: number = 626
+): Phaser.GameObjects.Container {
+  const toast = scene.add.container(scene.cameras.main.width / 2, y)
+  toast.setDepth(InkDepth.toast)
+
+  const text = inkText(scene, 0, 0, content, {
+    size: InkFontSize.md,
+    color: InkText.paper,
+    originX: 0.5
+  })
+  const padX = 12
+  const padY = 6
+  const w = text.width + padX * 2
+  const h = text.height + padY * 2
+  const bg = scene.add.graphics()
+  bg.fillStyle(InkColor.ink, 0.92)
+  bg.fillRoundedRect(-w / 2, -h / 2, w, h, InkRadius.sm)
+  toast.add([bg, text])
+
+  scene.time.delayedCall(1500, () => toast.destroy())
+  return toast
+}
+
+export interface InkDialogOptions {
+  fill?: number
+  stroke?: number
+  strokeWidth?: number
+  radius?: number
+}
+
+export interface InkDialog {
+  /** 淡墨遮罩（可交互，用于拦截点击；关闭时记得 destroy） */
+  overlay: Phaser.GameObjects.Rectangle
+  /** 居中面板容器，锚点为左上角（局部坐标从 0,0 起） */
+  panel: Phaser.GameObjects.Container
+}
+
+/**
+ * 模态对话框：淡墨遮罩 + 居中圆角面板。
+ * 关闭时同时销毁 overlay 与 panel。
+ */
+export function createInkDialog(
+  scene: Phaser.Scene,
+  w: number,
+  h: number,
+  options: InkDialogOptions = {}
+): InkDialog {
+  const width = scene.cameras.main.width
+  const height = scene.cameras.main.height
+
+  const overlay = scene.add.rectangle(width / 2, height / 2, width, height, InkColor.ink, 0.2)
+  overlay.setInteractive()
+  overlay.setDepth(InkDepth.overlay)
+
+  const panel = createPanel(scene, (width - w) / 2, (height - h) / 2, w, h, options)
+  panel.setDepth(InkDepth.popup)
+
+  return { overlay, panel }
+}
+
+/**
  * 水墨风按钮。(x, y) 为按钮中心。
  * 自带手型光标、悬停换色与点击回调。
  */
