@@ -46,6 +46,8 @@ export class BattleSystem {
   private elapsedTime: number
   private isRunning: boolean
   private isPaused: boolean
+  /** 已通知过"波次开始"的最大波次号（防止重复通知） */
+  private lastNotifiedWave: number
 
   // 事件回调
   private onEnemyKilledCallback?: (enemy: EnemyEntity) => void
@@ -83,6 +85,7 @@ export class BattleSystem {
     this.elapsedTime = 0
     this.isRunning = false
     this.isPaused = false
+    this.lastNotifiedWave = 0
 
     this.battleState = {
       status: 'preparing',
@@ -105,11 +108,8 @@ export class BattleSystem {
     this.isPaused = false
     this.battleState.status = 'running'
 
-    // 开始第一波
+    // 开始第一波（波次开始通知由 updateWaves 统一触发，见 notifyWaveStartIfNeeded）
     this.waveManager.startNextWave()
-    if (this.onWaveStartCallback) {
-      this.onWaveStartCallback(1)
-    }
   }
 
   /**
@@ -272,9 +272,16 @@ export class BattleSystem {
       // 所有敌人被消灭后自动开始下一波
       if (this.enemyManager.getEnemyCount() === 0 && !this.waveManager.isAllWavesComplete()) {
         this.waveManager.startNextWave()
-        if (this.onWaveStartCallback) {
-          this.onWaveStartCallback(this.waveManager.getCurrentWave())
-        }
+      }
+    }
+
+    // 统一通知"波次开始"：波次可能由清场门槛触发，也可能由 WaveManager
+    // 内置的休整计时器静默启动，这里按波次号去重，保证每条波次只通知一次
+    const currentWave = this.waveManager.getCurrentWave()
+    if (currentWave > this.lastNotifiedWave) {
+      this.lastNotifiedWave = currentWave
+      if (this.onWaveStartCallback) {
+        this.onWaveStartCallback(currentWave)
       }
     }
   }
@@ -342,15 +349,7 @@ export class BattleSystem {
    * 判断胜利
    */
   isVictory(): boolean {
-    const wavesComplete = this.waveManager.isAllWavesComplete()
-    const enemyCount = this.enemyManager.getEnemyCount()
-    const result = wavesComplete && enemyCount === 0
-
-    if (wavesComplete) {
-      console.log(`胜利检查: 波次完成=${wavesComplete}, 敌人数量=${enemyCount}`)
-    }
-
-    return result
+    return this.waveManager.isAllWavesComplete() && this.enemyManager.getEnemyCount() === 0
   }
 
   /**
@@ -557,6 +556,7 @@ export class BattleSystem {
     this.elapsedTime = 0
     this.isRunning = false
     this.isPaused = false
+    this.lastNotifiedWave = 0
 
     this.battleState = {
       status: 'preparing',

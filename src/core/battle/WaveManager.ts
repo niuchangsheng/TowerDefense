@@ -134,11 +134,7 @@ export class WaveManager {
    * 是否所有波次完成
    */
   isAllWavesComplete(): boolean {
-    const result = this.currentWave >= this.waves.length && !this.isWaveActive && !this.isWaitingForNextWave
-    if (this.currentWave >= this.waves.length) {
-      console.log(`WaveManager状态: currentWave=${this.currentWave}, waves.length=${this.waves.length}, isWaveActive=${this.isWaveActive}, isWaitingForNextWave=${this.isWaitingForNextWave}, result=${result}`)
-    }
-    return result
+    return this.currentWave >= this.waves.length && !this.isWaveActive && !this.isWaitingForNextWave
   }
 
   /**
