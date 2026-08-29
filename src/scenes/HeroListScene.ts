@@ -1,23 +1,55 @@
 import Phaser from 'phaser'
-import { createDefaultHeroes, getHeroConfig } from '@/data/heroes'
 import { getSkill } from '@/data/skills'
-import { Hero, RarityNames, Rarity } from '@/types'
+import { Hero, RarityNames, Rarity, WuXing } from '@/types'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
-import { getWeapon, getArtifact } from '@/data/equipment'
 import { getExpToNextLevel, getExpProgress, getExpRequiredForLevel } from '@/data/heroes/levelConfig'
 import { SaveManager } from '@/core/save/SaveManager'
+import {
+  InkColor,
+  InkText,
+  InkFontSize,
+  InkRadius,
+  InkDepth,
+  INK_WUXING,
+  INK_RARITY,
+  drawPaperBackground,
+  createPanel,
+  inkText,
+  inkRule,
+  sectionHeader,
+  createInkButton
+} from '@/ui/InkTheme'
 
 /**
- * 武将页面场景
- * 显示所有武将及其属性，支持装备管理
+ * 武将页面场景（水墨宣纸风）
+ *
+ * 布局（1280×720，页边距 32）：
+ * - 顶部标题栏（32,16 → 1248,68）
+ * - 左侧武将名册（32,80 起，336×616，竖排卡片）
+ * - 右侧详情面板（400,80，848×616，游标式分节布局）
+ *
+ * 所有业务逻辑（装备穿脱、升星、存档、属性计算）保持不变，仅重排渲染。
  */
 export default class HeroListScene extends Phaser.Scene {
+  // ===== 布局常量 =====
+  private static readonly ROSTER_X = 32
+  private static readonly ROSTER_WIDTH = 336
+  private static readonly CARD_WIDTH = 336
+  private static readonly CARD_HEIGHT = 128
+  private static readonly CARD_GAP = 16
+  private static readonly CARD_FIRST_TOP = 120
+  private static readonly PANEL_X = 400
+  private static readonly PANEL_Y = 80
+  private static readonly PANEL_WIDTH = 848
+  private static readonly PANEL_HEIGHT = 616
+  private static readonly PANEL_PAD = 24
+  private static readonly CONTENT_WIDTH = 800 // PANEL_WIDTH - PANEL_PAD * 2
+
   private heroes!: Map<string, Hero>
   private selectedHeroId: string | null = null
   private heroCards: Phaser.GameObjects.Container[] = []
   private detailPanel: Phaser.GameObjects.Container | null = null
   private equipmentManager: EquipmentManager
-  private equipmentSlots: { weapon: Phaser.GameObjects.Container | null; artifact: Phaser.GameObjects.Container | null } = { weapon: null, artifact: null }
 
   constructor() {
     super({ key: 'HeroListScene' })
@@ -30,30 +62,14 @@ export default class HeroListScene extends Phaser.Scene {
     this.selectedHeroId = null
     this.heroCards = []
     this.detailPanel = null
-    this.equipmentSlots = { weapon: null, artifact: null }
   }
 
   create(): void {
-    const width = this.cameras.main.width
-    const height = this.cameras.main.height
+    drawPaperBackground(this)
 
-    // 背景
-    this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e)
-
-    // 标题
-    this.add.text(width / 2, 40, '武将列表', {
-      fontSize: '32px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
-
-    // 创建武将卡片
-    this.createHeroCards()
-
-    // 创建详情面板（右侧）
-    this.createDetailPanel()
-
-    // 返回按钮
+    this.renderHeader()
+    this.renderRoster()
+    this.createDetailPanelShell()
     this.createBackButton()
 
     // 默认选中第一个武将
@@ -63,76 +79,116 @@ export default class HeroListScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * 创建武将卡片列表
-   */
-  private createHeroCards(): void {
-    const heroList = Array.from(this.heroes.values())
-    const startX = 100
-    const startY = 100
-    const cardWidth = 100
-    const cardHeight = 120
-    const spacing = 20
+  // ==================== 顶部标题栏 ====================
 
+  /**
+   * 标题栏：左侧标题 + 印章 + 副标，下方一条墨线
+   */
+  private renderHeader(): void {
+    const L = HeroListScene.ROSTER_X
+
+    const title = inkText(this, L, 40, '武将', {
+      size: InkFontSize.title,
+      color: InkText.strong,
+      bold: true
+    })
+    // 印章红方块
+    this.add.rectangle(L + title.width + 18, 40, 14, 14, InkColor.cinnabar)
+    inkText(this, L + title.width + 36, 40, '· 名册', {
+      size: 18,
+      color: InkText.faint
+    })
+
+    inkRule(this, null, L, 68, 1216, 0.4)
+  }
+
+  /**
+   * 创建返回按钮（右上角）
+   */
+  private createBackButton(): void {
+    createInkButton(this, 1192, 40, 112, 36, '返回', {
+      fill: InkColor.paperPanel,
+      hoverFill: InkColor.paperDeep,
+      textColor: InkText.ink,
+      fontSize: InkFontSize.md,
+      stroke: InkColor.ink,
+      onClick: () => {
+        // 自动存档
+        this.autoSave()
+        this.scene.start('TitleScene')
+      }
+    })
+  }
+
+  // ==================== 左侧武将名册 ====================
+
+  /**
+   * 左侧名册：列头 + 竖排武将卡片
+   */
+  private renderRoster(): void {
+    const L = HeroListScene.ROSTER_X
+
+    inkText(this, L, 96, `武将名册（${this.heroes.size}）`, {
+      size: 18,
+      color: InkText.strong,
+      bold: true
+    })
+    inkRule(this, null, L, 110, HeroListScene.ROSTER_WIDTH, 0.35)
+
+    const heroList = Array.from(this.heroes.values())
     for (let i = 0; i < heroList.length; i++) {
       const hero = heroList[i]
-      const x = startX + (i % 4) * (cardWidth + spacing)
-      const y = startY + Math.floor(i / 4) * (cardHeight + spacing)
-
-      const card = this.createHeroCard(hero, x, y, cardWidth, cardHeight)
+      const top = HeroListScene.CARD_FIRST_TOP + i * (HeroListScene.CARD_HEIGHT + HeroListScene.CARD_GAP)
+      const card = this.createRosterCard(hero, L, top)
       this.heroCards.push(card)
     }
   }
 
   /**
-   * 创建单个武将卡片
+   * 创建单个武将卡片（竖排横向卡，左上角定位）
    */
-  private createHeroCard(hero: Hero, x: number, y: number, width: number, height: number): Phaser.GameObjects.Container {
+  private createRosterCard(hero: Hero, x: number, y: number): Phaser.GameObjects.Container {
+    const W = HeroListScene.CARD_WIDTH
+    const H = HeroListScene.CARD_HEIGHT
     const card = this.add.container(x, y)
 
     // 卡片背景
-    const bg = this.add.rectangle(0, 0, width, height, 0x333355, 0.9)
-    bg.setStrokeStyle(2, 0x666688)
+    const bg = this.add.rectangle(W / 2, H / 2, W, H, InkColor.paperPanel)
+    bg.setStrokeStyle(1, InkColor.ink, 0.5)
     card.add(bg)
 
-    // 武将头像
+    // 选中态左缘竖条（默认隐藏）
+    const stripe = this.add.rectangle(2, H / 2, 4, H - 2, InkColor.cinnabar)
+    stripe.setVisible(false)
+    card.add(stripe)
+
+    // 武将头像（96×96，正方形原图无变形）
     const imageKey = this.getHeroImageKey(hero.id)
     if (this.textures.exists(imageKey)) {
-      const avatar = this.add.image(0, -20, imageKey)
-      avatar.setDisplaySize(60, 60)
+      const avatar = this.add.image(16 + 48, 16 + 48, imageKey)
+      avatar.setDisplaySize(96, 96)
       card.add(avatar)
     }
 
-    // 武将名称
-    const nameText = this.add.text(0, 25, hero.name, {
-      fontSize: '14px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
-    card.add(nameText)
-
-    // 五行标记
-    const wuXingText = this.add.text(0, 45, this.getWuXingText(hero.wuXing), {
-      fontSize: '12px',
-      color: this.getWuXingColor(hero.wuXing)
-    }).setOrigin(0.5)
-    card.add(wuXingText)
-
-    // 稀有度标记
-    const rarityText = this.add.text(0, 58, RarityNames[hero.rarity], {
-      fontSize: '10px',
-      color: this.getRarityColor(hero.rarity)
-    }).setOrigin(0.5)
-    card.add(rarityText)
+    // 名称（20px 粗）
+    card.add(inkText(this, 128, 32, hero.name, { size: InkFontSize.lg, color: InkText.strong, bold: true }))
+    // 等级（右对齐）
+    card.add(inkText(this, 320, 32, `Lv.${hero.level}`, { size: InkFontSize.xs, color: InkText.faint, originX: 1 }))
+    // 稀有度
+    card.add(inkText(this, 128, 60, RarityNames[hero.rarity], { size: InkFontSize.sm, color: INK_RARITY[hero.rarity].text }))
+    // 五行徽章
+    this.createWuXingBadge(card, 128, 82, hero.wuXing, 24)
 
     // 点击交互
     bg.setInteractive({ useHandCursor: true })
     bg.on('pointerover', () => {
-      bg.setFillStyle(0x444477, 0.95)
+      if (hero.id !== this.selectedHeroId) {
+        bg.setFillStyle(InkColor.paperDeep)
+      }
     })
     bg.on('pointerout', () => {
       if (hero.id !== this.selectedHeroId) {
-        bg.setFillStyle(0x333355, 0.9)
+        bg.setFillStyle(InkColor.paperPanel)
       }
     })
     bg.on('pointerdown', () => {
@@ -141,8 +197,38 @@ export default class HeroListScene extends Phaser.Scene {
 
     // 存储heroId
     card.setData('heroId', hero.id)
+    card.setData('stripe', stripe)
 
     return card
+  }
+
+  /**
+   * 五行徽章：圆角底色 + 描边 + 居中单字
+   * 画入 parent 容器的局部坐标 (x, y)（徽章左上角）
+   */
+  private createWuXingBadge(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    wuXing: WuXing,
+    h: number
+  ): void {
+    const w = 56
+    const theme = INK_WUXING[wuXing]
+
+    const bg = this.add.graphics()
+    bg.fillStyle(theme.fill, 1)
+    bg.fillRoundedRect(x, y, w, h, InkRadius.sm)
+    bg.lineStyle(1, theme.border, 1)
+    bg.strokeRoundedRect(x, y, w, h, InkRadius.sm)
+    parent.add(bg)
+
+    parent.add(inkText(this, x + w / 2, y + h / 2, theme.label, {
+      size: 14,
+      color: theme.text,
+      bold: true,
+      originX: 0.5
+    }))
   }
 
   /**
@@ -152,48 +238,46 @@ export default class HeroListScene extends Phaser.Scene {
     // 更新选中状态
     this.selectedHeroId = heroId
 
-    // 更新卡片高亮
-    for (const card of this.heroCards) {
-      const cardHeroId = card.getData('heroId') as string
-      const bg = card.getAt(0) as Phaser.GameObjects.Rectangle
-      if (cardHeroId === heroId) {
-        bg.setFillStyle(0x555588, 1)
-        bg.setStrokeStyle(3, 0x88aaff)
-      } else {
-        bg.setFillStyle(0x333355, 0.9)
-        bg.setStrokeStyle(2, 0x666688)
-      }
-    }
+    this.updateCardSelection()
 
     // 更新详情面板
     this.updateDetailPanel(heroId)
   }
 
   /**
-   * 创建详情面板
+   * 更新卡片选中高亮
    */
-  private createDetailPanel(): void {
-    const width = this.cameras.main.width
-    const height = this.cameras.main.height
-    const panelX = width - 250
-    const panelY = height / 2
-    const panelWidth = 400
-    const panelHeight = 550
+  private updateCardSelection(): void {
+    for (const card of this.heroCards) {
+      const cardHeroId = card.getData('heroId') as string
+      const bg = card.getAt(0) as Phaser.GameObjects.Rectangle
+      const stripe = card.getData('stripe') as Phaser.GameObjects.Rectangle
+      const selected = cardHeroId === this.selectedHeroId
 
-    this.detailPanel = this.add.container(panelX, panelY)
+      if (selected) {
+        bg.setFillStyle(0xe2d7bc, 1)
+        bg.setStrokeStyle(2, InkColor.cinnabar)
+      } else {
+        bg.setFillStyle(InkColor.paperPanel, 1)
+        bg.setStrokeStyle(1, InkColor.ink, 0.5)
+      }
+      stripe.setVisible(selected)
+    }
+  }
 
-    // 面板背景
-    const panelBg = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x222244, 0.95)
-    panelBg.setStrokeStyle(2, 0x4466aa)
-    this.detailPanel.add(panelBg)
+  // ==================== 右侧详情面板 ====================
 
-    // 面板标题
-    const title = this.add.text(0, -250, '武将详情', {
-      fontSize: '24px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
-    this.detailPanel.add(title)
+  /**
+   * 创建详情面板外壳（仅背景；内容由 updateDetailPanel 填充）
+   */
+  private createDetailPanelShell(): void {
+    this.detailPanel = createPanel(this, HeroListScene.PANEL_X, HeroListScene.PANEL_Y, HeroListScene.PANEL_WIDTH, HeroListScene.PANEL_HEIGHT, {
+      fill: InkColor.paperPanel,
+      alpha: 0.6,
+      stroke: InkColor.ink,
+      strokeWidth: 1,
+      radius: InkRadius.md
+    })
   }
 
   /**
@@ -202,241 +286,308 @@ export default class HeroListScene extends Phaser.Scene {
   private updateDetailPanel(heroId: string): void {
     const hero = this.heroes.get(heroId)
     if (!hero || !this.detailPanel) return
+    const panel = this.detailPanel
 
-    // 清除旧内容（保留背景和标题）
-    while (this.detailPanel.length > 2) {
-      this.detailPanel.removeAt(2, true)
+    // 清除旧内容（保留面板背景：child 0）
+    while (panel.length > 1) {
+      panel.removeAt(1, true)
     }
 
-    const startY = -220
-    const lineHeight = 28
+    // 游标式分节布局（y 为面板局部坐标）
+    let y = HeroListScene.PANEL_PAD
+    y = this.renderDetailHeader(panel, hero, y)
+    y = this.renderStats(panel, hero, y)
+    y += 16
+    y = this.renderStarUpgrade(panel, hero, y)
+    y += 16
+    y = this.renderEquipment(panel, hero, y)
+    y += 16
+    this.renderSkills(panel, hero, y)
+  }
 
-    // 大头像
+  /**
+   * 详情头部：头像 + 名称/稀有度 + 五行/等级/星级 + 经验条
+   */
+  private renderDetailHeader(panel: Phaser.GameObjects.Container, hero: Hero, y: number): number {
+    // 头像 112×112
     const imageKey = this.getHeroImageKey(hero.id)
     if (this.textures.exists(imageKey)) {
-      const bigAvatar = this.add.image(-100, startY, imageKey)
-      bigAvatar.setDisplaySize(120, 120)
-      this.detailPanel.add(bigAvatar)
+      const avatar = this.add.image(24 + 56, y + 4 + 56, imageKey)
+      avatar.setDisplaySize(112, 112)
+      panel.add(avatar)
     }
 
-    // 基本信息（右侧）
-    let infoY = startY
+    // 名称 + 稀有度
+    const nameText = inkText(this, 160, y + 12, hero.name, {
+      size: InkFontSize.xl,
+      color: InkText.strong,
+      bold: true
+    })
+    panel.add(nameText)
+    panel.add(inkText(this, 160 + nameText.width + 12, y + 12, RarityNames[hero.rarity], {
+      size: 15,
+      color: INK_RARITY[hero.rarity].text
+    }))
 
-    // 名称
-    this.addDetailText(50, infoY, `${hero.name}`, '#ffffff', true)
-    infoY += lineHeight
+    // 五行徽章 + 等级 + 星级
+    this.createWuXingBadge(panel, 160, y + 37, hero.wuXing, 22)
+    panel.add(inkText(this, 228, y + 48, `Lv.${hero.level}`, {
+      size: InkFontSize.md,
+      color: InkText.strong
+    }))
+    panel.add(inkText(this, 300, y + 48, `${'★'.repeat(hero.star)}${'☆'.repeat(5 - hero.star)}`, {
+      size: InkFontSize.md,
+      color: InkText.gold
+    }))
 
-    // 稀有度
-    this.addDetailText(50, infoY, `稀有度: ${RarityNames[hero.rarity]}`, this.getRarityColor(hero.rarity))
-    infoY += lineHeight
-
-    // 五行
-    this.addDetailText(50, infoY, `五行: ${this.getWuXingText(hero.wuXing)}`, this.getWuXingColor(hero.wuXing))
-    infoY += lineHeight
-
-    // 等级和升级进度
-    this.addDetailText(50, infoY, `等级: Lv.${hero.level}`, '#88ff88')
-    infoY += lineHeight
-
-    // 升级进度条
+    // 经验
+    const expY = y + 86
+    panel.add(inkText(this, 160, expY, '经验', { size: InkFontSize.sm, color: InkText.faint }))
     if (hero.level < 60) {
       const progress = getExpProgress(hero.experience, hero.level)
       const expToNext = getExpToNextLevel(hero.level)
       const currentExpInLevel = Math.max(0, Math.floor(hero.experience - getExpRequiredForLevel(hero.level))) // 确保最小为0
 
       // 进度条背景
-      const progressBarBg = this.add.rectangle(50, infoY, 150, 16, 0x333355, 0.9)
-      progressBarBg.setStrokeStyle(1, 0x666688)
-      this.detailPanel!.add(progressBarBg)
+      const barBg = this.add.rectangle(400, expY, 400, 12, InkColor.paperDeep)
+      barBg.setStrokeStyle(1, InkColor.ink, 0.5)
+      panel.add(barBg)
 
       // 进度条填充（确保最小宽度为0）
-      const fillWidth = Math.max(0, 150 * progress)
-      const progressBarFill = this.add.rectangle(
-        50 - 75 + fillWidth / 2,
-        infoY,
-        fillWidth,
-        14,
-        0x00aa00,
-        0.95
-      )
-      this.detailPanel!.add(progressBarFill)
+      const fillWidth = Math.max(0, 400 * progress)
+      const barFill = this.add.rectangle(200 + fillWidth / 2, expY, fillWidth, 8, InkColor.ink, 0.65)
+      panel.add(barFill)
 
-      // 进度文字
-      this.addDetailText(50, infoY, `${currentExpInLevel}/${expToNext}`, '#ffffff', false, 12)
-
-      // 进度百分比（确保显示合理）
+      // 进度文字 + 百分比（确保显示合理）
       const percentText = Math.floor(Math.max(0, Math.min(1, progress)) * 100)
-      this.addDetailText(130, infoY, `${percentText}%`, '#88ff88', false, 11)
+      panel.add(inkText(this, 608, expY, `${currentExpInLevel}/${expToNext} · ${percentText}%`, {
+        size: InkFontSize.xs,
+        color: InkText.faint
+      }))
     } else {
       // 顶级
-      this.addDetailText(50, infoY, '已达顶级', '#ffcc00', true, 12)
+      panel.add(inkText(this, 200, expY, '已达顶级', { size: 14, color: InkText.gold, bold: true }))
     }
-    infoY += lineHeight
 
-    // 星级
-    this.addDetailText(50, infoY, `星级: ${'★'.repeat(hero.star)}${'☆'.repeat(5 - hero.star)}`, '#ffaa00')
-    infoY += lineHeight
+    // 头部下分隔墨线
+    inkRule(this, panel, 24, y + 124, HeroListScene.CONTENT_WIDTH, 0.35)
 
-    // 升星进度和按钮
+    return y + 140
+  }
+
+  /**
+   * 基础属性：攻击 / 攻速 / 射程（含装备加成）
+   */
+  private renderStats(panel: Phaser.GameObjects.Container, hero: Hero, y: number): number {
+    y += sectionHeader(this, panel, 24, y, '基础属性', HeroListScene.CONTENT_WIDTH)
+    const rowY = y + 17
+
+    // 计算属性（含装备加成）
+    const effectiveStats = this.getEffectiveStatsWithEquipment(hero)
+
+    // 攻击
+    panel.add(inkText(this, 24, rowY, '攻击', { size: 14, color: InkText.faint }))
+    const atkText = inkText(this, 88, rowY, `${effectiveStats.attack}`, {
+      size: 18,
+      color: InkText.strong,
+      bold: true
+    })
+    panel.add(atkText)
+    panel.add(inkText(this, 88 + atkText.width + 8, rowY, `（基础 ${hero.baseStats.attack}）`, {
+      size: InkFontSize.xs,
+      color: InkText.faint
+    }))
+
+    // 攻速
+    panel.add(inkText(this, 300, rowY, '攻速', { size: 14, color: InkText.faint }))
+    panel.add(inkText(this, 364, rowY, `${effectiveStats.attackSpeed.toFixed(1)}/s`, {
+      size: 18,
+      color: InkText.strong,
+      bold: true
+    }))
+
+    // 射程
+    panel.add(inkText(this, 540, rowY, '射程', { size: 14, color: InkText.faint }))
+    panel.add(inkText(this, 604, rowY, `${effectiveStats.attackRange}`, {
+      size: 18,
+      color: InkText.strong,
+      bold: true
+    }))
+
+    return y + 34
+  }
+
+  /**
+   * 星级：碎片进度 + 升星按钮
+   */
+  private renderStarUpgrade(panel: Phaser.GameObjects.Container, hero: Hero, y: number): number {
+    y += sectionHeader(this, panel, 24, y, '星级', HeroListScene.CONTENT_WIDTH)
+    const rowY = y + 20
+
     if (hero.star < 5) {
       const soulStones = this.getSoulStones(hero.id)
       const required = hero.starUpgradeRequirements[hero.star - 1] || 0
       const canUpgrade = soulStones >= required
 
       // 碎片数量
-      this.addDetailText(50, infoY, `碎片: ${soulStones}/${required}`, canUpgrade ? '#88ff88' : '#888888')
-      infoY += lineHeight
+      panel.add(inkText(this, 24, rowY, `碎片: ${soulStones}/${required}`, {
+        size: 14,
+        color: canUpgrade ? InkText.green : InkText.faint
+      }))
 
       // 升星按钮
       if (canUpgrade) {
-        const upgradeBtnBg = this.add.rectangle(50, infoY, 100, 25, 0x448844)
-        upgradeBtnBg.setInteractive({ useHandCursor: true })
-        const upgradeBtnText = this.add.text(50, infoY, '升星', {
-          fontSize: '14px',
-          color: '#ffffff',
-          fontStyle: 'bold'
-        }).setOrigin(0.5)
-        this.detailPanel!.add(upgradeBtnBg)
-        this.detailPanel!.add(upgradeBtnText)
-
-        upgradeBtnBg.on('pointerover', () => upgradeBtnBg.setFillStyle(0x66aa66))
-        upgradeBtnBg.on('pointerout', () => upgradeBtnBg.setFillStyle(0x448844))
-        upgradeBtnBg.on('pointerdown', () => {
-          this.showUpgradeConfirmDialog(hero, soulStones, required)
+        const upgradeBtn = createInkButton(this, 776, rowY, 96, 28, '升星', {
+          fill: InkColor.cinnabar,
+          hoverFill: 0xb2362e,
+          textColor: InkText.paper,
+          fontSize: 14,
+          onClick: () => {
+            this.showUpgradeConfirmDialog(hero, soulStones, required)
+          }
         })
+        panel.add(upgradeBtn)
       }
     } else {
-      this.addDetailText(50, infoY, '已满星', '#ffcc00', true)
+      panel.add(inkText(this, 24, rowY, '已满星', { size: 14, color: InkText.gold, bold: true }))
     }
-    infoY += lineHeight * 2
 
-    // 属性区域标题
-    this.addDetailText(0, infoY, '— 基础属性 —', '#aaaaaa', true)
-    infoY += lineHeight
+    return y + 42
+  }
 
-    // 计算属性（含装备加成）
-    const effectiveStats = this.getEffectiveStatsWithEquipment(hero)
-
-    // 攻击力
-    this.addDetailText(-80, infoY, `攻击: ${effectiveStats.attack}`, '#ff6666')
-    this.addDetailText(80, infoY, `基础: ${hero.baseStats.attack}`, '#888888')
-    infoY += lineHeight
-
-    // 攻速
-    const attackSpeed = effectiveStats.attackSpeed.toFixed(1)
-    this.addDetailText(-80, infoY, `攻速: ${attackSpeed}/s`, '#66ff66')
-    this.addDetailText(80, infoY, `范围: ${effectiveStats.attackRange}`, '#888888')
-    infoY += lineHeight * 2
-
-    // 装备区域标题
-    this.addDetailText(0, infoY, '— 装备栏 —', '#aaaaaa', true)
-    infoY += lineHeight
+  /**
+   * 装备：武器槽 + 神器槽
+   */
+  private renderEquipment(panel: Phaser.GameObjects.Container, hero: Hero, y: number): number {
+    y += sectionHeader(this, panel, 24, y, '装备', HeroListScene.CONTENT_WIDTH)
 
     // 获取武将已装备的装备
-    const heroEquipment = this.equipmentManager.getHeroEquipment(heroId)
+    const heroEquipment = this.equipmentManager.getHeroEquipment(hero.id)
 
     // 武器槽
-    this.createEquipmentSlot(infoY, '武器', heroEquipment.weapon, 'weapon', heroId)
-    infoY += lineHeight * 1.5
-
+    this.createEquipmentSlot(panel, y + 8, '武器', heroEquipment.weapon, 'weapon', hero.id)
     // 神器槽
-    this.createEquipmentSlot(infoY, '神器', heroEquipment.artifact, 'artifact', heroId)
-    infoY += lineHeight * 2
+    this.createEquipmentSlot(panel, y + 56, '神器', heroEquipment.artifact, 'artifact', hero.id)
 
-    // 技能区域标题
-    this.addDetailText(0, infoY, '— 技能 —', '#aaaaaa', true)
-    infoY += lineHeight
-
-    // 被动技能
-    const passiveSkill = getSkill(hero.passiveSkillId)
-    if (passiveSkill) {
-      this.addDetailText(0, infoY, `【被动】${passiveSkill.name}`, '#88ffff', true)
-      infoY += lineHeight
-      this.addDetailText(0, infoY, passiveSkill.description, '#aaaaaa', false, 12)
-      infoY += lineHeight * 1.5
-    }
-
-    // 主动技能
-    const activeSkill = getSkill(hero.activeSkillId)
-    if (activeSkill) {
-      this.addDetailText(0, infoY, `【主动】${activeSkill.name}`, '#ffaa88', true)
-      infoY += lineHeight
-      this.addDetailText(0, infoY, activeSkill.description, '#aaaaaa', false, 12)
-      infoY += lineHeight
-      if (activeSkill.cooldown) {
-        this.addDetailText(0, infoY, `冷却: ${activeSkill.cooldown / 1000}秒`, '#888888', false, 12)
-      }
-    }
+    return y + 120
   }
 
   /**
    * 创建装备槽位
    */
   private createEquipmentSlot(
-    y: number,
+    panel: Phaser.GameObjects.Container,
+    slotTop: number,
     slotName: string,
     equipment: EquipmentInstance | null,
     type: 'weapon' | 'artifact',
     heroId: string
   ): void {
-    // 槽位名称
-    this.addDetailText(-120, y, slotName, '#888888', false, 12)
+    const centerY = slotTop + 20
 
     // 槽位背景
-    const slotBg = this.add.rectangle(0, y, 200, 30, 0x333355, 0.9)
-    slotBg.setStrokeStyle(1, equipment ? this.getRarityBorderColor(equipment.rarity) : 0x666688)
-    this.detailPanel!.add(slotBg)
+    const slotBg = this.add.rectangle(424, centerY, 800, 40, InkColor.paperDeep, 0.5)
+    if (equipment) {
+      slotBg.setStrokeStyle(1.5, INK_RARITY[equipment.rarity as Rarity].border)
+    } else {
+      slotBg.setStrokeStyle(1, InkColor.ink, 0.35)
+    }
+    panel.add(slotBg)
+
+    // 槽位名称
+    panel.add(inkText(this, 40, centerY, slotName, { size: InkFontSize.sm, color: InkText.faint }))
 
     if (equipment) {
       // 已装备：显示装备信息
       const detail = this.equipmentManager.getEquipmentDetail(equipment.instanceId)
       if (detail) {
-        const nameText = this.add.text(-80, y, detail.name, {
-          fontSize: '14px',
-          color: '#ffffff',
-          fontStyle: 'bold'
-        }).setOrigin(0, 0.5)
-        this.detailPanel!.add(nameText)
+        // 左缘稀有度色条
+        const accent = this.add.rectangle(26, centerY, 4, 32, INK_RARITY[equipment.rarity as Rarity].border)
+        panel.add(accent)
 
-        const rarityText = this.add.text(50, y, RarityNames[equipment.rarity as Rarity], {
-          fontSize: '10px',
-          color: this.getRarityTextColor(equipment.rarity)
-        }).setOrigin(0, 0.5)
-        this.detailPanel!.add(rarityText)
+        panel.add(inkText(this, 100, centerY, detail.name, {
+          size: 15,
+          color: InkText.strong,
+          bold: true
+        }))
+        panel.add(inkText(this, 220, centerY, RarityNames[equipment.rarity as Rarity], {
+          size: InkFontSize.xs,
+          color: INK_RARITY[equipment.rarity as Rarity].text
+        }))
 
         // 卸载按钮
-        const unequipBtn = this.add.rectangle(150, y, 40, 24, 0x884444)
-        unequipBtn.setInteractive({ useHandCursor: true })
-        const unequipText = this.add.text(150, y, '卸载', {
-          fontSize: '12px',
-          color: '#ffffff'
-        }).setOrigin(0.5)
-        this.detailPanel!.add(unequipBtn)
-        this.detailPanel!.add(unequipText)
-
-        unequipBtn.on('pointerover', () => unequipBtn.setFillStyle(0xaa5555))
-        unequipBtn.on('pointerout', () => unequipBtn.setFillStyle(0x884444))
-        unequipBtn.on('pointerdown', () => {
-          this.unequipEquipment(equipment.instanceId, heroId)
+        const unequipBtn = createInkButton(this, 780, centerY, 64, 26, '卸载', {
+          fill: InkColor.paperDeep,
+          hoverFill: 0xc5b795,
+          textColor: InkText.cinnabar,
+          fontSize: InkFontSize.xs,
+          onClick: () => {
+            this.unequipEquipment(equipment.instanceId, heroId)
+          }
         })
+        panel.add(unequipBtn)
       }
     } else {
       // 未装备：显示空槽
-      const emptyText = this.add.text(0, y, '空槽 - 点击选择装备', {
-        fontSize: '12px',
-        color: '#666666'
-      }).setOrigin(0.5)
-      this.detailPanel!.add(emptyText)
+      panel.add(inkText(this, 424, centerY, '空槽 · 点击选择装备', {
+        size: InkFontSize.sm,
+        color: InkText.faint,
+        originX: 0.5
+      }))
 
       // 点击选择装备
       slotBg.setInteractive({ useHandCursor: true })
-      slotBg.on('pointerover', () => slotBg.setFillStyle(0x444466, 0.9))
-      slotBg.on('pointerout', () => slotBg.setFillStyle(0x333355, 0.9))
+      slotBg.on('pointerover', () => slotBg.setFillStyle(InkColor.paperDeep, 0.8))
+      slotBg.on('pointerout', () => slotBg.setFillStyle(InkColor.paperDeep, 0.5))
       slotBg.on('pointerdown', () => {
         this.showEquipmentSelection(type, heroId)
       })
     }
   }
+
+  /**
+   * 技能：被动 + 主动
+   */
+  private renderSkills(panel: Phaser.GameObjects.Container, hero: Hero, y: number): void {
+    y += sectionHeader(this, panel, 24, y, '技能', HeroListScene.CONTENT_WIDTH)
+    let rowY = y + 12
+
+    // 被动技能
+    const passiveSkill = getSkill(hero.passiveSkillId)
+    if (passiveSkill) {
+      panel.add(inkText(this, 24, rowY, `【被动】${passiveSkill.name}`, {
+        size: 15,
+        color: InkText.strong,
+        bold: true
+      }))
+      rowY += 22
+      panel.add(inkText(this, 24, rowY, passiveSkill.description, {
+        size: InkFontSize.sm,
+        color: InkText.faint,
+        wrapWidth: 800
+      }))
+      rowY += 28
+    }
+
+    // 主动技能
+    const activeSkill = getSkill(hero.activeSkillId)
+    if (activeSkill) {
+      const cooldownText = activeSkill.cooldown ? ` · 冷却 ${activeSkill.cooldown / 1000}秒` : ''
+      panel.add(inkText(this, 24, rowY, `【主动】${activeSkill.name}${cooldownText}`, {
+        size: 15,
+        color: InkText.strong,
+        bold: true
+      }))
+      rowY += 22
+      panel.add(inkText(this, 24, rowY, activeSkill.description, {
+        size: InkFontSize.sm,
+        color: InkText.faint,
+        wrapWidth: 800
+      }))
+    }
+  }
+
+  // ==================== 弹窗 / 对话框 / 提示 ====================
 
   /**
    * 卸载装备
@@ -461,63 +612,70 @@ export default class HeroListScene extends Phaser.Scene {
     // 创建弹窗
     const width = this.cameras.main.width
     const height = this.cameras.main.height
-    const popup = this.add.container(width / 2, height / 2)
-    popup.setDepth(50)
 
-    // 弹窗背景
-    const popupBg = this.add.rectangle(0, 0, 350, 250, 0x222244, 0.98)
-    popupBg.setStrokeStyle(2, 0x4466aa)
-    popup.add(popupBg)
+    // 全屏淡墨遮罩（挡住穿透点击）
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, InkColor.ink, 0.2)
+    overlay.setInteractive()
+    overlay.setDepth(InkDepth.overlay)
+
+    // 弹窗面板
+    const panelW = 400
+    const rowGap = 44
+    const panelH = Math.min(96 + unequipped.length * rowGap + 56, 420)
+    const popup = createPanel(this, width / 2 - panelW / 2, height / 2 - panelH / 2, panelW, panelH, {
+      fill: InkColor.paperPanel,
+      alpha: 0.98,
+      stroke: InkColor.ink,
+      strokeWidth: 2,
+      radius: InkRadius.md
+    })
+    popup.setDepth(InkDepth.popup)
 
     // 标题
-    const title = this.add.text(0, -100, `选择 ${type === 'weapon' ? '武器' : '神器'}`, {
-      fontSize: '18px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
-    popup.add(title)
+    popup.add(inkText(this, panelW / 2, 30, `选择 ${type === 'weapon' ? '武器' : '神器'}`, {
+      size: 18,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    }))
 
     // 装备列表
-    const startY = -60
+    const rowsTop = 56
     for (let i = 0; i < unequipped.length; i++) {
       const equip = unequipped[i]
       const detail = this.equipmentManager.getEquipmentDetail(equip.instanceId)
       if (!detail) continue
 
-      const equipY = startY + i * 40
+      const rowY = rowsTop + i * rowGap + 18
+      const rarityStyle = INK_RARITY[equip.rarity as Rarity]
 
-      const btnBg = this.add.rectangle(0, equipY, 300, 35, this.getRarityBgColor(equip.rarity), 0.9)
-      btnBg.setStrokeStyle(1, this.getRarityBorderColor(equip.rarity))
+      const btnBg = this.add.rectangle(panelW / 2, rowY, 352, 36, rarityStyle.tint, 0.9)
+      btnBg.setStrokeStyle(1, rarityStyle.border)
       btnBg.setInteractive({ useHandCursor: true })
       popup.add(btnBg)
 
-      const btnName = this.add.text(-100, equipY, detail.name, {
-        fontSize: '14px',
-        color: '#ffffff'
-      }).setOrigin(0, 0.5)
-      popup.add(btnName)
-
-      const btnRarity = this.add.text(50, equipY, RarityNames[equip.rarity as Rarity], {
-        fontSize: '12px',
-        color: this.getRarityTextColor(equip.rarity)
-      }).setOrigin(0, 0.5)
-      popup.add(btnRarity)
+      popup.add(inkText(this, 36, rowY, detail.name, { size: 14, color: InkText.ink }))
+      popup.add(inkText(this, 180, rowY, RarityNames[equip.rarity as Rarity], {
+        size: InkFontSize.xs,
+        color: rarityStyle.text
+      }))
 
       // 属性加成
       const bonuses = detail.bonuses
       let bonusText = ''
       if (bonuses.attack) bonusText += `攻+${bonuses.attack}`
       if (bonuses.attackSpeed) bonusText += ` 速+${bonuses.attackSpeed.toFixed(1)}`
-      const btnBonus = this.add.text(100, equipY, bonusText, {
-        fontSize: '10px',
-        color: '#aaaaaa'
-      }).setOrigin(0, 0.5)
-      popup.add(btnBonus)
+      popup.add(inkText(this, panelW - 12, rowY, bonusText, {
+        size: 11,
+        color: InkText.faint,
+        originX: 1
+      }))
 
-      btnBg.on('pointerover', () => btnBg.setFillStyle(this.getRarityBgColor(equip.rarity), 1))
-      btnBg.on('pointerout', () => btnBg.setFillStyle(this.getRarityBgColor(equip.rarity), 0.9))
+      btnBg.on('pointerover', () => btnBg.setFillStyle(rarityStyle.tint, 1))
+      btnBg.on('pointerout', () => btnBg.setFillStyle(rarityStyle.tint, 0.9))
       btnBg.on('pointerdown', () => {
         this.equipmentManager.equipToHero(equip.instanceId, heroId)
+        overlay.destroy()
         popup.destroy()
         this.updateDetailPanel(heroId)
         this.showMessage('装备成功')
@@ -525,18 +683,17 @@ export default class HeroListScene extends Phaser.Scene {
     }
 
     // 关闭按钮
-    const closeBtn = this.add.rectangle(0, 100, 100, 30, 0x666688)
-    closeBtn.setInteractive({ useHandCursor: true })
-    const closeText = this.add.text(0, 100, '关闭', {
-      fontSize: '14px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
+    const closeBtn = createInkButton(this, panelW / 2, panelH - 32, 96, 30, '关闭', {
+      fill: InkColor.paperDeep,
+      hoverFill: 0xc5b795,
+      textColor: InkText.ink,
+      fontSize: 14,
+      onClick: () => {
+        overlay.destroy()
+        popup.destroy()
+      }
+    })
     popup.add(closeBtn)
-    popup.add(closeText)
-
-    closeBtn.on('pointerover', () => closeBtn.setFillStyle(0x7777aa))
-    closeBtn.on('pointerout', () => closeBtn.setFillStyle(0x666688))
-    closeBtn.on('pointerdown', () => popup.destroy())
   }
 
   /**
@@ -587,37 +744,25 @@ export default class HeroListScene extends Phaser.Scene {
    */
   private showMessage(msg: string): void {
     const width = this.cameras.main.width
-    const height = this.cameras.main.height
 
-    const text = this.add.text(width / 2, height - 100, msg, {
-      fontSize: '18px',
-      color: '#ffffff',
-      backgroundColor: '#333333',
-      padding: { x: 10, y: 5 }
-    }).setOrigin(0.5).setDepth(100)
+    const toast = this.add.container(width / 2, 626)
+    toast.setDepth(InkDepth.toast)
 
-    this.time.delayedCall(1500, () => text.destroy())
-  }
+    const text = inkText(this, 0, 0, msg, {
+      size: InkFontSize.md,
+      color: InkText.paper,
+      originX: 0.5
+    })
+    const padX = 12
+    const padY = 6
+    const w = text.width + padX * 2
+    const h = text.height + padY * 2
+    const bg = this.add.graphics()
+    bg.fillStyle(InkColor.ink, 0.92)
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, InkRadius.sm)
+    toast.add([bg, text])
 
-  /**
-   * 添加详情文本到面板
-   */
-  private addDetailText(
-    x: number,
-    y: number,
-    text: string,
-    color: string,
-    bold: boolean = false,
-    fontSize: number = 16
-  ): Phaser.GameObjects.Text {
-    const textObj = this.add.text(x, y, text, {
-      fontSize: `${fontSize}px`,
-      color: color,
-      fontStyle: bold ? 'bold' : 'normal'
-    }).setOrigin(0.5)
-
-    this.detailPanel!.add(textObj)
-    return textObj
+    this.time.delayedCall(1500, () => toast.destroy())
   }
 
   /**
@@ -640,79 +785,82 @@ export default class HeroListScene extends Phaser.Scene {
     const width = this.cameras.main.width
     const height = this.cameras.main.height
 
-    // 弹窗背景
-    const dialogBg = this.add.rectangle(width / 2, height / 2, 350, 200, 0x222222, 0.95)
-    dialogBg.setStrokeStyle(2, 0xffaa00)
-    dialogBg.setDepth(50)
+    // 全屏淡墨遮罩
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, InkColor.ink, 0.2)
+    overlay.setInteractive()
+    overlay.setDepth(InkDepth.overlay)
+
+    // 对话框面板（印章红描边）
+    const panelW = 400
+    const panelH = 220
+    const dialog = createPanel(this, width / 2 - panelW / 2, height / 2 - panelH / 2, panelW, panelH, {
+      fill: InkColor.paperPanel,
+      alpha: 0.98,
+      stroke: InkColor.cinnabar,
+      strokeWidth: 2,
+      radius: InkRadius.md
+    })
+    dialog.setDepth(InkDepth.popup)
 
     // 标题
-    const titleText = this.add.text(width / 2, height / 2 - 70, `升星确认`, {
-      fontSize: '20px',
-      color: '#ffaa00',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(50)
+    dialog.add(inkText(this, panelW / 2, 36, '升星确认', {
+      size: InkFontSize.lg,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    }))
 
     // 当前星级
-    const currentStarText = this.add.text(width / 2, height / 2 - 40,
+    dialog.add(inkText(this, panelW / 2, 76,
       `当前: ${'★'.repeat(hero.star)} → 升星后: ${'★'.repeat(hero.star + 1)}`, {
-      fontSize: '16px',
-      color: '#ffffff'
-    }).setOrigin(0.5).setDepth(50)
+      size: InkFontSize.md,
+      color: InkText.gold,
+      originX: 0.5
+    }))
 
     // 消耗信息
-    const costText = this.add.text(width / 2, height / 2 - 10,
+    dialog.add(inkText(this, panelW / 2, 108,
       `消耗碎片: ${required} (拥有: ${currentStones})`, {
-      fontSize: '14px',
-      color: '#88ff88'
-    }).setOrigin(0.5).setDepth(50)
+      size: 14,
+      color: InkText.green,
+      originX: 0.5
+    }))
 
     // 属性提升预览
-    const buffText = this.add.text(width / 2, height / 2 + 20,
+    dialog.add(inkText(this, panelW / 2, 134,
       `升星后属性提升: 攻击力+${5 * hero.star}%`, {
-      fontSize: '12px',
-      color: '#aaaaaa'
-    }).setOrigin(0.5).setDepth(50)
-
-    // 确认按钮
-    const confirmBtn = this.add.rectangle(width / 2 - 80, height / 2 + 60, 80, 30, 0x448844)
-    confirmBtn.setInteractive({ useHandCursor: true })
-    confirmBtn.setDepth(50)
-    const confirmBtnText = this.add.text(width / 2 - 80, height / 2 + 60, '确认升星', {
-      fontSize: '14px',
-      color: '#ffffff'
-    }).setOrigin(0.5).setDepth(50)
-
-    // 取消按钮
-    const cancelBtn = this.add.rectangle(width / 2 + 80, height / 2 + 60, 80, 30, 0x444444)
-    cancelBtn.setInteractive({ useHandCursor: true })
-    cancelBtn.setDepth(50)
-    const cancelBtnText = this.add.text(width / 2 + 80, height / 2 + 60, '取消', {
-      fontSize: '14px',
-      color: '#ffffff'
-    }).setOrigin(0.5).setDepth(50)
+      size: InkFontSize.xs,
+      color: InkText.faint,
+      originX: 0.5
+    }))
 
     const cleanup = () => {
-      dialogBg.destroy()
-      titleText.destroy()
-      currentStarText.destroy()
-      costText.destroy()
-      buffText.destroy()
-      confirmBtn.destroy()
-      confirmBtnText.destroy()
-      cancelBtn.destroy()
-      cancelBtnText.destroy()
+      overlay.destroy()
+      dialog.destroy()
     }
 
-    confirmBtn.on('pointerover', () => confirmBtn.setFillStyle(0x66aa66))
-    confirmBtn.on('pointerout', () => confirmBtn.setFillStyle(0x448844))
-    confirmBtn.on('pointerdown', () => {
-      cleanup()
-      this.upgradeHeroStar(hero.id, required)
+    // 确认按钮
+    const confirmBtn = createInkButton(this, panelW / 2 - 62, panelH - 40, 112, 32, '确认升星', {
+      fill: InkColor.cinnabar,
+      hoverFill: 0xb2362e,
+      textColor: InkText.paper,
+      fontSize: 14,
+      onClick: () => {
+        cleanup()
+        this.upgradeHeroStar(hero.id, required)
+      }
     })
+    dialog.add(confirmBtn)
 
-    cancelBtn.on('pointerover', () => cancelBtn.setFillStyle(0x555555))
-    cancelBtn.on('pointerout', () => cancelBtn.setFillStyle(0x444444))
-    cancelBtn.on('pointerdown', cleanup)
+    // 取消按钮
+    const cancelBtn = createInkButton(this, panelW / 2 + 68, panelH - 40, 96, 32, '取消', {
+      fill: InkColor.paperDeep,
+      hoverFill: 0xc5b795,
+      textColor: InkText.ink,
+      fontSize: 14,
+      onClick: cleanup
+    })
+    dialog.add(cancelBtn)
   }
 
   /**
@@ -752,29 +900,6 @@ export default class HeroListScene extends Phaser.Scene {
     this.updateDetailPanel(heroId)
     this.showMessage('升星成功！')
     console.log(`武将 ${heroId} 升星到 ${hero?.star} 星`)
-  }
-
-  /**
-   * 创建返回按钮
-   */
-  private createBackButton(): void {
-    const width = this.cameras.main.width
-    const height = this.cameras.main.height
-
-    const btnBg = this.add.rectangle(100, height - 50, 150, 40, 0x444466)
-    const btnText = this.add.text(100, height - 50, '返回', {
-      fontSize: '20px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
-
-    btnBg.setInteractive({ useHandCursor: true })
-    btnBg.on('pointerover', () => btnBg.setFillStyle(0x555588))
-    btnBg.on('pointerout', () => btnBg.setFillStyle(0x444466))
-    btnBg.on('pointerdown', () => {
-      // 自动存档
-      this.autoSave()
-      this.scene.start('TitleScene')
-    })
   }
 
   /**
@@ -819,85 +944,5 @@ export default class HeroListScene extends Phaser.Scene {
       'hero_zhaoyun': 'hero_zhaoyun'
     }
     return imageKeyMap[heroId] || 'hero_placeholder'
-  }
-
-  /**
-   * 获取五行文字
-   */
-  private getWuXingText(wuXing: string): string {
-    const texts: Record<string, string> = {
-      metal: '金',
-      wood: '木',
-      water: '水',
-      fire: '火',
-      earth: '土'
-    }
-    return texts[wuXing] || '?'
-  }
-
-  /**
-   * 获取五行颜色
-   */
-  private getWuXingColor(wuXing: string): string {
-    const colors: Record<string, string> = {
-      metal: '#cccccc',
-      wood: '#00aa00',
-      water: '#0088ff',
-      fire: '#ff4400',
-      earth: '#ffcc00'
-    }
-    return colors[wuXing] || '#888888'
-  }
-
-  /**
-   * 获取稀有度颜色
-   */
-  private getRarityColor(rarity: string): string {
-    const colors: Record<string, string> = {
-      common: '#888888',
-      rare: '#00aaff',
-      epic: '#aa00ff',
-      legendary: '#ffaa00'
-    }
-    return colors[rarity] || '#888888'
-  }
-
-  /**
-   * 获取稀有度背景色
-   */
-  private getRarityBgColor(rarity: string): number {
-    const colors: Record<string, number> = {
-      common: 0x444444,
-      rare: 0x2244aa,
-      epic: 0x4422aa,
-      legendary: 0x444400
-    }
-    return colors[rarity] || 0x444444
-  }
-
-  /**
-   * 获取稀有度边框色
-   */
-  private getRarityBorderColor(rarity: string): number {
-    const colors: Record<string, number> = {
-      common: 0x888888,
-      rare: 0x4488ff,
-      epic: 0x8844ff,
-      legendary: 0xffaa00
-    }
-    return colors[rarity] || 0x888888
-  }
-
-  /**
-   * 获取稀有度文字色
-   */
-  private getRarityTextColor(rarity: string): string {
-    const colors: Record<string, string> = {
-      common: '#888888',
-      rare: '#4488ff',
-      epic: '#aa44ff',
-      legendary: '#ffaa00'
-    }
-    return colors[rarity] || '#888888'
   }
 }
