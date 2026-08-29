@@ -16,7 +16,7 @@ export class BLPLoaderPlugin extends Phaser.Loader.FileTypes.ImageFile {
     url: string,
     frameConfig?: Phaser.Types.Loader.FileTypes.ImageFrameConfig
   ) {
-    super(loader, key, url, 'image', frameConfig)
+    super(loader, key, url, undefined, frameConfig)
 
     // 修改文件类型标识
     this.type = 'blp'
@@ -25,7 +25,7 @@ export class BLPLoaderPlugin extends Phaser.Loader.FileTypes.ImageFile {
   /**
    * 自定义加载处理
    */
-  async onProcess(): void {
+  async onProcess(): Promise<void> {
     try {
       // 获取原始ArrayBuffer数据
       const arrayBuffer = this.data as ArrayBuffer

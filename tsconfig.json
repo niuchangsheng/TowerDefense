@@ -10,15 +10,14 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./src",
     "paths": {
-      "@/*": ["*"],
-      "@core/*": ["core/*"],
-      "@scenes/*": ["scenes/*"],
-      "@data/*": ["data/*"],
-      "@types/*": ["types/*"],
-      "@utils/*": ["utils/*"],
-      "@config/*": ["config/*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@scenes/*": ["./src/scenes/*"],
+      "@data/*": ["./src/data/*"],
+      "@types/*": ["./src/types/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@config/*": ["./src/config/*"]
     },
     "resolveJsonModule": true,
     "declaration": true,

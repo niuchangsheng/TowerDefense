@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "WebSearch",
+      "Bash(*)",
       "Bash(git add *)",
       "Bash(git commit -m 'docs: 添加三国五行塔防PRD文档 *)",
       "Bash(npm install *)",
@@ -72,7 +73,13 @@
       "WebFetch(domain:www.gameres.com)",
       "WebFetch(domain:zhuanlan.zhihu.com)",
       "Bash(awk '{print $1}')",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(echo \"exit_code_of_grep=$? \\(1=无匹配=干净\\)\")",
+      "Bash(echo \"grep_exit=$? \\(1=干净\\)\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"服务器状态: HTTP %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s \"http://localhost:3000/src/scenes/WeaponDemoScene.ts\")"
     ],
     "additionalDirectories": [
       "/mnt/c/Program Files/San11pk Tc/Media/face",
