@@ -1,8 +1,18 @@
 import Phaser from 'phaser'
-import { BattleResult, Rarity, RarityNames } from '@/types'
+import { BattleResult, Rarity, WuXing } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
 import { getHeroConfig } from '@/data/heroes'
-import { getLevelConfig } from '@/data/levels'
+import {
+  InkColor,
+  InkText,
+  InkFontSize,
+  INK_WUXING,
+  INK_RARITY,
+  drawPaperBackground,
+  createPanel,
+  inkText,
+  createInkButton
+} from '@/ui/InkTheme'
 
 /**
  * 结算奖励数据
@@ -16,7 +26,7 @@ interface SettlementReward {
 }
 
 /**
- * 结算场景
+ * 结算场景（水墨宣纸风）
  * 显示战斗结果和奖励
  */
 export default class SettlementScene extends Phaser.Scene {
@@ -170,26 +180,27 @@ export default class SettlementScene extends Phaser.Scene {
 
   create(): void {
     const width = this.cameras.main.width
-    const height = this.cameras.main.height
 
-    // 背景
-    this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e)
+    drawPaperBackground(this)
 
-    // 结果标题
+    // 结果标题：胜利 = 印章红（胜印），失败 = 浓墨
     const titleText = this.battleResult.isVictory ? '战斗胜利' : '战斗失败'
-    const titleColor = this.battleResult.isVictory ? '#00ff00' : '#ff0000'
-
-    this.add.text(width / 2, 60, titleText, {
-      fontSize: '48px',
-      color: titleColor,
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
+    const title = inkText(this, width / 2, 60, titleText, {
+      size: 48,
+      color: this.battleResult.isVictory ? InkText.cinnabar : InkText.strong,
+      bold: true,
+      originX: 0.5
+    })
+    if (this.battleResult.isVictory) {
+      this.add.rectangle(width / 2 + title.width / 2 + 24, 60, 16, 16, InkColor.cinnabar)
+    }
 
     // 关卡信息
-    this.add.text(width / 2, 120, `关卡: ${this.battleResult.levelId}`, {
-      fontSize: '16px',
-      color: '#888888'
-    }).setOrigin(0.5)
+    inkText(this, width / 2, 118, `关卡: ${this.battleResult.levelId}`, {
+      size: InkFontSize.md,
+      color: InkText.faint,
+      originX: 0.5
+    })
 
     // 战斗统计
     this.createBattleStats()
@@ -214,39 +225,40 @@ export default class SettlementScene extends Phaser.Scene {
    */
   private createBattleStats(): void {
     const width = this.cameras.main.width
-    const panelX = width / 2
-    const panelY = 180
-    const panelWidth = 400
-    const panelHeight = 80
+    const panelW = 400
+    const panelH = 80
 
-    const panelBg = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x222244, 0.9)
-    panelBg.setStrokeStyle(2, 0x4466aa)
+    const panel = createPanel(this, width / 2 - panelW / 2, 150, panelW, panelH)
 
     // 波次完成
-    this.add.text(panelX - 150, panelY - 20, `波次完成: ${this.battleResult.wavesCompleted}`, {
-      fontSize: '14px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, 66, 28, `波次完成: ${this.battleResult.wavesCompleted}`, {
+      size: 14,
+      color: InkText.ink,
+      originX: 0.5
+    }))
 
     // 剩余生命
-    this.add.text(panelX, panelY - 20, `剩余生命: ${this.battleResult.remainingHealth}`, {
-      fontSize: '14px',
-      color: '#ff6666'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, 200, 28, `剩余生命: ${this.battleResult.remainingHealth}`, {
+      size: 14,
+      color: InkText.cinnabar,
+      originX: 0.5
+    }))
 
     // 战斗时间
     const timeStr = this.formatTime(this.battleResult.elapsedTime)
-    this.add.text(panelX + 150, panelY - 20, `战斗时间: ${timeStr}`, {
-      fontSize: '14px',
-      color: '#aaaaaa'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, 334, 28, `战斗时间: ${timeStr}`, {
+      size: 14,
+      color: InkText.faint,
+      originX: 0.5
+    }))
 
     // 星星评级（简化：根据剩余生命）
     const stars = this.calculateStars()
-    this.add.text(panelX, panelY + 15, `评级: ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
-      fontSize: '20px',
-      color: '#ffff00'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, 200, 58, `评级: ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
+      size: InkFontSize.lg,
+      color: InkText.gold,
+      originX: 0.5
+    }))
   }
 
   /**
@@ -278,40 +290,39 @@ export default class SettlementScene extends Phaser.Scene {
 
     if (deployedHeroIds.length === 0) return
 
-    const panelX = width / 2
-    const panelY = 280
-    const panelWidth = 400
-    const panelHeight = deployedHeroIds.length * 30 + 40
-
-    const panelBg = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x223344, 0.9)
-    panelBg.setStrokeStyle(2, 0x6688aa)
+    const panelW = 400
+    const panelH = deployedHeroIds.length * 30 + 40
+    const panel = createPanel(this, width / 2 - panelW / 2, 250, panelW, panelH)
 
     // 标题
-    this.add.text(panelX, panelY - panelHeight / 2 + 15, '上场英雄经验', {
-      fontSize: '16px',
-      color: '#88aaff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, panelW / 2, 20, '上场英雄经验', {
+      size: InkFontSize.md,
+      color: InkText.wash,
+      bold: true,
+      originX: 0.5
+    }))
 
     // 每个英雄的经验
-    let heroY = panelY - panelHeight / 2 + 35
+    let rowY = 48
     const expPerHero = this.rewards.experience
 
     for (const heroId of deployedHeroIds) {
       const heroConfig = getHeroConfig(heroId)
       if (heroConfig) {
-        this.add.text(panelX - 150, heroY, heroConfig.name, {
-          fontSize: '14px',
-          color: '#ffffff'
-        }).setOrigin(0.5)
+        panel.add(inkText(this, 120, rowY, heroConfig.name, {
+          size: 14,
+          color: InkText.ink,
+          originX: 0.5
+        }))
 
-        this.add.text(panelX + 50, heroY, `+${expPerHero} 经验`, {
-          fontSize: '14px',
-          color: '#88ff88',
-          fontStyle: 'bold'
-        }).setOrigin(0.5)
+        panel.add(inkText(this, 280, rowY, `+${expPerHero} 经验`, {
+          size: 14,
+          color: InkText.green,
+          bold: true,
+          originX: 0.5
+        }))
 
-        heroY += 30
+        rowY += 30
       }
     }
   }
@@ -321,7 +332,6 @@ export default class SettlementScene extends Phaser.Scene {
    */
   private createRewardsPanel(): void {
     const width = this.cameras.main.width
-    const height = this.cameras.main.height
 
     // 根据奖励内容计算面板高度
     const baseHeight = 100
@@ -330,30 +340,31 @@ export default class SettlementScene extends Phaser.Scene {
                        this.rewards.soulStones.length * 40
     const panelHeight = baseHeight + extraHeight
 
-    const panelX = width / 2
-    const panelY = 350 + panelHeight / 2
-
-    const panelBg = this.add.rectangle(panelX, panelY, 500, panelHeight, 0x332244, 0.95)
-    panelBg.setStrokeStyle(2, 0xffaa00)
+    const panelW = 500
+    const panel = createPanel(this, width / 2 - panelW / 2, 350, panelW, panelHeight, {
+      stroke: 0xa0782f,
+      strokeWidth: 2
+    })
 
     // 奖励标题
-    this.add.text(panelX, panelY - panelHeight / 2 + 20, '获得奖励', {
-      fontSize: '24px',
-      color: '#ffaa00',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, panelW / 2, 30, '获得奖励', {
+      size: 24,
+      color: InkText.gold,
+      bold: true,
+      originX: 0.5
+    }))
 
-    let itemY = panelY - panelHeight / 2 + 60
+    let itemY = 70
     const itemSpacing = 35
 
     // 金币
-    this.createRewardItem(panelX - 180, itemY, '金币', `${this.rewards.gold}`, '#ffff00', '💰')
+    this.createRewardItem(panel, itemY, '金币', `${this.rewards.gold}`, InkText.gold)
     itemY += itemSpacing
 
     // 装备奖励
     if (this.rewards.equipment.length > 0) {
       for (const equip of this.rewards.equipment) {
-        this.createRewardItem(panelX, itemY, '装备', `${equip.name}`, this.getRarityColor(equip.rarity), '⚔️')
+        this.createRewardItem(panel, itemY, '装备', `${equip.name}`, INK_RARITY[equip.rarity].text)
         itemY += itemSpacing
       }
     }
@@ -361,8 +372,9 @@ export default class SettlementScene extends Phaser.Scene {
     // 宝石奖励
     if (this.rewards.gems.length > 0) {
       for (const gem of this.rewards.gems) {
-        const gemName = `${this.getWuXingText(gem.wuXing)}宝石 Lv.${gem.level}`
-        this.createRewardItem(panelX, itemY, '宝石', gemName, this.getWuXingColor(gem.wuXing), '💎')
+        const style = INK_WUXING[gem.wuXing as WuXing]
+        const gemName = `${style?.label ?? '?'}宝石 Lv.${gem.level}`
+        this.createRewardItem(panel, itemY, '宝石', gemName, style?.text ?? InkText.faint)
         itemY += itemSpacing
       }
     }
@@ -370,33 +382,33 @@ export default class SettlementScene extends Phaser.Scene {
     // 武将碎片
     if (this.rewards.soulStones.length > 0) {
       for (const stone of this.rewards.soulStones) {
-        this.createRewardItem(panelX, itemY, '武将碎片', `${stone.heroName} ×${stone.amount}`, '#aa88ff', '📜')
+        this.createRewardItem(panel, itemY, '武将碎片', `${stone.heroName} ×${stone.amount}`, InkText.wash)
         itemY += itemSpacing
       }
     }
   }
 
   /**
-   * 创建奖励项
+   * 创建奖励项（标签在左、数值在右，无 emoji 图标）
    */
   private createRewardItem(
-    x: number,
+    panel: Phaser.GameObjects.Container,
     y: number,
     label: string,
     value: string,
-    color: string,
-    icon: string
+    color: string
   ): void {
-    this.add.text(x - 100, y, `${icon} ${label}`, {
-      fontSize: '14px',
-      color: '#aaaaaa'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, 60, y, label, {
+      size: 14,
+      color: InkText.faint,
+      originX: 0.5
+    }))
 
-    this.add.text(x + 50, y, value, {
-      fontSize: '16px',
-      color: color,
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
+    panel.add(inkText(this, 180, y, value, {
+      size: InkFontSize.md,
+      color,
+      bold: true
+    }))
   }
 
   /**
@@ -485,76 +497,38 @@ export default class SettlementScene extends Phaser.Scene {
     // 下一关按钮（胜利且不是章节最后一关时显示）
     const nextLevelId = this.getNextLevelId()
     if (this.battleResult.isVictory && nextLevelId) {
-      this.createButton(width / 2 - 180, buttonY, '下一关', 0x448844, () => {
-        this.scene.start('BattleScene', { levelId: nextLevelId })
+      createInkButton(this, width / 2 - 180, buttonY, 120, 45, '下一关', {
+        fill: InkColor.cinnabar,
+        hoverFill: 0xb53a32,
+        textColor: InkText.paper,
+        fontSize: 18,
+        onClick: () => {
+          this.scene.start('BattleScene', { levelId: nextLevelId })
+        }
       })
     }
 
     // 再次挑战
-    this.createButton(width / 2, buttonY, '再次挑战', 0x446688, () => {
-      this.scene.start('BattleScene', { levelId: this.battleResult.levelId })
+    createInkButton(this, width / 2, buttonY, 120, 45, '再次挑战', {
+      fill: InkColor.inkStrong,
+      hoverFill: InkColor.ink,
+      textColor: InkText.paper,
+      fontSize: 18,
+      onClick: () => {
+        this.scene.start('BattleScene', { levelId: this.battleResult.levelId })
+      }
     })
 
     // 返回关卡选择
-    this.createButton(width / 2 + 180, buttonY, '返回', 0x666688, () => {
-      this.scene.start('LevelSelectScene')
+    createInkButton(this, width / 2 + 180, buttonY, 120, 45, '返回', {
+      fill: InkColor.paperPanel,
+      hoverFill: InkColor.paperDeep,
+      textColor: InkText.ink,
+      fontSize: 18,
+      stroke: InkColor.ink,
+      onClick: () => {
+        this.scene.start('LevelSelectScene')
+      }
     })
-  }
-
-  /**
-   * 创建按钮
-   */
-  private createButton(x: number, y: number, text: string, color: number, callback: () => void): void {
-    const btnBg = this.add.rectangle(x, y, 120, 45, color)
-    const btnText = this.add.text(x, y, text, {
-      fontSize: '18px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
-
-    btnBg.setInteractive({ useHandCursor: true })
-    btnBg.on('pointerover', () => btnBg.setFillStyle(color + 0x111111))
-    btnBg.on('pointerout', () => btnBg.setFillStyle(color))
-    btnBg.on('pointerdown', callback)
-  }
-
-  /**
-   * 获取五行文字
-   */
-  private getWuXingText(wuXing: string): string {
-    const texts: Record<string, string> = {
-      metal: '金',
-      wood: '木',
-      water: '水',
-      fire: '火',
-      earth: '土'
-    }
-    return texts[wuXing] || '?'
-  }
-
-  /**
-   * 获取五行颜色
-   */
-  private getWuXingColor(wuXing: string): string {
-    const colors: Record<string, string> = {
-      metal: '#cccccc',
-      wood: '#00aa00',
-      water: '#0088ff',
-      fire: '#ff4400',
-      earth: '#ffcc00'
-    }
-    return colors[wuXing] || '#888888'
-  }
-
-  /**
-   * 获取稀有度颜色
-   */
-  private getRarityColor(rarity: Rarity): string {
-    const colors: Record<Rarity, string> = {
-      common: '#888888',
-      rare: '#00aaff',
-      epic: '#aa00ff',
-      legendary: '#ffaa00'
-    }
-    return colors[rarity] || '#888888'
   }
 }

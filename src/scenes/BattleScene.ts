@@ -1,14 +1,20 @@
 import Phaser from 'phaser'
 import { BattleSystem } from '@/core/battle/BattleSystem'
 import { level1Config } from '@/data/levels/chapter1'
-import { createDefaultHeroes } from '@/data/heroes'
-import { getEnemyConfig } from '@/data/enemies'
 import { TerrainManager } from '@/core/terrain/TerrainManager'
 import { PathRenderer } from '@/core/terrain/PathRenderer'
 import { DeploymentZoneRenderer } from '@/core/terrain/DeploymentZoneRenderer'
 import { Point, Hero } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
 import { SoundFX } from '@/effects/SoundFX'
+import {
+  InkColor,
+  InkText,
+  InkRadius,
+  inkText,
+  createInkButton,
+  inkToast
+} from '@/ui/InkTheme'
 
 /**
  * 战斗场景
@@ -31,7 +37,6 @@ export default class BattleScene extends Phaser.Scene {
   private costText!: Phaser.GameObjects.Text
   private healthText!: Phaser.GameObjects.Text
   private waveText!: Phaser.GameObjects.Text
-  private statusText!: Phaser.GameObjects.Text
 
   constructor() {
     super({ key: 'BattleScene' })
@@ -153,15 +158,18 @@ export default class BattleScene extends Phaser.Scene {
     // 创建面板容器
     this.heroSelectionPanel = this.add.container(panelX, panelY)
 
-    // 面板背景
-    const panelBg = this.add.rectangle(0, 0, 280, 160, 0x333333, 0.9)
+    // 面板背景（宣纸 + 墨线）
+    const panelBg = this.add.rectangle(0, 0, 280, 160, InkColor.paperPanel, 0.95)
+    panelBg.setStrokeStyle(1, InkColor.ink)
     this.heroSelectionPanel.add(panelBg)
 
     // 面板标题
-    const title = this.add.text(0, -70, '选择英雄', {
-      fontSize: '16px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
+    const title = inkText(this, 0, -70, '选择英雄', {
+      size: 16,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    })
     this.heroSelectionPanel.add(title)
 
     // 英雄选项
@@ -197,31 +205,34 @@ export default class BattleScene extends Phaser.Scene {
       }
 
       // 英雄名称
-      const nameText = this.add.text(heroX, startY + 30, hero.name, {
-        fontSize: '12px',
-        color: '#ffffff'
-      }).setOrigin(0.5)
+      const nameText = inkText(this, heroX, startY + 30, hero.name, {
+        size: 12,
+        color: InkText.ink,
+        originX: 0.5
+      })
       this.heroSelectionPanel.add(nameText)
 
       // 费用
-      const costText = this.add.text(heroX, startY + 45, `费用:${hero.deploymentCost}`, {
-        fontSize: '10px',
-        color: '#ffaa00'
-      }).setOrigin(0.5)
+      const costText = inkText(this, heroX, startY + 45, `费用:${hero.deploymentCost}`, {
+        size: 10,
+        color: InkText.gold,
+        originX: 0.5
+      })
       this.heroSelectionPanel.add(costText)
     }
 
     // 关闭按钮
-    const closeBtn = this.add.rectangle(120, -70, 30, 20, 0xff0000)
+    const closeBtn = this.add.rectangle(120, -70, 30, 20, InkColor.cinnabar)
     closeBtn.setInteractive({ useHandCursor: true })
     closeBtn.on('pointerdown', () => {
       this.hideHeroSelectionPanel()
     })
 
-    const closeText = this.add.text(120, -70, 'X', {
-      fontSize: '12px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
+    const closeText = inkText(this, 120, -70, '✕', {
+      size: 12,
+      color: InkText.paper,
+      originX: 0.5
+    })
 
     this.heroSelectionPanel.add(closeBtn)
     this.heroSelectionPanel.add(closeText)
@@ -274,17 +285,21 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 显示临时消息
+   * 显示临时消息（顶部墨块提示）
    */
   private showTemporaryMessage(message: string): void {
-    const msg = this.add.text(this.cameras.main.width / 2, 100, message, {
-      fontSize: '20px',
-      color: '#ff0000'
-    }).setOrigin(0.5).setDepth(25)
+    inkToast(this, message, 100)
+  }
 
-    this.time.delayedCall(2000, () => {
-      msg.destroy()
-    })
+  /**
+   * 画一个宣纸圆角小片（HUD 文字底衬，保证地形上可读）
+   */
+  private drawHudChip(x: number, y: number, w: number, h: number): void {
+    const g = this.add.graphics()
+    g.fillStyle(InkColor.paperPanel, 0.85)
+    g.fillRoundedRect(x, y, w, h, InkRadius.sm)
+    g.lineStyle(1, InkColor.ink, 0.6)
+    g.strokeRoundedRect(x, y, w, h, InkRadius.sm)
   }
 
   /**
@@ -292,46 +307,53 @@ export default class BattleScene extends Phaser.Scene {
    */
   private createUI(width: number, height: number): void {
     // 费用显示
-    this.costText = this.add.text(20, 20, '费用: 20', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#000000'
+    this.drawHudChip(20, 12, 160, 32)
+    this.costText = inkText(this, 34, 28, '费用: 20', {
+      size: 18,
+      color: InkText.ink
     })
 
     // 生命显示
-    this.healthText = this.add.text(20, 50, '生命: 20', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#000000'
+    this.drawHudChip(20, 50, 160, 32)
+    this.healthText = inkText(this, 34, 66, '生命: 20', {
+      size: 18,
+      color: InkText.ink
     })
 
     // 波次显示
-    this.waveText = this.add.text(width - 200, 20, '波次: 0/3', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#000000'
+    this.drawHudChip(width - 190, 12, 170, 32)
+    this.waveText = inkText(this, width - 176, 28, '波次: 0/3', {
+      size: 18,
+      color: InkText.ink
     })
 
-    // 状态显示
-    this.statusText = this.add.text(width / 2, height - 50, '战斗进行中...', {
-      fontSize: '20px',
-      color: '#ffaa00'
-    }).setOrigin(0.5)
+    // 关卡名称（顶部中间，纸片底衬）
+    this.drawHudChip(width / 2 - 140, 10, 280, 38)
+    inkText(this, width / 2, 29, level1Config.name, {
+      size: 24,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    })
 
-    // 关卡名称
-    this.add.text(width / 2, 30, level1Config.name, {
-      fontSize: '32px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
+    // 状态显示（底部中间，纸片底衬）
+    this.drawHudChip(width / 2 - 100, height - 70, 200, 34)
+    inkText(this, width / 2, height - 53, '战斗进行中…', {
+      size: 16,
+      color: InkText.cinnabar,
+      originX: 0.5
+    })
 
-    // 地形信息提示
-    this.add.text(width - 200, height - 30, '点击蓝色区域部署英雄', {
-      fontSize: '12px',
-      color: '#4a90d9'
-    }).setOrigin(0.5)
+    // 地形信息提示（右下，纸片底衬）
+    this.drawHudChip(width - 300, height - 46, 200, 28)
+    inkText(this, width - 200, height - 32, '点击蓝色区域部署英雄', {
+      size: 12,
+      color: InkText.faint,
+      originX: 0.5
+    })
 
     // 返回按钮
-    this.createBackButton(width, height)
+    this.createBackButton(height)
 
     // 英雄选择面板（右侧）
     this.createHeroPanel(width, height)
@@ -340,23 +362,16 @@ export default class BattleScene extends Phaser.Scene {
   /**
    * 创建返回按钮
    */
-  private createBackButton(width: number, height: number): void {
-    const buttonBg = this.add.rectangle(100, height - 50, 150, 40, 0x444444)
-    const buttonText = this.add.text(100, height - 50, '返回', {
-      fontSize: '20px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
-
-    buttonBg.setInteractive({ useHandCursor: true })
-
-    buttonBg.on('pointerover', () => {
-      buttonBg.setFillStyle(0x666666)
-    })
-    buttonBg.on('pointerout', () => {
-      buttonBg.setFillStyle(0x444444)
-    })
-    buttonBg.on('pointerdown', () => {
-      this.scene.start('TitleScene')
+  private createBackButton(height: number): void {
+    createInkButton(this, 100, height - 50, 150, 40, '返回', {
+      fill: InkColor.paperPanel,
+      hoverFill: InkColor.paperDeep,
+      textColor: InkText.ink,
+      fontSize: 20,
+      stroke: InkColor.ink,
+      onClick: () => {
+        this.scene.start('TitleScene')
+      }
     })
   }
 
@@ -367,8 +382,9 @@ export default class BattleScene extends Phaser.Scene {
     const panelX = width - 150
     const panelY = height / 2
 
-    // 面板背景
-    this.add.rectangle(panelX, panelY, 120, 400, 0x333333)
+    // 面板背景（宣纸 + 墨线）
+    const panelBg = this.add.rectangle(panelX, panelY, 120, 400, InkColor.paperPanel, 0.92)
+    panelBg.setStrokeStyle(1, InkColor.ink)
 
     // 英雄按钮（使用真实头像）
     const saveManager = SaveManager.getInstance()
@@ -388,15 +404,17 @@ export default class BattleScene extends Phaser.Scene {
         })
       }
 
-      this.add.text(panelX, panelY + yOffset + 20, hero.name, {
-        fontSize: '12px',
-        color: '#ffffff'
-      }).setOrigin(0.5)
+      inkText(this, panelX, panelY + yOffset + 20, hero.name, {
+        size: 12,
+        color: InkText.ink,
+        originX: 0.5
+      })
 
-      this.add.text(panelX, panelY + yOffset + 35, `费用: ${hero.deploymentCost}`, {
-        fontSize: '10px',
-        color: '#ffaa00'
-      }).setOrigin(0.5)
+      inkText(this, panelX, panelY + yOffset + 35, `费用: ${hero.deploymentCost}`, {
+        size: 10,
+        color: InkText.gold,
+        originX: 0.5
+      })
 
       yOffset += 100
     }
@@ -466,7 +484,7 @@ export default class BattleScene extends Phaser.Scene {
   /**
    * 场景更新（每帧调用）
    */
-  update(time: number, delta: number): void {
+  update(_time: number, delta: number): void {
     if (!this.battleSystem) return
 
     this.battleSystem.update(delta)
