@@ -3,6 +3,8 @@ import { HeroEntity } from '@/entities/HeroEntity'
 import { DamageCalculator } from '../battle/DamageCalculator'
 import { ATTACK_CONFIG } from '@/config/constants'
 import { SkillManager, SkillExecutor } from '../skill'
+import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
+import { WeaponFX, WeaponType } from '@/effects/WeaponFX'
 import Phaser from 'phaser'
 
 /**
@@ -15,11 +17,35 @@ export class HeroBattleManager {
   private skillManager: SkillManager
   private skillExecutor: SkillExecutor
 
+  // 攻击特效（零素材水墨/武器特效 + 音效）
+  private scene: Phaser.Scene
+  private attackFX: CharacterAttackFX
+  private weaponFX: WeaponFX
+
   constructor(scene: Phaser.Scene, enemyManager: any) {
+    this.scene = scene
     this.deployedHeroes = new Map()
     this.enemyManager = enemyManager
     this.skillManager = new SkillManager()
     this.skillExecutor = new SkillExecutor(scene, this.skillManager, enemyManager)
+    this.attackFX = new CharacterAttackFX(scene)
+    this.weaponFX = new WeaponFX(scene, this.attackFX)
+    // 战斗中多英雄高频攻击：给"命中顿帧"做节流，避免一直卡顿
+    this.weaponFX.setHitStopGap(650)
+  }
+
+  /** 武将 → 武器映射（后续新增武将/弓手在此扩展） */
+  private getWeaponType(heroId: string): WeaponType {
+    switch (heroId) {
+      case 'hero_guanyu':
+        return 'blade' // 青龙偃月刀
+      case 'hero_zhangfei':
+        return 'spear' // 丈八蛇矛（长矛表现）
+      case 'hero_zhaoyun':
+        return 'spear' // 龙胆亮银枪
+      default:
+        return 'spear'
+    }
   }
 
   /**
@@ -175,6 +201,9 @@ export class HeroBattleManager {
     // 播放攻击动画
     hero.playAttackAnimation()
 
+    // 播放武器特效（冲锋 → 挥砍/前刺 → 飘字/受击抖动/命中顿帧/音效）
+    this.playWeaponFX(hero, target, actualDamage)
+
     // 触发被动技能（攻击时触发）
     this.triggerPassiveSkill(hero, target)
 
@@ -185,6 +214,43 @@ export class HeroBattleManager {
     }
 
     return null
+  }
+
+  /**
+   * 播放攻击特效（打击感全家桶）
+   *   1. 英雄朝目标微微前冲（近战起手式）
+   *   2. 武器动作：大刀挥砍 / 长矛前刺（战斗距离下武器真正够到敌人）
+   *   3. 命中反馈：伤害飘字 + 敌人受击抖动 + 墨迹飞溅 + 音效 + 命中顿帧
+   *      （顿帧/音效/墨迹已在 WeaponFX 内部处理，这里只补飘字与抖动）
+   */
+  private playWeaponFX(hero: HeroEntity, target: EnemyEntity, actualDamage: number): void {
+    const weapon = this.getWeaponType(hero.getHeroData().id)
+
+    // 两个实体都是直接加入场景的 Container，x/y 即世界坐标
+    const from = CharacterAttackFX.getWorldXY(hero)
+    const to = CharacterAttackFX.getWorldXY(target)
+
+    // 英雄前冲一点（大刀抡砍冲得更深）
+    this.attackFX.lunge(hero, to, weapon === 'blade' ? 16 : 12)
+
+    const dist = Phaser.Math.Distance.Between(from.x, from.y, to.x, to.y)
+
+    // 武器够到敌人的瞬间：飘伤害 + 敌人抖动
+    const onHit = () => {
+      if (target.active) target.hitShake()
+      this.attackFX.damageText(to, actualDamage, {
+        crit: actualDamage >= 80
+      })
+    }
+
+    if (weapon === 'blade') {
+      // 青龙偃月刀：刀身约 132 长，把挥砍支点送到"刀尖刚好够到敌人"的位置
+      const advance = Math.max(0, dist - 132)
+      this.weaponFX.bladeSlash(from, to, onHit, advance)
+    } else {
+      // 长矛：枪尖真正扎到敌人身上
+      this.weaponFX.spearThrustTo(from, to, onHit)
+    }
   }
 
   /**

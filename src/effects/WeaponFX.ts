@@ -34,12 +34,24 @@ export class WeaponFX {
 
   /** 是否正处于命中顿帧（防止短时间多次命中重复暂停） */
   private hitStopping = false
+  /** 两次顿帧的最小间隔（战斗中多英雄同时攻击时用来节流，0=不节流） */
+  private hitStopGap = 0
+  private lastHitStopAt = -1e9
 
   /** 复用水墨命中特效（墨迹/飘字/受击） */
   constructor(
     private scene: Phaser.Scene,
     private fx: CharacterAttackFX
   ) {}
+
+  /**
+   * 设置顿帧节流间隔（毫秒）。
+   * 战斗里多个英雄高频攻击，若每次命中都顿帧会一直卡顿，
+   * 设一个间隔（如 600）让顿帧只在"少数几次命中"上出现。传 0 关闭节流。
+   */
+  setHitStopGap(ms: number): void {
+    this.hitStopGap = ms
+  }
 
   /* ==================================================================== *
    * 命中顿帧（打击感的最后一步）
@@ -49,11 +61,21 @@ export class WeaponFX {
    * ==================================================================== */
   private hitStop(ms = 90): void {
     if (this.hitStopping) return
+    // 节流：距上次顿帧不足 gap 就跳过（战斗场景用）
+    const now = performance.now()
+    if (this.hitStopGap > 0 && now - this.lastHitStopAt < this.hitStopGap) return
+
     this.hitStopping = true
+    this.lastHitStopAt = now
     const sys = this.scene.sys
     sys.pause()
     window.setTimeout(() => {
-      sys.resume()
+      // 场景可能已切换/销毁：仅在仍处于暂停态时恢复，避免"复活"已关场的场景
+      try {
+        if (sys.getStatus() === 6) sys.resume() // 6 === Phaser Scene PAUSED
+      } catch {
+        /* 场景已销毁，忽略 */
+      }
       this.hitStopping = false
     }, ms)
   }
@@ -119,6 +141,55 @@ export class WeaponFX {
   }
 
   /* ==================================================================== *
+   * 长矛前刺 —— 战斗版：枪尖真正够到目标
+   *   与 spearThrust 同构，但按距离把握柄前推，让枪尖（握柄+矛长）
+   *   正好"扎"到敌人身上，适配战斗中较远的攻击距离(150~200px)。
+   * ==================================================================== */
+  spearThrustTo(from: Point, to: Point, onHit?: () => void): void {
+    this.ensureTexture('spear')
+    const angle = Phaser.Math.Angle.Between(from.x, from.y, to.x, to.y)
+    const dist = Phaser.Math.Distance.Between(from.x, from.y, to.x, to.y)
+    const SPEAR_LEN = 88
+    // 握柄前推距离：使枪尖越过目标约 10px，看起来像"扎进"了敌人
+    const reach = Math.max(0, dist - SPEAR_LEN + 10)
+
+    const spear = this.scene.add
+      .image(from.x, from.y, WeaponFX.KEYS.spear)
+      .setOrigin(0, 0.5)
+      .setRotation(angle)
+      .setDepth(35)
+
+    const backX = from.x - Math.cos(angle) * 14
+    const backY = from.y - Math.sin(angle) * 14
+    const tipX = from.x + Math.cos(angle) * reach
+    const tipY = from.y + Math.sin(angle) * reach
+    spear.setPosition(backX, backY)
+
+    // 距离越远出枪略慢，但夹在 110~170ms 内保持"快、脆"的手感
+    const dur = Phaser.Math.Clamp(90 + dist * 0.25, 110, 170)
+
+    let hitDone = false
+    this.scene.tweens.add({
+      targets: spear,
+      x: tipX,
+      y: tipY,
+      duration: dur,
+      ease: 'Quad.easeOut',
+      yoyo: true,
+      onYoyo: () => {
+        if (!hitDone) {
+          hitDone = true
+          this.fx.inkSplash(to, 0x1a1a1a, 12)
+          SoundFX.thud()
+          onHit?.()
+          this.hitStop()
+        }
+      },
+      onComplete: () => spear.destroy()
+    })
+  }
+
+  /* ==================================================================== *
    * 长矛横扫
    *   长矛绕英雄从 angle-spread 扫到 angle+spread。
    * ==================================================================== */
@@ -147,17 +218,26 @@ export class WeaponFX {
   /* ==================================================================== *
    * 大刀挥砍（关羽）
    *   一柄大刀从上方抡下，扫过目标，配刀光。
+   *   advance>0 时，挥砍支点沿目标方向前移（战斗里攻击距离较远，
+   *   把刀"送到"敌人跟前再抡），并淡入出现避免突兀。
    * ==================================================================== */
-  bladeSlash(from: Point, to: Point, onHit?: () => void): void {
+  bladeSlash(from: Point, to: Point, onHit?: () => void, advance = 0): void {
     this.ensureTexture('blade')
     const angle = Phaser.Math.Angle.Between(from.x, from.y, to.x, to.y)
 
+    const ax = from.x + Math.cos(angle) * advance
+    const ay = from.y + Math.sin(angle) * advance
+
     const blade = this.scene.add
-      .image(from.x, from.y, WeaponFX.KEYS.blade)
+      .image(ax, ay, WeaponFX.KEYS.blade)
       .setOrigin(0, 0.5)
       .setRotation(angle - Math.PI / 2.2) // 起始：高举
       .setDepth(36)
-      .setAlpha(0.95)
+      .setAlpha(advance > 0 ? 0 : 0.95)
+
+    if (advance > 0) {
+      this.scene.tweens.add({ targets: blade, alpha: 0.95, duration: 60 })
+    }
 
     this.scene.tweens.add({
       targets: blade,

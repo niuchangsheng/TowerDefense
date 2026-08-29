@@ -8,6 +8,7 @@ import { PathRenderer } from '@/core/terrain/PathRenderer'
 import { DeploymentZoneRenderer } from '@/core/terrain/DeploymentZoneRenderer'
 import { Point, Hero } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
+import { SoundFX } from '@/effects/SoundFX'
 
 /**
  * 战斗场景
@@ -50,6 +51,9 @@ export default class BattleScene extends Phaser.Scene {
   create(): void {
     const width = this.cameras.main.width
     const height = this.cameras.main.height
+
+    // 0. 解锁零素材音效（首次点击/按键后 WebAudio 才能出声）
+    SoundFX.unlock()
 
     // 1. 创建地形系统
     this.createTerrainSystem()

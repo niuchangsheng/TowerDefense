@@ -100,6 +100,28 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   }
 
   /**
+   * 受击抖动（打击感反馈）
+   * 只抖动子元素 enemySprite 的局部坐标，不动容器本身，
+   * 避免与"沿路径移动"的容器位置更新互相打架。
+   */
+  hitShake(strength = 4): void {
+    const sprite = this.enemySprite
+    if (!sprite || !sprite.active) return
+    const baseX = 0 // enemySprite 的局部基准 x
+
+    this.scene.tweens.add({
+      targets: sprite,
+      x: baseX + strength,
+      duration: 40,
+      yoyo: true,
+      repeat: 2,
+      onComplete: () => {
+        if (sprite.active) sprite.setX(baseX)
+      }
+    })
+  }
+
+  /**
    * 死亡
    */
   die(): void {

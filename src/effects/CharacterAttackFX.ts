@@ -37,6 +37,9 @@ export interface DamageTextOptions {
   offsetX?: number             // 水平随机偏移，避免重叠
 }
 
+/** 可被 lunge/getWorldXY 处理的对象（文字或容器） */
+export type LungeTarget = Phaser.GameObjects.Text | Phaser.GameObjects.Container
+
 export class CharacterAttackFX {
   // 运行时生成的墨点纹理 key（懒加载，只生成一次）
   private static INK_TEXTURE_KEY = 'fx_ink_drop'
@@ -47,17 +50,17 @@ export class CharacterAttackFX {
    * 1. 英雄本体前冲（近战攻击起手式）
    *    让英雄的"字"朝目标方向猛地一探，再弹回原位。
    * ------------------------------------------------------------------ */
-  lunge(text: Phaser.GameObjects.Text, toward: Point, distance = 16): void {
-    // 文字可能在容器内（局部坐标），先换算成世界坐标再算朝向
-    const world = CharacterAttackFX.getWorldXY(text)
+  lunge(obj: LungeTarget, toward: Point, distance = 16): void {
+    // 对象可能在容器内（局部坐标），先换算成世界坐标再算朝向
+    const world = CharacterAttackFX.getWorldXY(obj)
     const angle = Phaser.Math.Angle.Between(world.x, world.y, toward.x, toward.y)
     const dx = Math.cos(angle) * distance
     const dy = Math.sin(angle) * distance
 
     this.scene.tweens.add({
-      targets: text,
-      x: text.x + dx,
-      y: text.y + dy,
+      targets: obj,
+      x: obj.x + dx,
+      y: obj.y + dy,
       duration: 90,
       yoyo: true,
       ease: 'Quad.easeOut'
@@ -65,10 +68,10 @@ export class CharacterAttackFX {
   }
 
   /**
-   * 计算文本对象的世界坐标（兼容被 Container 包裹的情况）
+   * 计算对象的世界坐标（兼容被 Container 包裹的情况）
    * 只累加各级父容器的平移，满足"算朝向/算飞行起点"的需求。
    */
-  static getWorldXY(obj: Phaser.GameObjects.Text): Point {
+  static getWorldXY(obj: LungeTarget): Point {
     let x = obj.x
     let y = obj.y
     let parent = obj.parentContainer

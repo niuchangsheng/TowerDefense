@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { GAME_WIDTH, GAME_HEIGHT, GAME_TITLE } from './constants'
 
 // 场景导入
-import { BootScene, PreloadScene, TitleScene, BattleScene, HeroListScene, EquipmentScene, SaveScene, LevelSelectScene, SettlementScene, TextAttackDemoScene, WeaponDemoScene } from '@/scenes'
+import { BootScene, PreloadScene, TitleScene, BattleScene, HeroListScene, EquipmentScene, SaveScene, LevelSelectScene, SettlementScene, TextAttackDemoScene, WeaponDemoScene, TroopDemoScene } from '@/scenes'
 
 // Phaser游戏配置
 export const gameConfig: Phaser.Types.Core.GameConfig = {
@@ -21,11 +21,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     }
   },
 
-  // 场景配置
-  // ⚠️ 临时：WeaponDemoScene 放在首位用于预览武器攻击特效
-  //    预览完毕后，把演示场景移回数组末尾，让 BootScene 回到第一位
+  // 场景配置（演示场景放在末尾，BootScene 为正常入口）
   scene: [
-    WeaponDemoScene,
     BootScene,
     PreloadScene,
     TitleScene,
@@ -35,7 +32,9 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     LevelSelectScene,
     SettlementScene,
     BattleScene,
-    TextAttackDemoScene
+    TextAttackDemoScene,
+    WeaponDemoScene,
+    TroopDemoScene
   ],
 
   // 渲染配置
