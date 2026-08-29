@@ -1,13 +1,23 @@
 import Phaser from 'phaser'
 import { GAME_TITLE } from '@/config/constants'
+import { WuXing } from '@/types'
+import {
+  InkColor,
+  InkText,
+  InkFontSize,
+  INK_WUXING,
+  drawPaperBackground,
+  inkText,
+  inkRule,
+  createInkButton
+} from '@/ui/InkTheme'
 
 /**
- * 标题场景
+ * 标题场景（水墨宣纸风）
  * 主菜单界面
  */
 export default class TitleScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text
-  private startButton!: Phaser.GameObjects.Container
 
   constructor() {
     super({ key: 'TitleScene' })
@@ -27,6 +37,8 @@ export default class TitleScene extends Phaser.Scene {
     const width = this.cameras.main.width
     const height = this.cameras.main.height
 
+    drawPaperBackground(this)
+
     // 创建标题
     this.createTitle(width, height)
 
@@ -41,14 +53,20 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建标题
+   * 创建标题（楷体大字 + 墨线 + 印章）
    */
   private createTitle(width: number, height: number): void {
-    this.titleText = this.add.text(width / 2, height / 3, GAME_TITLE, {
-      fontSize: '64px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5)
+    this.titleText = inkText(this, width / 2, height / 3, GAME_TITLE, {
+      size: 64,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    })
+
+    // 标题下方墨线 + 线尾印章
+    const ruleY = height / 3 + 52
+    inkRule(this, null, width / 2 - 160, ruleY, 320, 0.4)
+    this.add.rectangle(width / 2 + 180, ruleY, 12, 12, InkColor.cinnabar)
 
     // 标题动画效果
     this.tweens.add({
@@ -62,41 +80,15 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建开始按钮
+   * 创建开始按钮（印章红主按钮）
    */
   private createStartButton(width: number, height: number): void {
-    const buttonX = width / 2
-    const buttonY = height / 2 + 50
-
-    // 按钮背景
-    const buttonBg = this.add.rectangle(0, 0, 200, 50, 0x4a90d9)
-
-    // 按钮文字
-    const buttonText = this.add.text(0, 0, '开始游戏', {
-      fontSize: '24px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
-
-    // 创建按钮容器
-    this.startButton = this.add.container(buttonX, buttonY, [buttonBg, buttonText])
-
-    // 设置交互
-    buttonBg.setInteractive({ useHandCursor: true })
-
-    // 悬停效果
-    buttonBg.on('pointerover', () => {
-      buttonBg.setFillStyle(0x5ba3f0)
-      this.startButton.setScale(1.05)
-    })
-
-    buttonBg.on('pointerout', () => {
-      buttonBg.setFillStyle(0x4a90d9)
-      this.startButton.setScale(1)
-    })
-
-    // 点击事件
-    buttonBg.on('pointerdown', () => {
-      this.onStartGame()
+    createInkButton(this, width / 2, height / 2 + 50, 220, 52, '开始游戏', {
+      fill: InkColor.cinnabar,
+      hoverFill: 0xb53a32,
+      textColor: InkText.paper,
+      fontSize: InkFontSize.xl,
+      onClick: () => this.onStartGame()
     })
   }
 
@@ -125,38 +117,35 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建单个菜单按钮
+   * 创建单个菜单按钮（宣纸底 + 墨线描边）
    */
   private createMenuButton(x: number, y: number, text: string, callback: () => void): void {
-    const btnBg = this.add.rectangle(0, 0, 200, 40, 0x666688)
-    const btnText = this.add.text(0, 0, text, {
-      fontSize: '20px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
-
-    const btn = this.add.container(x, y, [btnBg, btnText])
-
-    btnBg.setInteractive({ useHandCursor: true })
-    btnBg.on('pointerover', () => btnBg.setFillStyle(0x7777aa))
-    btnBg.on('pointerout', () => btnBg.setFillStyle(0x666688))
-    btnBg.on('pointerdown', callback)
+    createInkButton(this, x, y, 200, 42, text, {
+      fill: InkColor.paperPanel,
+      hoverFill: InkColor.paperDeep,
+      textColor: InkText.ink,
+      fontSize: InkFontSize.lg,
+      stroke: InkColor.ink,
+      onClick: callback
+    })
   }
 
   /**
-   * 创建背景效果
+   * 创建背景效果（飘动的五行字，使用水墨五行配色）
    */
   private createBackgroundEffect(): void {
-    // 创建一些飘动的五行元素图标（占位）
-    const elements = ['金', '木', '水', '火', '土']
-    const colors = ['#ffffff', '#00ff00', '#0000ff', '#ff0000', '#ffff00']
+    const elements: WuXing[] = ['metal', 'wood', 'water', 'fire', 'earth']
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < elements.length; i++) {
+      const style = INK_WUXING[elements[i]]
       const x = Phaser.Math.Between(100, this.cameras.main.width - 100)
       const y = Phaser.Math.Between(100, this.cameras.main.height - 100)
 
-      const elementText = this.add.text(x, y, elements[i], {
-        fontSize: '32px',
-        color: colors[i]
+      const elementText = inkText(this, x, y, style.label, {
+        size: 32,
+        color: style.text,
+        originX: 0.5,
+        originY: 0.5
       }).setAlpha(0.3)
 
       // 飘动动画

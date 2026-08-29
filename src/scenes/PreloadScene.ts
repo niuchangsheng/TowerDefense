@@ -1,14 +1,22 @@
 import Phaser from 'phaser'
 import { GAME_TITLE } from '@/config/constants'
+import {
+  InkColor,
+  InkText,
+  InkFontSize,
+  drawPaperBackground,
+  inkText
+} from '@/ui/InkTheme'
 
 /**
- * 预加载场景
+ * 预加载场景（水墨宣纸风）
  * 负责加载所有游戏资源（图片、音频等）
  */
 export default class PreloadScene extends Phaser.Scene {
   private loadingBar!: Phaser.GameObjects.Graphics
   private progressBar!: Phaser.GameObjects.Graphics
   private loadingText!: Phaser.GameObjects.Text
+  private titleText!: Phaser.GameObjects.Text
 
   constructor() {
     super({ key: 'PreloadScene' })
@@ -46,25 +54,43 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   /**
-   * 创建加载UI
+   * 创建加载UI（宣纸底 + 墨色进度条）
    */
   private createLoadingUI(): void {
     const width = this.cameras.main.width
     const height = this.cameras.main.height
 
+    drawPaperBackground(this)
+
+    // 游戏标题
+    this.titleText = inkText(this, width / 2, height / 2 - 90, GAME_TITLE, {
+      size: 28,
+      color: InkText.wash,
+      bold: true,
+      originX: 0.5
+    })
+
     // 加载文字
-    this.loadingText = this.add.text(width / 2, height / 2 - 50, '加载中...', {
-      fontSize: '24px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
+    this.loadingText = inkText(this, width / 2, height / 2 - 30, '加载中…', {
+      size: InkFontSize.md,
+      color: InkText.faint,
+      originX: 0.5
+    })
 
-    // 进度条背景
-    this.progressBar = this.add.graphics()
+    // 进度条背景（宣纸深色长条 + 墨线描边）
+    const barW = 560
+    const barH = 12
+    const barX = width / 2 - barW / 2
+    const barY = height / 2 + 10
+
     this.loadingBar = this.add.graphics()
+    this.loadingBar.fillStyle(InkColor.paperDeep, 1)
+    this.loadingBar.fillRoundedRect(barX, barY, barW, barH, 6)
+    this.loadingBar.lineStyle(1, InkColor.ink, 0.5)
+    this.loadingBar.strokeRoundedRect(barX, barY, barW, barH, 6)
 
-    // 进度条样式
-    this.loadingBar.fillStyle(0x222222, 0.8)
-    this.loadingBar.fillRect(width / 4, height / 2, width / 2, 30)
+    // 进度条填充
+    this.progressBar = this.add.graphics()
   }
 
   /**
@@ -74,16 +100,15 @@ export default class PreloadScene extends Phaser.Scene {
     const width = this.cameras.main.width
     const height = this.cameras.main.height
 
-    this.progressBar.clear()
-    this.progressBar.fillStyle(0x00ff00, 1)
-    this.progressBar.fillRect(
-      width / 4 + 5,
-      height / 2 + 5,
-      (width / 2 - 10) * value,
-      20
-    )
+    const barW = 560
+    const barX = width / 2 - barW / 2
+    const barY = height / 2 + 10
 
-    this.loadingText.setText(`加载中... ${Math.floor(value * 100)}%`)
+    this.progressBar.clear()
+    this.progressBar.fillStyle(InkColor.ink, 0.65)
+    this.progressBar.fillRoundedRect(barX + 2, barY + 2, Math.max(0, (barW - 4) * value), 8, 4)
+
+    this.loadingText.setText(`加载中… ${Math.floor(value * 100)}%`)
   }
 
   /**
@@ -149,6 +174,7 @@ export default class PreloadScene extends Phaser.Scene {
     this.loadingBar.destroy()
     this.progressBar.destroy()
     this.loadingText.destroy()
+    this.titleText.destroy()
 
     // 转到标题场景
     this.scene.start('TitleScene')

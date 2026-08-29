@@ -11,7 +11,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   height: GAME_HEIGHT,
   parent: 'game-container',  // DOM容器ID
   title: GAME_TITLE,
-  backgroundColor: '#1a1a2e',  // 深蓝色背景
+  backgroundColor: '#e8e0cf',  // 宣纸底色（水墨风）
 
   // 物理系统配置（暂时不需要）
   physics: {
