@@ -1,21 +1,23 @@
 import Phaser from 'phaser'
 import { Hero, DeployedHero, Point, HeroStats } from '@/types'
+import { InkColor, InkText, InkRadius, INK_WUXING, inkText } from '@/ui/InkTheme'
 
 /**
- * 英雄渲染实体
- * Phaser游戏对象，负责英雄的渲染和动画
- * 支持全身模型（部分武将）和头像显示
+ * 英雄渲染实体（水墨风）
+ * 立绘（San11 头像/全身）保留，周边标注统一为水墨：
+ * 纸片名牌、楷体五行标签、淡墨范围圈、墨底冷却条。
  */
 export class HeroEntity extends Phaser.GameObjects.Container {
   private heroData: Hero
   private deployedData: DeployedHero
-  private heroImage: Phaser.GameObjects.Image  // 改为图片类型
+  private heroImage: Phaser.GameObjects.Image
   private heroNameText: Phaser.GameObjects.Text  // 英雄名称
   private wuXingText: Phaser.GameObjects.Text   // 五行属性
   private rangeIndicator: Phaser.GameObjects.Graphics
   private skillCooldownBar: Phaser.GameObjects.Graphics  // 技能冷却进度条
   private skillCooldownOverlay: Phaser.GameObjects.Graphics  // 技能冷却遮罩
-  private skillReadyIndicator: Phaser.GameObjects.Text  // 技能就绪提示
+  private skillReadyIndicator: Phaser.GameObjects.Container  // 技能就绪提示
+  private skillReadyText: Phaser.GameObjects.Text
 
   // 技能冷却状态（主动技能）
   private activeSkillCooldownPercent: number = 0
@@ -46,25 +48,28 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     }
     this.add(this.heroImage)
 
-    // 创建英雄名称文字（位置根据模型类型调整）
+    // 纸片名牌（圆角宣纸底 + 墨线 + 楷体）
     const nameY = this.useFullbody ? -85 : -50
-    this.heroNameText = scene.add.text(0, nameY, hero.name, {
-      fontSize: '14px',
-      color: '#ffffff',
-      backgroundColor: '#000000',
-      padding: { x: 4, y: 2 }
-    }).setOrigin(0.5)
-    this.add(this.heroNameText)
+    this.heroNameText = inkText(scene, 0, nameY, hero.name, {
+      size: 14,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    })
+    const nameBg = this.makeChipBg(this.heroNameText, 6, 4)
+    this.add([nameBg, this.heroNameText])
 
-    // 创建五行文字（位置根据模型类型调整）
+    // 五行标签（楷体，五行色）
+    const wuxing = INK_WUXING[hero.wuXing]
     const wuXingY = this.useFullbody ? 85 : 50
-    this.wuXingText = scene.add.text(0, wuXingY, this.getWuXingText(hero.wuXing), {
-      fontSize: '12px',
-      color: this.getWuXingTextColor(hero.wuXing),
-      backgroundColor: '#000000',
-      padding: { x: 3, y: 1 }
-    }).setOrigin(0.5)
-    this.add(this.wuXingText)
+    this.wuXingText = inkText(scene, 0, wuXingY, wuxing.label, {
+      size: 12,
+      color: wuxing.text,
+      bold: true,
+      originX: 0.5
+    })
+    const wuXingBg = this.makeChipBg(this.wuXingText, 5, 2)
+    this.add([wuXingBg, this.wuXingText])
 
     // 创建范围指示器
     this.rangeIndicator = scene.add.graphics()
@@ -79,14 +84,17 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.skillCooldownOverlay = scene.add.graphics()
     this.add(this.skillCooldownOverlay)
 
-    // 技能就绪提示（位置根据模型类型调整）
+    // 技能就绪提示（纸底印章红小标签）
     const skillY = this.useFullbody ? -100 : -65
-    this.skillReadyIndicator = scene.add.text(0, skillY, '技能就绪', {
-      fontSize: '10px',
-      color: '#00ff00',
-      backgroundColor: '#000000',
-      padding: { x: 2, y: 1 }
-    }).setOrigin(0.5).setAlpha(0)  // 初始隐藏
+    this.skillReadyText = inkText(scene, 0, 0, '技能就绪', {
+      size: 10,
+      color: InkText.cinnabar,
+      bold: true,
+      originX: 0.5
+    })
+    const readyBg = this.makeChipBg(this.skillReadyText, 4, 2)
+    this.skillReadyIndicator = scene.add.container(0, skillY, [readyBg, this.skillReadyText])
+    this.skillReadyIndicator.setAlpha(0)  // 初始隐藏
     this.add(this.skillReadyIndicator)
 
     // 设置深度
@@ -99,6 +107,22 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.heroImage.setInteractive({ useHandCursor: true })
     this.heroImage.on('pointerover', () => this.showRangeIndicator())
     this.heroImage.on('pointerout', () => this.hideRangeIndicator())
+  }
+
+  /**
+   * 为居中文字做圆角宣纸底（返回 Graphics，需加到文字之前）
+   */
+  private makeChipBg(text: Phaser.GameObjects.Text, padX: number, padY: number): Phaser.GameObjects.Graphics {
+    const g = this.scene.add.graphics()
+    const w = text.width + padX * 2
+    const h = text.height + padY * 2
+    // 文字以 origin(0.5, 0.5) 居中于 (0, y)，底衬同中心
+    const cy = text.y
+    g.fillStyle(InkColor.paperPanel, 0.9)
+    g.fillRoundedRect(-w / 2, cy - h / 2, w, h, InkRadius.sm)
+    g.lineStyle(1, InkColor.ink, 0.55)
+    g.strokeRoundedRect(-w / 2, cy - h / 2, w, h, InkRadius.sm)
+    return g
   }
 
   /**
@@ -185,11 +209,11 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   }
 
   /**
-   * 显示范围指示器
+   * 显示范围指示器（淡墨圈）
    */
   showRangeIndicator(): void {
     this.rangeIndicator.clear()
-    this.rangeIndicator.lineStyle(2, 0x00ff00, 0.3)
+    this.rangeIndicator.lineStyle(2, InkColor.ink, 0.25)
     this.rangeIndicator.strokeCircle(0, 0, this.heroData.baseStats.attackRange)
 
     // 显示英雄信息提示
@@ -245,13 +269,13 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     const barHeight = 4
     const barY = this.useFullbody ? 90 : 55
 
-    // 背景
-    this.skillCooldownBar.fillStyle(0x333333, 0.8)
+    // 背景（墨底）
+    this.skillCooldownBar.fillStyle(InkColor.ink, 0.35)
     this.skillCooldownBar.fillRect(-barWidth / 2, barY, barWidth, barHeight)
 
-    // 进度
-    const progressColor = cooldownPercent >= 1 ? 0x00ff00 : 0x0088ff
-    this.skillCooldownBar.fillStyle(progressColor, 0.8)
+    // 进度（未就绪淡墨，就绪印章红）
+    const progressColor = cooldownPercent >= 1 ? InkColor.cinnabar : InkColor.inkFaint
+    this.skillCooldownBar.fillStyle(progressColor, 0.9)
     this.skillCooldownBar.fillRect(-barWidth / 2, barY, barWidth * cooldownPercent, barHeight)
 
     // 更新冷却遮罩（覆盖图片）
@@ -271,7 +295,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     // 更新技能就绪提示
     if (cooldownPercent >= 1) {
       this.skillReadyIndicator.setAlpha(1)
-      this.skillReadyIndicator.setText('技能就绪')
+      this.skillReadyText.setText('技能就绪')
     } else {
       this.skillReadyIndicator.setAlpha(0)
     }
@@ -310,33 +334,5 @@ export class HeroEntity extends Phaser.GameObjects.Container {
       attackSpeed,
       attackRange
     }
-  }
-
-  /**
-   * 获取五行文字颜色
-   */
-  private getWuXingTextColor(wuXing: string): string {
-    const colors: Record<string, string> = {
-      metal: '#cccccc',   // 灰白色
-      wood: '#00aa00',    // 深绿色
-      water: '#0088ff',   // 蓝色
-      fire: '#ff4400',    // 橙红色
-      earth: '#ffcc00'    // 金黄色
-    }
-    return colors[wuXing] || '#888888'
-  }
-
-  /**
-   * 获取五行文字
-   */
-  private getWuXingText(wuXing: string): string {
-    const texts: Record<string, string> = {
-      metal: '金',
-      wood: '木',
-      water: '水',
-      fire: '火',
-      earth: '土'
-    }
-    return texts[wuXing] || '?'
   }
 }
