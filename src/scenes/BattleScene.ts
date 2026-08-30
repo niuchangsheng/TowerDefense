@@ -13,7 +13,8 @@ import {
   InkRadius,
   inkText,
   createInkButton,
-  inkToast
+  inkToast,
+  drawPaperBackground
 } from '@/ui/InkTheme'
 
 /**
@@ -59,6 +60,9 @@ export default class BattleScene extends Phaser.Scene {
 
     // 0. 解锁零素材音效（首次点击/按键后 WebAudio 才能出声）
     SoundFX.unlock()
+
+    // 0.5 宣纸底（纸色 + 淡墨晕染），地形在其上以水墨程序绘制
+    drawPaperBackground(this)
 
     // 1. 创建地形系统
     this.createTerrainSystem()
@@ -346,7 +350,7 @@ export default class BattleScene extends Phaser.Scene {
 
     // 地形信息提示（右下，纸片底衬）
     this.drawHudChip(width - 300, height - 46, 200, 28)
-    inkText(this, width - 200, height - 32, '点击蓝色区域部署英雄', {
+    inkText(this, width - 200, height - 32, '点击虚线区域布阵', {
       size: 12,
       color: InkText.faint,
       originX: 0.5

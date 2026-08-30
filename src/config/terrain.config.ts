@@ -28,8 +28,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   grass: {
     type: 'grass',
     name: '平原',
-    color: 0x4a7c4e,        // 深绿色
-    borderColor: 0x2a5a2e,
+    color: 0x8a9a7b,        // 素雅苔绿
+    borderColor: 0x6a7a5b,
     movementCost: 4,        // 低消耗
     moveSpeedMultiplier: 1.0,
     defenseBonus: 0,        // 无加成
@@ -54,8 +54,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   road: {
     type: 'road',
     name: '道路',
-    color: 0xc9b896,        // 土黄色
-    borderColor: 0xa99876,
+    color: 0xb8a888,        // 素雅土黄
+    borderColor: 0x988868,
     movementCost: 3,        // 最低消耗
     moveSpeedMultiplier: 1.2,
     defenseBonus: 0,
@@ -80,8 +80,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   forest: {
     type: 'forest',
     name: '森林',
-    color: 0x228b22,        // 深绿色
-    borderColor: 0x126b12,
+    color: 0x6b7f5e,        // 素雅松绿
+    borderColor: 0x4f5f46,
     movementCost: 6,        // 中等消耗
     moveSpeedMultiplier: 0.85,
     defenseBonus: 20,       // 防守加成
@@ -111,8 +111,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   mountain: {
     type: 'mountain',
     name: '山地',
-    color: 0x8b7355,        // 棕色
-    borderColor: 0x6b5335,
+    color: 0x8a7f70,        // 素雅灰褐
+    borderColor: 0x6a6055,
     movementCost: 10,       // 高消耗
     moveSpeedMultiplier: 0.7,
     defenseBonus: 30,       // 高防守加成
@@ -137,8 +137,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   swamp: {
     type: 'swamp',
     name: '湿地',
-    color: 0x556b2f,        // 深绿偏灰
-    borderColor: 0x354b0f,
+    color: 0x6f7a5f,        // 素雅灰绿
+    borderColor: 0x4f5a42,
     movementCost: 12,       // 高消耗
     moveSpeedMultiplier: 0.5,
     defenseBonus: 10,
@@ -163,8 +163,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   river: {
     type: 'river',
     name: '河流',
-    color: 0x4a90d9,        // 蓝色
-    borderColor: 0x2a70b9,
+    color: 0x66839c,        // 素雅水色
+    borderColor: 0x4f6a82,
     movementCost: 15,       // 极高消耗
     moveSpeedMultiplier: 0.3,
     defenseBonus: 0,
@@ -189,8 +189,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   bridge: {
     type: 'bridge',
     name: '桥梁',
-    color: 0x696969,        // 灰色
-    borderColor: 0x494949,
+    color: 0x7a7266,        // 素雅灰
+    borderColor: 0x5a544a,
     movementCost: 5,
     moveSpeedMultiplier: 1.0,
     defenseBonus: 10,       // 扼守桥梁有优势
@@ -215,8 +215,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   snow: {
     type: 'snow',
     name: '雪地',
-    color: 0xf0f8ff,        // 白色
-    borderColor: 0xd0d8df,
+    color: 0xe6e2d6,        // 素雅雪白
+    borderColor: 0xc6c2b6,
     movementCost: 8,
     moveSpeedMultiplier: 0.75,
     defenseBonus: 5,
@@ -241,8 +241,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   desert: {
     type: 'desert',
     name: '沙漠',
-    color: 0xdaa520,        // 黄色
-    borderColor: 0xba8520,
+    color: 0xc2a878,        // 素雅沙黄
+    borderColor: 0xa28a5c,
     movementCost: 7,
     moveSpeedMultiplier: 0.85,
     defenseBonus: 0,
@@ -267,8 +267,8 @@ export const TERRAIN_CONFIGS: Record<TerrainType, TerrainConfig> = {
   fortress: {
     type: 'fortress',
     name: '城塞',
-    color: 0x8b4513,        // 深棕色
-    borderColor: 0x6b2513,
+    color: 0x8a5a42,        // 素雅赭石
+    borderColor: 0x6a4232,
     movementCost: 5,
     moveSpeedMultiplier: 1.0,
     defenseBonus: 50,       // 极高防守加成
