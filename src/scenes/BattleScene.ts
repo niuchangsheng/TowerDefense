@@ -4,8 +4,9 @@ import { level1Config } from '@/data/levels/chapter1'
 import { TerrainManager } from '@/core/terrain/TerrainManager'
 import { PathRenderer } from '@/core/terrain/PathRenderer'
 import { DeploymentZoneRenderer } from '@/core/terrain/DeploymentZoneRenderer'
-import { Hero } from '@/types'
+import { Hero, TroopConfig } from '@/types'
 import { GridCell, cellCenter } from '@/config/constants'
+import { troops } from '@/data/troops'
 import { SaveManager } from '@/core/save/SaveManager'
 import { SoundFX } from '@/effects/SoundFX'
 import {
@@ -170,18 +171,18 @@ export default class BattleScene extends Phaser.Scene {
     // 面板位置（在选中格上方，越界时收拢到屏内）
     const anchor = this.selectedCell ? cellCenter(this.selectedCell) : { x: 640, y: 360 }
     const panelX = Phaser.Math.Clamp(anchor.x, 150, this.cameras.main.width - 150)
-    const panelY = Phaser.Math.Clamp(anchor.y - 120, 95, this.cameras.main.height - 95)
+    const panelY = Phaser.Math.Clamp(anchor.y - 150, 135, this.cameras.main.height - 135)
 
     // 创建面板容器
     this.heroSelectionPanel = this.add.container(panelX, panelY)
 
     // 面板背景（宣纸 + 墨线）
-    const panelBg = this.add.rectangle(0, 0, 280, 160, InkColor.paperPanel, 0.95)
+    const panelBg = this.add.rectangle(0, 0, 280, 250, InkColor.paperPanel, 0.95)
     panelBg.setStrokeStyle(1, InkColor.ink)
     this.heroSelectionPanel.add(panelBg)
 
     // 面板标题
-    const title = inkText(this, 0, -70, '选择英雄', {
+    const title = inkText(this, 0, -110, '布阵', {
       size: 16,
       color: InkText.strong,
       bold: true,
@@ -189,19 +190,19 @@ export default class BattleScene extends Phaser.Scene {
     })
     this.heroSelectionPanel.add(title)
 
-    // 英雄选项
-    const startX = -120
-    const startY = -40
-    const spacing = 90
+    // 武将选项（横占两格）
+    const heroStartX = -120
+    const heroY = -70
+    const heroSpacing = 90
 
     for (let i = 0; i < heroList.length; i++) {
       const hero = heroList[i]
-      const heroX = startX + i * spacing
+      const heroX = heroStartX + i * heroSpacing
 
       // 英雄头像
       const imageKey = this.getHeroImageKey(hero.id)
       if (this.textures.exists(imageKey)) {
-        const heroImage = this.add.image(heroX, startY, imageKey)
+        const heroImage = this.add.image(heroX, heroY, imageKey)
         heroImage.setDisplaySize(50, 50)
         heroImage.setInteractive({ useHandCursor: true })
 
@@ -222,7 +223,7 @@ export default class BattleScene extends Phaser.Scene {
       }
 
       // 英雄名称
-      const nameText = inkText(this, heroX, startY + 30, hero.name, {
+      const nameText = inkText(this, heroX, heroY + 30, hero.name, {
         size: 12,
         color: InkText.ink,
         originX: 0.5
@@ -230,7 +231,7 @@ export default class BattleScene extends Phaser.Scene {
       this.heroSelectionPanel.add(nameText)
 
       // 费用
-      const costText = inkText(this, heroX, startY + 45, `费用:${hero.deploymentCost}`, {
+      const costText = inkText(this, heroX, heroY + 44, `费用:${hero.deploymentCost}`, {
         size: 10,
         color: InkText.gold,
         originX: 0.5
@@ -238,14 +239,71 @@ export default class BattleScene extends Phaser.Scene {
       this.heroSelectionPanel.add(costText)
     }
 
+    // 分隔墨线 + 兵种栏目标签
+    const divider = this.add.rectangle(0, -12, 260, 1, InkColor.ink, 0.3)
+    this.heroSelectionPanel.add(divider)
+
+    const troopLabel = inkText(this, -128, 2, '兵种（占一格）', {
+      size: 12,
+      color: InkText.faint
+    })
+    this.heroSelectionPanel.add(troopLabel)
+
+    // 兵种选项（4 项：单字 + 名称 + 费用）
+    const troopStartX = -120
+    const troopY = 38
+    const troopSpacing = 80
+
+    for (let i = 0; i < troops.length; i++) {
+      const troop = troops[i]
+      const troopX = troopStartX + i * troopSpacing
+
+      // 兵种单字（兵种本色楷体大字，可点击）
+      const charText = inkText(this, troopX, troopY, troop.displayChar, {
+        size: 26,
+        color: troop.color,
+        bold: true,
+        originX: 0.5
+      })
+      charText.setInteractive({ useHandCursor: true })
+
+      charText.on('pointerover', () => {
+        charText.setScale(1.15)
+      })
+      charText.on('pointerout', () => {
+        charText.setScale(1)
+      })
+      charText.on('pointerdown', () => {
+        this.selectTroopForDeployment(troop)
+      })
+
+      this.heroSelectionPanel.add(charText)
+
+      // 兵种名称
+      const troopName = inkText(this, troopX, troopY + 24, troop.name, {
+        size: 12,
+        color: InkText.ink,
+        originX: 0.5
+      })
+      this.heroSelectionPanel.add(troopName)
+
+      // 费用
+      const troopCost = inkText(this, troopX, troopY + 38, `费用:${troop.deploymentCost}`, {
+        size: 10,
+        color: InkText.gold,
+        originX: 0.5
+      })
+      this.heroSelectionPanel.add(troopCost)
+    }
+
     // 关闭按钮
-    const closeBtn = this.add.rectangle(120, -70, 30, 20, InkColor.cinnabar)
+    const closeBtn = this.add.rectangle(120, -110, 30, 20, InkColor.cinnabar)
     closeBtn.setInteractive({ useHandCursor: true })
     closeBtn.on('pointerdown', () => {
       this.hideHeroSelectionPanel()
     })
 
-    const closeText = inkText(this, 120, -70, '✕', {
+    const closeText = inkText(this, 120, -110, '✕', {
       size: 12,
       color: InkText.paper,
       originX: 0.5
@@ -293,6 +351,24 @@ export default class BattleScene extends Phaser.Scene {
     } else {
       console.log(`部署失败: ${result.reason}`)
       this.showTemporaryMessage(this.deployFailMessage(result.reason, '英雄需横占相邻两格'))
+    }
+  }
+
+  /**
+   * 选择兵种进行部署（放到选中格，占 1 格）
+   */
+  private selectTroopForDeployment(troop: TroopConfig): void {
+    if (this.selectedZoneIndex === null || !this.selectedCell) return
+
+    const result = this.battleSystem.placeTroop(troop.id, this.selectedCell)
+
+    if (result.success) {
+      console.log(`成功在格子(${this.selectedCell.col},${this.selectedCell.row})部署兵种 ${troop.name}`)
+      this.deploymentZoneRenderer.showZoneInfo(this.selectedZoneIndex, `已部署: ${troop.name}`)
+      this.hideHeroSelectionPanel()
+    } else {
+      console.log(`部署失败: ${result.reason}`)
+      this.showTemporaryMessage(this.deployFailMessage(result.reason, '该格已被占用'))
     }
   }
 

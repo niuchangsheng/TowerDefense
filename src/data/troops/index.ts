@@ -19,6 +19,9 @@ export const troops: TroopConfig[] = [
     baseHealth: 100,
     baseAttack: 12,
     baseSpeed: 50,
+    deploymentCost: 5,
+    attackRange: 90,
+    attackSpeed: 1.0,
     color: '#1a3a5a',
     description: '持枪近战，攻守均衡的基础步兵'
   },
@@ -35,6 +38,9 @@ export const troops: TroopConfig[] = [
     baseHealth: 120,
     baseAttack: 15,
     baseSpeed: 90,
+    deploymentCost: 8,
+    attackRange: 100,
+    attackSpeed: 1.2,
     color: '#5a1a1a',
     description: '策马持枪冲锋，机动迅捷，平原战力最佳'
   },
@@ -51,6 +57,9 @@ export const troops: TroopConfig[] = [
     baseHealth: 110,
     baseAttack: 14,
     baseSpeed: 55,
+    deploymentCost: 6,
+    attackRange: 90,
+    attackSpeed: 1.1,
     color: '#5a4a1a',
     description: '持刀劈砍，近身搏杀，林地作战有利'
   },
@@ -67,6 +76,9 @@ export const troops: TroopConfig[] = [
     baseHealth: 80,
     baseAttack: 13,
     baseSpeed: 45,
+    deploymentCost: 6,
+    attackRange: 240,
+    attackSpeed: 0.9,
     color: '#2a4a2a',
     description: '远程放箭，先发制人，近战较弱'
   }

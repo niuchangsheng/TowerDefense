@@ -56,6 +56,19 @@ export interface TroopConfig {
   baseHealth: number        // 基础生命
   baseAttack: number        // 基础攻击
   baseSpeed: number         // 移动速度（骑兵最快）
+  deploymentCost: number    // 部署费用
+  attackRange: number       // 攻击范围（像素）
+  attackSpeed: number       // 攻击速度（次/秒，与英雄同语义）
   color: string             // 展示用墨色
   description: string       // 兵种描述
+}
+
+/**
+ * 已部署兵种实例数据（仿 DeployedHero 的最小集）
+ */
+export interface DeployedTroop {
+  troopId: string
+  instanceId: string        // 唯一实例ID
+  position: { x: number; y: number }
+  lastAttackTime: number    // 上次攻击时间
 }

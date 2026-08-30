@@ -52,3 +52,9 @@ export interface RetreatHeroResult {
   success: boolean
   returnedCost: number  // 返还的部署费用
 }
+
+// 放置兵种结果（失败原因与放置英雄一致）
+export type PlaceTroopResult = PlaceHeroResult
+
+// 撤退兵种结果
+export type RetreatTroopResult = RetreatHeroResult

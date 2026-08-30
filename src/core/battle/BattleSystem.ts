@@ -6,20 +6,26 @@ import {
   BattleResult,
   PlaceHeroResult,
   RetreatHeroResult,
+  PlaceTroopResult,
+  RetreatTroopResult,
   Point,
   EnemyConfig,
-  Hero
+  Hero,
+  DeployedTroop
 } from '@/types'
 import { CostManager } from './CostManager'
 import { WaveManager } from './WaveManager'
 import { DeployGrid } from './DeployGrid'
+import { TroopBattleManager } from './TroopBattleManager'
 import { EnemyManager } from '@/core/enemy/EnemyManager'
 import { HeroBattleManager } from '@/core/hero/HeroBattleManager'
 import { HeroFactory } from '@/core/hero/HeroFactory'
 import { HeroEntity } from '@/entities/HeroEntity'
+import { TroopEntity } from '@/entities/TroopEntity'
 import { EnemyEntity } from '@/entities/EnemyEntity'
 import { COST_CONFIG, PLAYER_HEALTH_CONFIG, GridCell, cellCenter } from '@/config/constants'
 import { getEnemyConfig } from '@/data/enemies'
+import { getTroopConfig } from '@/data/troops'
 import { SaveManager } from '@/core/save/SaveManager'
 import { calculateLevelFromExp } from '@/data/heroes/levelConfig'
 
@@ -36,11 +42,16 @@ export class BattleSystem {
   private waveManager: WaveManager
   private enemyManager: EnemyManager
   private heroBattleManager: HeroBattleManager
+  private troopBattleManager: TroopBattleManager
   private deployGrid: DeployGrid
 
   // 英雄管理
   private heroConfigs: Map<string, Hero>  // 英雄配置数据
   private deployedHeroEntities: Map<string, HeroEntity>
+
+  // 兵种管理
+  private deployedTroopEntities: Map<string, TroopEntity>
+  private troopInstanceCounter: number
 
   // 战斗状态
   private battleState: BattleState
@@ -79,11 +90,18 @@ export class BattleSystem {
     // 初始化英雄战斗管理
     this.heroBattleManager = new HeroBattleManager(scene, this.enemyManager)
 
+    // 初始化兵种战斗管理
+    this.troopBattleManager = new TroopBattleManager(scene, this.enemyManager)
+
     // 初始化部署格占位表（兵占1格、将占2格）
     this.deployGrid = new DeployGrid(levelConfig.map.deployableAreas)
 
     // 初始化部署英雄列表
     this.deployedHeroEntities = new Map()
+
+    // 初始化部署兵种列表
+    this.deployedTroopEntities = new Map()
+    this.troopInstanceCounter = 0
 
     // 初始化战斗状态
     this.playerHealth = levelConfig.playerStartHealth
@@ -203,6 +221,102 @@ export class BattleSystem {
   }
 
   /**
+   * 放置兵种（占 1 格）
+   * @param troopId 兵种ID
+   * @param cell 目标格
+   */
+  placeTroop(troopId: string, cell: GridCell): PlaceTroopResult {
+    const troopConfig = getTroopConfig(troopId)
+    if (!troopConfig) {
+      return {
+        success: false,
+        reason: 'invalidPosition'
+      }
+    }
+
+    // 检查费用
+    if (!this.costManager.hasEnoughCost(troopConfig.deploymentCost)) {
+      return {
+        success: false,
+        reason: 'insufficientCost'
+      }
+    }
+
+    // 兵种脚印 = 单格：须在部署区内且未被占用
+    const footprint = [cell]
+    if (!this.deployGrid.canPlaceFootprint(footprint)) {
+      return {
+        success: false,
+        reason: this.deployGrid.isCellDeployable(cell) ? 'cellOccupied' : 'invalidPosition'
+      }
+    }
+
+    // 消耗费用
+    this.costManager.consumeCost(troopConfig.deploymentCost)
+
+    // 创建部署数据（位置 = 格心）
+    this.troopInstanceCounter++
+    const deployedData: DeployedTroop = {
+      troopId: troopConfig.id,
+      instanceId: `troop_${Date.now()}_${this.troopInstanceCounter}`,
+      position: cellCenter(cell),
+      lastAttackTime: 0
+    }
+
+    // 占用格子
+    this.deployGrid.occupy(footprint, deployedData.instanceId)
+
+    // 创建兵种实体
+    const troopEntity = new TroopEntity(this.scene, troopConfig, deployedData)
+
+    // 添加到管理器
+    this.deployedTroopEntities.set(deployedData.instanceId, troopEntity)
+    this.troopBattleManager.addTroop(troopEntity)
+
+    // 更新状态
+    this.battleState.currentCost = this.costManager.getCurrentCost()
+
+    return {
+      success: true,
+      remainingCost: this.costManager.getCurrentCost()
+    }
+  }
+
+  /**
+   * 撤退兵种（释放单格、返还费用）
+   */
+  retreatTroop(instanceId: string): RetreatTroopResult {
+    const troopEntity = this.deployedTroopEntities.get(instanceId)
+    if (!troopEntity) {
+      return {
+        success: false,
+        returnedCost: 0
+      }
+    }
+
+    const troopData = troopEntity.getTroopData()
+
+    // 返还费用
+    const returnedCost = this.costManager.returnCost(troopData.deploymentCost)
+
+    // 释放占用的格子
+    this.deployGrid.release(instanceId)
+
+    // 移除兵种
+    this.troopBattleManager.removeTroop(instanceId)
+    this.deployedTroopEntities.delete(instanceId)
+    troopEntity.destroy()
+
+    // 更新状态
+    this.battleState.currentCost = this.costManager.getCurrentCost()
+
+    return {
+      success: true,
+      returnedCost: returnedCost
+    }
+  }
+
+  /**
    * 撤退英雄
    */
   retreatHero(instanceId: string): RetreatHeroResult {
@@ -273,6 +387,14 @@ export class BattleSystem {
 
     // 处理被击杀的敌人
     for (const enemy of killedEnemies) {
+      this.handleEnemyKilled(enemy)
+    }
+
+    // 更新兵种攻击（英雄击杀结算后再取目标，避免重复处理同一敌人）
+    const troopKilledEnemies = this.troopBattleManager.update(deltaTime, this.elapsedTime)
+
+    // 处理被兵种击杀的敌人（同一击杀结算路径：费用奖励 + 移除 + 回调）
+    for (const enemy of troopKilledEnemies) {
       this.handleEnemyKilled(enemy)
     }
 
@@ -551,6 +673,13 @@ export class BattleSystem {
   }
 
   /**
+   * 获取已部署兵种
+   */
+  getDeployedTroops(): TroopEntity[] {
+    return Array.from(this.deployedTroopEntities.values())
+  }
+
+  /**
    * 事件回调注册
    */
   onEnemyKilled(callback: (enemy: EnemyEntity) => void): void {
@@ -588,8 +717,10 @@ export class BattleSystem {
     this.waveManager.reset()
     this.enemyManager.reset()
     this.heroBattleManager.reset()
+    this.troopBattleManager.reset()
     this.deployGrid.reset()
     this.deployedHeroEntities.clear()
+    this.deployedTroopEntities.clear()
 
     this.playerHealth = this.levelConfig.playerStartHealth
     this.elapsedTime = 0
