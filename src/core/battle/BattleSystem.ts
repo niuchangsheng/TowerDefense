@@ -12,12 +12,13 @@ import {
 } from '@/types'
 import { CostManager } from './CostManager'
 import { WaveManager } from './WaveManager'
+import { DeployGrid } from './DeployGrid'
 import { EnemyManager } from '@/core/enemy/EnemyManager'
 import { HeroBattleManager } from '@/core/hero/HeroBattleManager'
 import { HeroFactory } from '@/core/hero/HeroFactory'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { EnemyEntity } from '@/entities/EnemyEntity'
-import { COST_CONFIG, PLAYER_HEALTH_CONFIG } from '@/config/constants'
+import { COST_CONFIG, PLAYER_HEALTH_CONFIG, GridCell, cellCenter } from '@/config/constants'
 import { getEnemyConfig } from '@/data/enemies'
 import { SaveManager } from '@/core/save/SaveManager'
 import { calculateLevelFromExp } from '@/data/heroes/levelConfig'
@@ -35,6 +36,7 @@ export class BattleSystem {
   private waveManager: WaveManager
   private enemyManager: EnemyManager
   private heroBattleManager: HeroBattleManager
+  private deployGrid: DeployGrid
 
   // 英雄管理
   private heroConfigs: Map<string, Hero>  // 英雄配置数据
@@ -77,6 +79,9 @@ export class BattleSystem {
     // 初始化英雄战斗管理
     this.heroBattleManager = new HeroBattleManager(scene, this.enemyManager)
 
+    // 初始化部署格占位表（兵占1格、将占2格）
+    this.deployGrid = new DeployGrid(levelConfig.map.deployableAreas)
+
     // 初始化部署英雄列表
     this.deployedHeroEntities = new Map()
 
@@ -113,9 +118,11 @@ export class BattleSystem {
   }
 
   /**
-   * 放置英雄
+   * 放置英雄（横向占 1×2 两格）
+   * @param heroId 英雄ID
+   * @param cell 锚点格（英雄占该格 + 右邻格，右邻不可用则试左邻）
    */
-  placeHero(heroId: string, position: Point): PlaceHeroResult {
+  placeHero(heroId: string, cell: GridCell): PlaceHeroResult {
     // 检查英雄是否存在且已解锁
     const heroConfig = this.heroConfigs.get(heroId)
     if (!heroConfig || !heroConfig.isUnlocked) {
@@ -133,19 +140,26 @@ export class BattleSystem {
       }
     }
 
-    // 检查位置是否有效（简化：暂时只检查是否在场景内）
-    if (!this.isValidPosition(position)) {
+    // 计算 1×2 脚印并校验（必须在部署区内且未被占用）
+    const footprint = this.deployGrid.heroFootprint(cell)
+    if (!footprint) {
       return {
         success: false,
-        reason: 'invalidPosition'
+        reason: this.deployGrid.isCellDeployable(cell) ? 'cellOccupied' : 'invalidPosition'
       }
     }
 
     // 消耗费用
     this.costManager.consumeCost(heroConfig.deploymentCost)
 
+    // 部署位置 = 两格脚印中心
+    const position = this.footprintCenter(footprint)
+
     // 创建已部署英雄数据
     const deployedData = HeroFactory.createDeployedHero(heroConfig, position)
+
+    // 占用格子
+    this.deployGrid.occupy(footprint, deployedData.instanceId)
 
     // 创建英雄实体
     const heroEntity = new HeroEntity(this.scene, heroConfig, deployedData)
@@ -165,6 +179,30 @@ export class BattleSystem {
   }
 
   /**
+   * 在首个空位放置英雄（右侧快捷面板用）
+   */
+  placeHeroAtFirstFit(heroId: string): PlaceHeroResult {
+    const footprint = this.deployGrid.findFirstFit('hero')
+    if (!footprint) {
+      return {
+        success: false,
+        reason: 'cellOccupied'
+      }
+    }
+    return this.placeHero(heroId, footprint[0])
+  }
+
+  /**
+   * 脚印中心点（两格取中点，单格取格心）
+   */
+  private footprintCenter(footprint: GridCell[]): Point {
+    const centers = footprint.map(cellCenter)
+    const x = centers.reduce((sum, c) => sum + c.x, 0) / centers.length
+    const y = centers.reduce((sum, c) => sum + c.y, 0) / centers.length
+    return { x, y }
+  }
+
+  /**
    * 撤退英雄
    */
   retreatHero(instanceId: string): RetreatHeroResult {
@@ -180,6 +218,9 @@ export class BattleSystem {
 
     // 返还费用
     const returnedCost = this.costManager.returnCost(heroData.deploymentCost)
+
+    // 释放占用的格子
+    this.deployGrid.release(instanceId)
 
     // 移除英雄
     this.heroBattleManager.removeHero(instanceId)
@@ -503,13 +544,10 @@ export class BattleSystem {
   }
 
   /**
-   * 检查位置是否有效
+   * 获取部署格占位表（BattleScene 悬停/首空位查询用）
    */
-  private isValidPosition(position: Point): boolean {
-    // 简化：只检查是否在场景范围内
-    // 完整实现需要检查是否在deployableAreas内
-    return position.x >= 0 && position.x <= 1280 &&
-           position.y >= 0 && position.y <= 720
+  getDeployGrid(): DeployGrid {
+    return this.deployGrid
   }
 
   /**
@@ -550,6 +588,7 @@ export class BattleSystem {
     this.waveManager.reset()
     this.enemyManager.reset()
     this.heroBattleManager.reset()
+    this.deployGrid.reset()
     this.deployedHeroEntities.clear()
 
     this.playerHealth = this.levelConfig.playerStartHealth

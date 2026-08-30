@@ -43,7 +43,7 @@ export interface PlaceHeroRequest {
 // 放置英雄结果
 export interface PlaceHeroResult {
   success: boolean
-  reason?: 'insufficientCost' | 'invalidPosition' | 'heroNotUnlocked'
+  reason?: 'insufficientCost' | 'invalidPosition' | 'heroNotUnlocked' | 'cellOccupied'
   remainingCost?: number
 }
 

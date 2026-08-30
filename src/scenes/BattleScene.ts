@@ -4,7 +4,8 @@ import { level1Config } from '@/data/levels/chapter1'
 import { TerrainManager } from '@/core/terrain/TerrainManager'
 import { PathRenderer } from '@/core/terrain/PathRenderer'
 import { DeploymentZoneRenderer } from '@/core/terrain/DeploymentZoneRenderer'
-import { Point, Hero } from '@/types'
+import { Hero } from '@/types'
+import { GridCell, cellCenter } from '@/config/constants'
 import { SaveManager } from '@/core/save/SaveManager'
 import { SoundFX } from '@/effects/SoundFX'
 import {
@@ -33,6 +34,7 @@ export default class BattleScene extends Phaser.Scene {
   // 英雄选择面板
   private heroSelectionPanel: Phaser.GameObjects.Container | null = null
   private selectedZoneIndex: number | null = null
+  private selectedCell: GridCell | null = null
 
   // UI元素
   private costText!: Phaser.GameObjects.Text
@@ -114,10 +116,10 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 注册部署区域交互
+   * 注册部署区域交互（按格悬停、按格点选）
    */
   private registerDeploymentInteraction(): void {
-    // 监听鼠标移动
+    // 监听鼠标移动：区域高亮 + 格子高亮
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       const zoneIndex = this.deploymentZoneRenderer.isPointInZone({ x: pointer.x, y: pointer.y })
 
@@ -126,14 +128,25 @@ export default class BattleScene extends Phaser.Scene {
       } else {
         this.deploymentZoneRenderer.unhighlightAll()
       }
+
+      const cell = this.deploymentZoneRenderer.cellAtPoint({ x: pointer.x, y: pointer.y })
+      if (cell) {
+        this.deploymentZoneRenderer.highlightCell(cell)
+      } else {
+        this.deploymentZoneRenderer.clearCellHighlight()
+      }
     })
 
-    // 监听鼠标点击部署区域
+    // 监听鼠标点击部署格：记录选中格 → 弹窗选单位
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const zoneIndex = this.deploymentZoneRenderer.isPointInZone({ x: pointer.x, y: pointer.y })
 
       if (zoneIndex !== null) {
-        this.showHeroSelectionPanel(zoneIndex)
+        const cell = this.deploymentZoneRenderer.cellAtPoint({ x: pointer.x, y: pointer.y })
+        if (cell) {
+          this.selectedCell = cell
+          this.showHeroSelectionPanel(zoneIndex)
+        }
       } else if (this.heroSelectionPanel) {
         this.hideHeroSelectionPanel()
       }
@@ -141,7 +154,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 显示英雄选择面板
+   * 显示英雄选择面板（跟随选中格定位）
    */
   private showHeroSelectionPanel(zoneIndex: number): void {
     // 如果已有面板，先隐藏
@@ -150,14 +163,14 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     this.selectedZoneIndex = zoneIndex
-    const area = level1Config.map.deployableAreas[zoneIndex]
     const saveManager = SaveManager.getInstance()
     const heroes = saveManager.loadHeroes()
     const heroList = Array.from(heroes.values())
 
-    // 面板位置（在部署区域上方）
-    const panelX = area.x + area.width / 2
-    const panelY = area.y - 80
+    // 面板位置（在选中格上方，越界时收拢到屏内）
+    const anchor = this.selectedCell ? cellCenter(this.selectedCell) : { x: 640, y: 360 }
+    const panelX = Phaser.Math.Clamp(anchor.x, 150, this.cameras.main.width - 150)
+    const panelY = Phaser.Math.Clamp(anchor.y - 120, 95, this.cameras.main.height - 95)
 
     // 创建面板容器
     this.heroSelectionPanel = this.add.container(panelX, panelY)
@@ -261,30 +274,38 @@ export default class BattleScene extends Phaser.Scene {
       this.heroSelectionPanel.destroy()
       this.heroSelectionPanel = null
       this.selectedZoneIndex = null
+      this.selectedCell = null
     }
   }
 
   /**
-   * 选择英雄进行部署
+   * 选择英雄进行部署（放到选中格，横占 1×2）
    */
   private selectHeroForDeployment(hero: Hero): void {
-    if (this.selectedZoneIndex === null) return
+    if (this.selectedZoneIndex === null || !this.selectedCell) return
 
-    const area = level1Config.map.deployableAreas[this.selectedZoneIndex]
-    const position: Point = {
-      x: area.x + area.width / 2,
-      y: area.y + area.height / 2
-    }
-
-    const result = this.battleSystem.placeHero(hero.id, position)
+    const result = this.battleSystem.placeHero(hero.id, this.selectedCell)
 
     if (result.success) {
-      console.log(`成功在区域${this.selectedZoneIndex + 1}部署英雄 ${hero.name}`)
+      console.log(`成功在格子(${this.selectedCell.col},${this.selectedCell.row})部署英雄 ${hero.name}`)
       this.deploymentZoneRenderer.showZoneInfo(this.selectedZoneIndex, `已部署: ${hero.name}`)
       this.hideHeroSelectionPanel()
     } else {
       console.log(`部署失败: ${result.reason}`)
-      this.showTemporaryMessage(`部署失败: ${result.reason}`)
+      this.showTemporaryMessage(this.deployFailMessage(result.reason, '英雄需横占相邻两格'))
+    }
+  }
+
+  /**
+   * 部署失败文案
+   */
+  private deployFailMessage(reason: string | undefined, occupiedHint: string): string {
+    switch (reason) {
+      case 'insufficientCost': return '费用不足'
+      case 'heroNotUnlocked': return '尚未解锁'
+      case 'invalidPosition': return '只能部署在虚线布阵区内'
+      case 'cellOccupied': return occupiedHint
+      default: return '部署失败'
     }
   }
 
@@ -350,7 +371,7 @@ export default class BattleScene extends Phaser.Scene {
 
     // 地形信息提示（右下，纸片底衬）
     this.drawHudChip(width - 300, height - 46, 200, 28)
-    inkText(this, width - 200, height - 32, '点击虚线区域布阵', {
+    inkText(this, width - 200, height - 32, '点击布阵区格子部署', {
       size: 12,
       color: InkText.faint,
       originX: 0.5
@@ -404,7 +425,7 @@ export default class BattleScene extends Phaser.Scene {
         heroImage.setInteractive({ useHandCursor: true })
 
         heroImage.on('pointerdown', () => {
-          this.placeHeroAtRandomPosition(hero.id)
+          this.placeHeroAtFirstFit(hero.id)
         })
       }
 
@@ -437,25 +458,16 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 在随机位置放置英雄（保留原有功能）
+   * 在首个空位放置英雄（右侧快捷面板）
    */
-  private placeHeroAtRandomPosition(heroId: string): void {
-    const areas = level1Config.map.deployableAreas
-    if (areas.length === 0) return
-
-    const area = areas[Math.floor(Math.random() * areas.length)]
-    const position: Point = {
-      x: area.x + area.width / 2,
-      y: area.y + area.height / 2
-    }
-
-    const result = this.battleSystem.placeHero(heroId, position)
+  private placeHeroAtFirstFit(heroId: string): void {
+    const result = this.battleSystem.placeHeroAtFirstFit(heroId)
 
     if (result.success) {
       console.log(`成功放置英雄 ${heroId}，剩余费用: ${result.remainingCost}`)
     } else {
       console.log(`放置失败: ${result.reason}`)
-      this.showTemporaryMessage(`放置失败: ${result.reason}`)
+      this.showTemporaryMessage(this.deployFailMessage(result.reason, '没有空余的两连格'))
     }
   }
 
