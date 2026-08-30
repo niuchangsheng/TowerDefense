@@ -1,11 +1,13 @@
 import Phaser from 'phaser'
 import { Point } from '@/types'
+import { GRID, GridCell, cellKey } from '@/config/constants'
 import { InkColor, InkText, InkRadius, inkText } from '@/ui/InkTheme'
 
 /**
- * 路径渲染器（水墨风）
- * 行军路 = 淡墨路基 + 墨色细线 + 淡墨方向箭；
+ * 路径渲染器（水墨风 · 格子化）
+ * 行军路 = 逐格平铺的淡墨路基（一格一格看得见）+ 淡墨方向箭；
  * 起点墨点"敌"纸片，终点印章红点"守"纸片。
+ * 敌人仍沿格心折线连续移动（见 EnemyManager.PathFinder）。
  */
 export class PathRenderer {
   private scene: Phaser.Scene
@@ -21,19 +23,34 @@ export class PathRenderer {
   }
 
   /**
-   * 渲染静态路径
+   * 渲染静态路径（逐格淡墨路基）
    */
   renderStaticPath(): void {
     this.pathGraphics.clear()
     const g = this.pathGraphics
+    const cells = this.enumeratePathCells()
 
-    // 淡墨路基（宽底，模拟墨迹洇开）
-    g.lineStyle(10, InkColor.ink, 0.14)
-    this.strokePolyline(g)
+    // 路基：每格淡墨底
+    g.fillStyle(InkColor.ink, 0.10)
+    for (const cell of cells) {
+      g.fillRect(
+        cell.col * GRID.cellSize,
+        cell.row * GRID.cellSize,
+        GRID.cellSize,
+        GRID.cellSize
+      )
+    }
 
-    // 墨色细线（道路主体）
-    g.lineStyle(2, InkColor.ink, 0.5)
-    this.strokePolyline(g)
+    // 格线：每格淡墨描边（与部署区格网同一视觉语言）
+    g.lineStyle(1, InkColor.ink, 0.15)
+    for (const cell of cells) {
+      g.strokeRect(
+        cell.col * GRID.cellSize + 0.5,
+        cell.row * GRID.cellSize + 0.5,
+        GRID.cellSize - 1,
+        GRID.cellSize - 1
+      )
+    }
 
     // 标记起点和终点
     this.markStartAndEnd()
@@ -46,15 +63,58 @@ export class PathRenderer {
   }
 
   /**
-   * 沿路径折线描边（使用当前 lineStyle）
+   * 枚举路径经过的所有格子（去重）。
+   * 航点为格心轴对齐折线；非轴对齐段按细步长采样兜底。
    */
-  private strokePolyline(g: Phaser.GameObjects.Graphics): void {
-    g.beginPath()
-    g.moveTo(this.path[0].x, this.path[0].y)
-    for (let i = 1; i < this.path.length; i++) {
-      g.lineTo(this.path[i].x, this.path[i].y)
+  private enumeratePathCells(): GridCell[] {
+    const seen = new Set<string>()
+    const cells: GridCell[] = []
+    const push = (cell: GridCell | null) => {
+      if (!cell) return
+      const key = cellKey(cell)
+      if (!seen.has(key)) {
+        seen.add(key)
+        cells.push(cell)
+      }
     }
-    g.strokePath()
+
+    for (let i = 0; i < this.path.length - 1; i++) {
+      const p0 = this.path[i]
+      const p1 = this.path[i + 1]
+
+      if (p0.y === p1.y) {
+        // 水平段：行固定，列从起点扫到终点
+        const row = Phaser.Math.Clamp(Math.floor(p0.y / GRID.cellSize), 0, GRID.rows - 1)
+        const cMin = Math.floor(Math.min(p0.x, p1.x) / GRID.cellSize)
+        const cMax = Math.floor((Math.max(p0.x, p1.x) - 1) / GRID.cellSize)
+        for (let c = cMin; c <= cMax; c++) {
+          push({ col: Phaser.Math.Clamp(c, 0, GRID.cols - 1), row })
+        }
+      } else if (p0.x === p1.x) {
+        // 垂直段：列固定，行从起点扫到终点
+        const col = Phaser.Math.Clamp(Math.floor(p0.x / GRID.cellSize), 0, GRID.cols - 1)
+        const rMin = Math.floor(Math.min(p0.y, p1.y) / GRID.cellSize)
+        const rMax = Math.floor((Math.max(p0.y, p1.y) - 1) / GRID.cellSize)
+        for (let r = rMin; r <= rMax; r++) {
+          push({ col, row: Phaser.Math.Clamp(r, 0, GRID.rows - 1) })
+        }
+      } else {
+        // 兜底：沿段细步长采样（格心数据下不会走到这里）
+        const len = this.calculateDistance(p0, p1)
+        const steps = Math.max(2, Math.ceil(len / (GRID.cellSize / 4)))
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps
+          const x = p0.x + (p1.x - p0.x) * t
+          const y = p0.y + (p1.y - p0.y) * t
+          push({
+            col: Phaser.Math.Clamp(Math.floor(x / GRID.cellSize), 0, GRID.cols - 1),
+            row: Phaser.Math.Clamp(Math.floor(y / GRID.cellSize), 0, GRID.rows - 1)
+          })
+        }
+      }
+    }
+
+    return cells
   }
 
   /**

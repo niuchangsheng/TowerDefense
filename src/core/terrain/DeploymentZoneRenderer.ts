@@ -1,10 +1,12 @@
 import Phaser from 'phaser'
 import { Point, Area } from '@/types'
+import { GRID, GridCell, cellAt } from '@/config/constants'
 import { InkColor, InkText, InkFontSize, inkText } from '@/ui/InkTheme'
 
 /**
- * 部署区域渲染器（水墨风）
- * 布阵区 = 墨色虚线框 + 极淡纸底；悬停 = 印章红框。
+ * 部署区域渲染器（水墨风 · 格子化）
+ * 布阵区 = 墨色虚线框 + 极淡纸底 + 80px 真实格网；
+ * 悬停 = 印章红框；悬停格 = 印章红细框。
  */
 export class DeploymentZoneRenderer {
   private scene: Phaser.Scene
@@ -13,6 +15,7 @@ export class DeploymentZoneRenderer {
   private zoneLabels: (Phaser.GameObjects.Container | Phaser.GameObjects.Text)[]
   private highlightedIndex: number | null
   private isHighlightMode: boolean
+  private cellHighlightGraphics: Phaser.GameObjects.Graphics
 
   constructor(scene: Phaser.Scene, deployableAreas: Area[]) {
     this.scene = scene
@@ -21,6 +24,8 @@ export class DeploymentZoneRenderer {
     this.zoneLabels = []
     this.highlightedIndex = null
     this.isHighlightMode = false
+    this.cellHighlightGraphics = scene.add.graphics()
+    this.cellHighlightGraphics.setDepth(6)
   }
 
   /**
@@ -142,10 +147,10 @@ export class DeploymentZoneRenderer {
   }
 
   /**
-   * 绘制网格图案（淡墨提示线）
+   * 绘制网格图案（与全局 80px 格子对齐的真实部署格）
    */
   private drawGridPattern(graphics: Phaser.GameObjects.Graphics, area: Area): void {
-    const gridSize = 20
+    const gridSize = GRID.cellSize
 
     for (let x = area.x; x <= area.x + area.width; x += gridSize) {
       graphics.beginPath()
@@ -160,6 +165,35 @@ export class DeploymentZoneRenderer {
       graphics.lineTo(area.x + area.width, y)
       graphics.strokePath()
     }
+  }
+
+  /**
+   * 高亮指定格子（悬停反馈：印章红细框）
+   */
+  highlightCell(cell: GridCell): void {
+    this.cellHighlightGraphics.clear()
+    this.cellHighlightGraphics.lineStyle(2, InkColor.cinnabar, 0.9)
+    this.cellHighlightGraphics.strokeRect(
+      cell.col * GRID.cellSize + 1,
+      cell.row * GRID.cellSize + 1,
+      GRID.cellSize - 2,
+      GRID.cellSize - 2
+    )
+  }
+
+  /**
+   * 清除格子高亮
+   */
+  clearCellHighlight(): void {
+    this.cellHighlightGraphics.clear()
+  }
+
+  /**
+   * 像素点 → 部署区内的格子（不在任何部署区返回 null）
+   */
+  cellAtPoint(point: Point): GridCell | null {
+    if (this.isPointInZone(point) === null) return null
+    return cellAt(point.x, point.y)
   }
 
   /**
@@ -299,6 +333,7 @@ export class DeploymentZoneRenderer {
     for (const label of this.zoneLabels) {
       label.destroy()
     }
+    this.cellHighlightGraphics.destroy()
     this.zoneGraphics = []
     this.zoneLabels = []
   }
