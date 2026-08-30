@@ -1,15 +1,16 @@
 import Phaser from 'phaser'
 import { Point, Area } from '@/types'
+import { InkColor, InkText, InkFontSize, inkText } from '@/ui/InkTheme'
 
 /**
- * 部署区域渲染器
- * 渲染和标记可部署英雄的区域
+ * 部署区域渲染器（水墨风）
+ * 布阵区 = 墨色虚线框 + 极淡纸底；悬停 = 印章红框。
  */
 export class DeploymentZoneRenderer {
   private scene: Phaser.Scene
   private deployableAreas: Area[]
   private zoneGraphics: Phaser.GameObjects.Graphics[]
-  private zoneLabels: Phaser.GameObjects.Text[]
+  private zoneLabels: (Phaser.GameObjects.Container | Phaser.GameObjects.Text)[]
   private highlightedIndex: number | null
   private isHighlightMode: boolean
 
@@ -36,59 +37,116 @@ export class DeploymentZoneRenderer {
    */
   private renderZone(index: number, area: Area): void {
     const graphics = this.scene.add.graphics()
+    graphics.setDepth(5)
 
-    // 绘制区域背景（半透明）
-    graphics.fillStyle(0x4a90d9, 0.3)  // 蓝色半透明
-    graphics.fillRect(area.x, area.y, area.width, area.height)
+    this.drawZoneBase(graphics, area)
 
-    // 绘制边框
-    graphics.lineStyle(2, 0x4a90d9, 0.8)
-    graphics.strokeRect(area.x, area.y, area.width, area.height)
+    // 区域编号徽章（纸底墨字）
+    const badge = this.makeNumberBadge(index, area)
 
-    // 绘制网格线（增加视觉提示）
-    graphics.lineStyle(1, 0x4a90d9, 0.2)
-    this.drawGridPattern(graphics, area)
-
-    // 添加区域编号标签
-    const label = this.scene.add.text(
-      area.x + area.width / 2,
-      area.y + area.height / 2,
-      `${index + 1}`,
-      {
-        fontSize: '16px',
-        color: '#ffffff',
-        backgroundColor: '#4a90d9',
-        padding: { x: 4, y: 2 }
-      }
-    ).setOrigin(0.5).setAlpha(0.6).setDepth(6)
-
-    // 添加"可部署"提示
-    const tipLabel = this.scene.add.text(
+    // "点击部署"楷体淡墨小字
+    const tipLabel = inkText(
+      this.scene,
       area.x + area.width / 2,
       area.y + area.height - 10,
       '点击部署',
       {
-        fontSize: '10px',
-        color: '#4a90d9',
-        backgroundColor: '#ffffff',
-        padding: { x: 2, y: 1 }
+        size: InkFontSize.xs,
+        color: InkText.faint,
+        originX: 0.5
       }
-    ).setOrigin(0.5).setAlpha(0.5).setDepth(6)
-
-    graphics.setDepth(5)
+    ).setAlpha(0.8).setDepth(6)
 
     this.zoneGraphics.push(graphics)
-    this.zoneLabels.push(label)
+    this.zoneLabels.push(badge)
     this.zoneLabels.push(tipLabel)
   }
 
   /**
-   * 绘制网格图案
+   * 默认样式：极淡纸底 + 墨色虚线框 + 淡墨网格
+   */
+  private drawZoneBase(graphics: Phaser.GameObjects.Graphics, area: Area): void {
+    graphics.clear()
+
+    graphics.fillStyle(InkColor.ink, 0.06)
+    graphics.fillRect(area.x, area.y, area.width, area.height)
+
+    graphics.lineStyle(1.5, InkColor.ink, 0.5)
+    this.dashRect(graphics, area, 10, 6)
+
+    graphics.lineStyle(1, InkColor.ink, 0.08)
+    this.drawGridPattern(graphics, area)
+  }
+
+  /**
+   * 手绘虚线矩形（Phaser Graphics 无 dash API）
+   */
+  private dashRect(graphics: Phaser.GameObjects.Graphics, area: Area, dash = 10, gap = 6): void {
+    const { x, y, width, height } = area
+    const edges = [
+      { x0: x, y0: y, x1: x + width, y1: y },
+      { x0: x + width, y0: y, x1: x + width, y1: y + height },
+      { x0: x + width, y0: y + height, x1: x, y1: y + height },
+      { x0: x, y0: y + height, x1: x, y1: y }
+    ]
+
+    for (const e of edges) {
+      const len = Math.hypot(e.x1 - e.x0, e.y1 - e.y0)
+      if (len === 0) continue
+      const dx = (e.x1 - e.x0) / len
+      const dy = (e.y1 - e.y0) / len
+
+      let t = 0
+      let drawing = true
+      while (t < len) {
+        const seg = drawing ? dash : gap
+        const t2 = Math.min(t + seg, len)
+        if (drawing) {
+          graphics.beginPath()
+          graphics.moveTo(e.x0 + dx * t, e.y0 + dy * t)
+          graphics.lineTo(e.x0 + dx * t2, e.y0 + dy * t2)
+          graphics.strokePath()
+        }
+        t = t2
+        drawing = !drawing
+      }
+    }
+  }
+
+  /**
+   * 区域编号徽章：圆角纸片 + 楷体墨字
+   */
+  private makeNumberBadge(index: number, area: Area): Phaser.GameObjects.Container {
+    const badge = this.scene.add.container(area.x + area.width / 2, area.y + area.height / 2)
+
+    const text = inkText(this.scene, 0, 0, `${index + 1}`, {
+      size: InkFontSize.md,
+      color: InkText.ink,
+      bold: true,
+      originX: 0.5
+    })
+
+    const padX = 8
+    const w = text.width + padX * 2
+    const h = 24
+    const bg = this.scene.add.graphics()
+    bg.fillStyle(InkColor.paperPanel, 0.9)
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 4)
+    bg.lineStyle(1, InkColor.ink, 0.5)
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 4)
+
+    badge.add([bg, text])
+    badge.setAlpha(0.75)
+    badge.setDepth(6)
+    return badge
+  }
+
+  /**
+   * 绘制网格图案（淡墨提示线）
    */
   private drawGridPattern(graphics: Phaser.GameObjects.Graphics, area: Area): void {
     const gridSize = 20
 
-    // 垂直线
     for (let x = area.x; x <= area.x + area.width; x += gridSize) {
       graphics.beginPath()
       graphics.moveTo(x, area.y)
@@ -96,7 +154,6 @@ export class DeploymentZoneRenderer {
       graphics.strokePath()
     }
 
-    // 水平线
     for (let y = area.y; y <= area.y + area.height; y += gridSize) {
       graphics.beginPath()
       graphics.moveTo(area.x, y)
@@ -112,27 +169,7 @@ export class DeploymentZoneRenderer {
     this.isHighlightMode = true
 
     for (let i = 0; i < this.zoneGraphics.length; i++) {
-      const graphics = this.zoneGraphics[i]
-      graphics.clear()
-
-      // 高亮样式
-      graphics.fillStyle(0x00ff00, 0.4)  // 绿色高亮
-      graphics.fillRect(
-        this.deployableAreas[i].x,
-        this.deployableAreas[i].y,
-        this.deployableAreas[i].width,
-        this.deployableAreas[i].height
-      )
-
-      graphics.lineStyle(3, 0x00ff00, 1)
-      graphics.strokeRect(
-        this.deployableAreas[i].x,
-        this.deployableAreas[i].y,
-        this.deployableAreas[i].width,
-        this.deployableAreas[i].height
-      )
-
-      this.drawGridPattern(graphics, this.deployableAreas[i])
+      this.drawZoneHighlight(this.zoneGraphics[i], this.deployableAreas[i])
     }
   }
 
@@ -146,25 +183,30 @@ export class DeploymentZoneRenderer {
     this.unhighlightAll()
 
     this.highlightedIndex = index
-    const area = this.deployableAreas[index]
     const graphics = this.zoneGraphics[index]
-
-    graphics.clear()
-
-    // 高亮样式（黄色边框）
-    graphics.fillStyle(0xffaa00, 0.5)  // 金色高亮
-    graphics.fillRect(area.x, area.y, area.width, area.height)
-
-    graphics.lineStyle(4, 0xffaa00, 1)
-    graphics.strokeRect(area.x, area.y, area.width, area.height)
-
-    this.drawGridPattern(graphics, area)
+    this.drawZoneHighlight(graphics, this.deployableAreas[index])
 
     // 高亮标签
     if (this.zoneLabels[index * 2]) {
       this.zoneLabels[index * 2].setAlpha(1)
       this.zoneLabels[index * 2].setScale(1.2)
     }
+  }
+
+  /**
+   * 印章红高亮样式
+   */
+  private drawZoneHighlight(graphics: Phaser.GameObjects.Graphics, area: Area): void {
+    graphics.clear()
+
+    graphics.fillStyle(InkColor.cinnabar, 0.10)
+    graphics.fillRect(area.x, area.y, area.width, area.height)
+
+    graphics.lineStyle(2, InkColor.cinnabar, 0.9)
+    this.dashRect(graphics, area, 10, 6)
+
+    graphics.lineStyle(1, InkColor.cinnabar, 0.12)
+    this.drawGridPattern(graphics, area)
   }
 
   /**
@@ -186,23 +228,11 @@ export class DeploymentZoneRenderer {
   private resetZoneStyle(index: number): void {
     if (index >= this.zoneGraphics.length) return
 
-    const graphics = this.zoneGraphics[index]
-    const area = this.deployableAreas[index]
-
-    graphics.clear()
-
-    // 默认样式
-    graphics.fillStyle(0x4a90d9, 0.3)
-    graphics.fillRect(area.x, area.y, area.width, area.height)
-
-    graphics.lineStyle(2, 0x4a90d9, 0.8)
-    graphics.strokeRect(area.x, area.y, area.width, area.height)
-
-    this.drawGridPattern(graphics, area)
+    this.drawZoneBase(this.zoneGraphics[index], this.deployableAreas[index])
 
     // 重置标签
     if (this.zoneLabels[index * 2]) {
-      this.zoneLabels[index * 2].setAlpha(0.6)
+      this.zoneLabels[index * 2].setAlpha(0.75)
       this.zoneLabels[index * 2].setScale(1)
     }
   }
@@ -226,29 +256,36 @@ export class DeploymentZoneRenderer {
   }
 
   /**
-   * 显示区域提示信息
+   * 显示区域提示信息（纸片 + 墨字）
    */
   showZoneInfo(index: number, info: string): void {
     if (index < 0 || index >= this.deployableAreas.length) return
 
     const area = this.deployableAreas[index]
 
-    // 创建临时提示文本
-    const infoText = this.scene.add.text(
-      area.x + area.width / 2,
-      area.y - 20,
-      info,
-      {
-        fontSize: '12px',
-        color: '#ffffff',
-        backgroundColor: '#333333',
-        padding: { x: 4, y: 2 }
-      }
-    ).setOrigin(0.5).setDepth(20)
+    const chip = this.scene.add.container(area.x + area.width / 2, area.y - 20)
+
+    const text = inkText(this.scene, 0, 0, info, {
+      size: InkFontSize.xs,
+      color: InkText.ink,
+      originX: 0.5
+    })
+
+    const padX = 8
+    const w = text.width + padX * 2
+    const h = 20
+    const bg = this.scene.add.graphics()
+    bg.fillStyle(InkColor.paperPanel, 0.92)
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 4)
+    bg.lineStyle(1, InkColor.ink, 0.5)
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 4)
+
+    chip.add([bg, text])
+    chip.setDepth(20)
 
     // 3秒后自动消失
     this.scene.time.delayedCall(3000, () => {
-      infoText.destroy()
+      chip.destroy()
     })
   }
 
