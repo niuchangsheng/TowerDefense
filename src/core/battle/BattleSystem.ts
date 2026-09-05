@@ -8,6 +8,7 @@ import {
   RetreatHeroResult,
   PlaceTroopResult,
   RetreatTroopResult,
+  MoveUnitResult,
   Point,
   EnemyConfig,
   Hero,
@@ -23,7 +24,7 @@ import { HeroFactory } from '@/core/hero/HeroFactory'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { TroopEntity } from '@/entities/TroopEntity'
 import { EnemyEntity } from '@/entities/EnemyEntity'
-import { COST_CONFIG, PLAYER_HEALTH_CONFIG, GridCell, cellCenter } from '@/config/constants'
+import { COST_CONFIG, PLAYER_HEALTH_CONFIG, DEPLOY_COOLDOWN_MS, GridCell, cellCenter } from '@/config/constants'
 import { getEnemyConfig } from '@/data/enemies'
 import { getTroopConfig } from '@/data/troops'
 import { SaveManager } from '@/core/save/SaveManager'
@@ -61,12 +62,16 @@ export class BattleSystem {
   private isPaused: boolean
   /** 已通知过"波次开始"的最大波次号（防止重复通知） */
   private lastNotifiedWave: number
+  /** 部署冷却剩余（毫秒）：冷却结束前不能再部署新单位 */
+  private deployCooldownRemaining: number
 
   // 事件回调
   private onEnemyKilledCallback?: (enemy: EnemyEntity) => void
   private onEnemyReachedExitCallback?: (enemy: EnemyEntity) => void
   private onWaveStartCallback?: (wave: number) => void
   private onBattleEndCallback?: (result: BattleResult) => void
+  private onHeroPlacedCallback?: (hero: HeroEntity) => void
+  private onTroopPlacedCallback?: (troop: TroopEntity) => void
 
   constructor(scene: Phaser.Scene, levelConfig: LevelConfig, heroConfigs: Map<string, Hero>) {
     this.scene = scene
@@ -109,6 +114,7 @@ export class BattleSystem {
     this.isRunning = false
     this.isPaused = false
     this.lastNotifiedWave = 0
+    this.deployCooldownRemaining = 0
 
     this.battleState = {
       status: 'preparing',
@@ -147,6 +153,22 @@ export class BattleSystem {
       return {
         success: false,
         reason: 'heroNotUnlocked'
+      }
+    }
+
+    // 每位武将同时只能上阵一次（拖回底部栏撤下后可再次部署）
+    if (this.isHeroDeployed(heroId)) {
+      return {
+        success: false,
+        reason: 'heroAlreadyDeployed'
+      }
+    }
+
+    // 部署冷却中不能再部署
+    if (this.deployCooldownRemaining > 0) {
+      return {
+        success: false,
+        reason: 'deployCooling'
       }
     }
 
@@ -189,6 +211,11 @@ export class BattleSystem {
     // 更新状态
     this.battleState.currentCost = this.costManager.getCurrentCost()
     this.battleState.deployedHeroes.push(deployedData)
+
+    // 成功部署后进入冷却
+    this.deployCooldownRemaining = DEPLOY_COOLDOWN_MS
+
+    this.onHeroPlacedCallback?.(heroEntity)
 
     return {
       success: true,
@@ -234,6 +261,14 @@ export class BattleSystem {
       }
     }
 
+    // 部署冷却中不能再部署
+    if (this.deployCooldownRemaining > 0) {
+      return {
+        success: false,
+        reason: 'deployCooling'
+      }
+    }
+
     // 检查费用
     if (!this.costManager.hasEnoughCost(troopConfig.deploymentCost)) {
       return {
@@ -275,6 +310,11 @@ export class BattleSystem {
 
     // 更新状态
     this.battleState.currentCost = this.costManager.getCurrentCost()
+
+    // 成功部署后进入冷却
+    this.deployCooldownRemaining = DEPLOY_COOLDOWN_MS
+
+    this.onTroopPlacedCallback?.(troopEntity)
 
     return {
       success: true,
@@ -370,6 +410,11 @@ export class BattleSystem {
     }
 
     this.elapsedTime += deltaTime
+
+    // 推进部署冷却
+    if (this.deployCooldownRemaining > 0) {
+      this.deployCooldownRemaining = Math.max(0, this.deployCooldownRemaining - deltaTime)
+    }
 
     // 更新波次（生成敌人）
     this.updateWaves(deltaTime)
@@ -680,6 +725,86 @@ export class BattleSystem {
   }
 
   /**
+   * 武将是否已上阵（每位武将同时只能部署一次）
+   */
+  isHeroDeployed(heroId: string): boolean {
+    for (const entity of this.deployedHeroEntities.values()) {
+      if (entity.getHeroData().id === heroId) return true
+    }
+    return false
+  }
+
+  /**
+   * 部署冷却剩余毫秒（0 = 可部署）
+   */
+  getDeployCooldownRemaining(): number {
+    return this.deployCooldownRemaining
+  }
+
+  /**
+   * 开始拖拽已部署单位：释放其占用的格子，返回原脚印（用于取消恢复）。
+   * 单位不存在或未占用时返回 null。
+   */
+  beginUnitDrag(instanceId: string): GridCell[] | null {
+    const footprint = this.deployGrid.getFootprint(instanceId)
+    if (!footprint) return null
+
+    this.deployGrid.release(instanceId)
+    return footprint
+  }
+
+  /**
+   * 拖拽单位落到目标格：英雄按 1×2 脚印（先右后左）、兵种按单格校验；
+   * 成功则占用新格并把实体移到脚印中心。
+   */
+  dropUnitOnCell(instanceId: string, cell: GridCell, originalFootprint: GridCell[]): MoveUnitResult {
+    const heroEntity = this.deployedHeroEntities.get(instanceId)
+    const troopEntity = heroEntity ? undefined : this.deployedTroopEntities.get(instanceId)
+
+    if (!heroEntity && !troopEntity) {
+      return { success: false, reason: 'invalidPosition' }
+    }
+
+    const footprint = heroEntity
+      ? this.deployGrid.heroFootprint(cell)
+      : (this.deployGrid.canPlaceFootprint([cell]) ? [cell] : null)
+
+    if (!footprint) {
+      return { success: false, reason: 'cellOccupied' }
+    }
+
+    this.deployGrid.occupy(footprint, instanceId)
+    const position = this.footprintCenter(footprint)
+
+    if (heroEntity) {
+      heroEntity.setPosition(position.x, position.y)
+      heroEntity.updateDeployedData({ position })
+    } else if (troopEntity) {
+      troopEntity.updatePosition(position)
+    }
+
+    return { success: true }
+  }
+
+  /**
+   * 取消拖拽：恢复原脚印占用并把实体移回原位
+   */
+  cancelUnitDrag(instanceId: string, originalFootprint: GridCell[]): void {
+    this.deployGrid.occupy(originalFootprint, instanceId)
+
+    const position = this.footprintCenter(originalFootprint)
+    const heroEntity = this.deployedHeroEntities.get(instanceId)
+    if (heroEntity) {
+      heroEntity.setPosition(position.x, position.y)
+      return
+    }
+    const troopEntity = this.deployedTroopEntities.get(instanceId)
+    if (troopEntity) {
+      troopEntity.updatePosition(position)
+    }
+  }
+
+  /**
    * 事件回调注册
    */
   onEnemyKilled(callback: (enemy: EnemyEntity) => void): void {
@@ -696,6 +821,14 @@ export class BattleSystem {
 
   onBattleEnd(callback: (result: BattleResult) => void): void {
     this.onBattleEndCallback = callback
+  }
+
+  onHeroPlaced(callback: (hero: HeroEntity) => void): void {
+    this.onHeroPlacedCallback = callback
+  }
+
+  onTroopPlaced(callback: (troop: TroopEntity) => void): void {
+    this.onTroopPlacedCallback = callback
   }
 
   /**
@@ -727,6 +860,7 @@ export class BattleSystem {
     this.isRunning = false
     this.isPaused = false
     this.lastNotifiedWave = 0
+    this.deployCooldownRemaining = 0
 
     this.battleState = {
       status: 'preparing',

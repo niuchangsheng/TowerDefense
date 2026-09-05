@@ -43,8 +43,20 @@ export interface PlaceHeroRequest {
 // 放置英雄结果
 export interface PlaceHeroResult {
   success: boolean
-  reason?: 'insufficientCost' | 'invalidPosition' | 'heroNotUnlocked' | 'cellOccupied'
+  reason?:
+    | 'insufficientCost'
+    | 'invalidPosition'
+    | 'heroNotUnlocked'
+    | 'cellOccupied'
+    | 'deployCooling'        // 部署冷却中
+    | 'heroAlreadyDeployed'  // 该武将已上阵（每位武将同时只能部署一次）
   remainingCost?: number
+}
+
+// 拖拽移动已部署单位的结果
+export interface MoveUnitResult {
+  success: boolean
+  reason?: 'cellOccupied' | 'invalidPosition'
 }
 
 // 撤退英雄结果

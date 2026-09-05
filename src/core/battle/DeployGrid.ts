@@ -20,20 +20,10 @@ export class DeployGrid {
   }
 
   /**
-   * 格子是否位于某个部署区内（部署区均为格对齐矩形）
+   * 格子是否可部署：战场内任意格均可落子（占用另查）
    */
   isCellDeployable(cell: GridCell): boolean {
-    if (!cellInBounds(cell)) return false
-
-    const cellX = cell.col * GRID.cellSize
-    const cellY = cell.row * GRID.cellSize
-
-    return this.deployableAreas.some(area =>
-      cellX >= area.x &&
-      cellY >= area.y &&
-      cellX + GRID.cellSize <= area.x + area.width &&
-      cellY + GRID.cellSize <= area.y + area.height
-    )
+    return cellInBounds(cell)
   }
 
   /**
@@ -71,6 +61,14 @@ export class DeployGrid {
   }
 
   /**
+   * 查询某单位占用的脚印（返回副本；未占用返回 undefined）
+   */
+  getFootprint(instanceId: string): GridCell[] | undefined {
+    const cells = this.footprintByInstance.get(instanceId)
+    return cells ? cells.map(c => ({ ...c })) : undefined
+  }
+
+  /**
    * 占用脚印
    */
   occupy(cells: GridCell[], instanceId: string): void {
@@ -94,28 +92,21 @@ export class DeployGrid {
   }
 
   /**
-   * 逐区扫描首个放得下的脚印（行优先，英雄只试右邻）。
+   * 全图扫描首个放得下的脚印（行优先，英雄只试右邻）。
    * @param shape 'hero' = 1×2，'troop' = 1×1
    */
   findFirstFit(shape: 'hero' | 'troop'): GridCell[] | null {
-    for (const area of this.deployableAreas) {
-      const col0 = Math.floor(area.x / GRID.cellSize)
-      const row0 = Math.floor(area.y / GRID.cellSize)
-      const colSpan = Math.round(area.width / GRID.cellSize)
-      const rowSpan = Math.round(area.height / GRID.cellSize)
-
-      for (let r = row0; r < row0 + rowSpan; r++) {
-        for (let c = col0; c < col0 + colSpan; c++) {
-          const anchor: GridCell = { col: c, row: r }
-          if (shape === 'troop') {
-            if (this.canPlaceFootprint([anchor])) return [anchor]
-          } else {
-            const cells: GridCell[] = [
-              anchor,
-              { col: c + 1, row: r }
-            ]
-            if (this.canPlaceFootprint(cells)) return cells
-          }
+    for (let r = 0; r < GRID.rows; r++) {
+      for (let c = 0; c < GRID.cols; c++) {
+        const anchor: GridCell = { col: c, row: r }
+        if (shape === 'troop') {
+          if (this.canPlaceFootprint([anchor])) return [anchor]
+        } else {
+          const cells: GridCell[] = [
+            anchor,
+            { col: c + 1, row: r }
+          ]
+          if (this.canPlaceFootprint(cells)) return cells
         }
       }
     }

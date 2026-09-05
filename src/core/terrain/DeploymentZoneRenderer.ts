@@ -29,12 +29,23 @@ export class DeploymentZoneRenderer {
   }
 
   /**
-   * 渲染部署区域标记
+   * 渲染全图淡墨格网（任意格均可拖拽落子）
    */
   renderDeploymentZones(): void {
-    for (let i = 0; i < this.deployableAreas.length; i++) {
-      this.renderZone(i, this.deployableAreas[i])
+    const graphics = this.scene.add.graphics()
+    graphics.setDepth(5)
+
+    const area: Area = {
+      x: 0,
+      y: 0,
+      width: GRID.cols * GRID.cellSize,
+      height: GRID.rows * GRID.cellSize
     }
+
+    graphics.lineStyle(1, InkColor.ink, 0.08)
+    this.drawGridPattern(graphics, area)
+
+    this.zoneGraphics.push(graphics)
   }
 
   /**
@@ -168,6 +179,25 @@ export class DeploymentZoneRenderer {
   }
 
   /**
+   * 拖拽落点预览：合法为淡墨，非法为印章红
+   */
+  highlightDropPreview(cells: GridCell[], valid: boolean): void {
+    this.cellHighlightGraphics.clear()
+    const color = valid ? InkColor.ink : InkColor.cinnabar
+    const fillAlpha = valid ? 0.10 : 0.16
+
+    for (const cell of cells) {
+      const x = cell.col * GRID.cellSize + 1
+      const y = cell.row * GRID.cellSize + 1
+      const size = GRID.cellSize - 2
+      this.cellHighlightGraphics.fillStyle(color, fillAlpha)
+      this.cellHighlightGraphics.fillRect(x, y, size, size)
+      this.cellHighlightGraphics.lineStyle(2, color, 0.85)
+      this.cellHighlightGraphics.strokeRect(x, y, size, size)
+    }
+  }
+
+  /**
    * 高亮指定格子（悬停反馈：印章红细框）
    */
   highlightCell(cell: GridCell): void {
@@ -189,10 +219,9 @@ export class DeploymentZoneRenderer {
   }
 
   /**
-   * 像素点 → 部署区内的格子（不在任何部署区返回 null）
+   * 像素点 → 战场格子（越界返回 null）
    */
   cellAtPoint(point: Point): GridCell | null {
-    if (this.isPointInZone(point) === null) return null
     return cellAt(point.x, point.y)
   }
 

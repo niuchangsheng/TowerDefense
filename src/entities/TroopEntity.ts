@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { TroopConfig, DeployedTroop } from '@/types'
+import { TroopConfig, DeployedTroop, Point } from '@/types'
 import { InkColor, InkRadius, INK_FONT, cssColor } from '@/ui/InkTheme'
 
 /**
@@ -11,6 +11,7 @@ export class TroopEntity extends Phaser.GameObjects.Container {
   private troopData: TroopConfig
   private deployedData: DeployedTroop
   private charText: Phaser.GameObjects.Text
+  private rangeIndicator: Phaser.GameObjects.Graphics
 
   constructor(scene: Phaser.Scene, troop: TroopConfig, deployed: DeployedTroop) {
     super(scene, deployed.position.x, deployed.position.y)
@@ -39,8 +40,37 @@ export class TroopEntity extends Phaser.GameObjects.Container {
     this.charText.setOrigin(0.5)
     this.add(this.charText)
 
+    this.rangeIndicator = scene.add.graphics()
+    this.addAt(this.rangeIndicator, 0)
+    this.hideRangeIndicator()
+
     this.setDepth(12)
     scene.add.existing(this)
+
+    this.setSize(46, 46)
+    this.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(-23, -23, 46, 46),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true
+    })
+  }
+
+  /**
+   * 显示攻击范围（淡墨圈）
+   */
+  showRangeIndicator(): void {
+    this.rangeIndicator.clear()
+    this.rangeIndicator.lineStyle(2, InkColor.ink, 0.35)
+    this.rangeIndicator.fillStyle(InkColor.ink, 0.06)
+    this.rangeIndicator.fillCircle(0, 0, this.troopData.attackRange)
+    this.rangeIndicator.strokeCircle(0, 0, this.troopData.attackRange)
+  }
+
+  /**
+   * 隐藏攻击范围
+   */
+  hideRangeIndicator(): void {
+    this.rangeIndicator.clear()
   }
 
   /**
@@ -74,5 +104,13 @@ export class TroopEntity extends Phaser.GameObjects.Container {
    */
   updateLastAttackTime(time: number): void {
     this.deployedData.lastAttackTime = time
+  }
+
+  /**
+   * 更新位置（拖拽重定位落点）
+   */
+  updatePosition(position: Point): void {
+    this.deployedData.position = { x: position.x, y: position.y }
+    this.setPosition(position.x, position.y)
   }
 }

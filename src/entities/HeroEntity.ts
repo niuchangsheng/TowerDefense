@@ -73,7 +73,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
     // 创建范围指示器
     this.rangeIndicator = scene.add.graphics()
-    this.add(this.rangeIndicator)
+    this.addAt(this.rangeIndicator, 0)
     this.hideRangeIndicator()
 
     // 创建技能冷却进度条（位置根据模型类型调整）
@@ -103,10 +103,13 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     // 添加到场景
     scene.add.existing(this)
 
-    // 设置交互区域
-    this.heroImage.setInteractive({ useHandCursor: true })
-    this.heroImage.on('pointerover', () => this.showRangeIndicator())
-    this.heroImage.on('pointerout', () => this.hideRangeIndicator())
+    const hit = this.useFullbody ? { w: 120, h: 150 } : { w: 80, h: 80 }
+    this.setSize(hit.w, hit.h)
+    this.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(-hit.w / 2, -hit.h / 2, hit.w, hit.h),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true
+    })
   }
 
   /**
@@ -213,12 +216,11 @@ export class HeroEntity extends Phaser.GameObjects.Container {
    */
   showRangeIndicator(): void {
     this.rangeIndicator.clear()
-    this.rangeIndicator.lineStyle(2, InkColor.ink, 0.25)
-    this.rangeIndicator.strokeCircle(0, 0, this.heroData.baseStats.attackRange)
-
-    // 显示英雄信息提示
-    this.heroNameText.setAlpha(1)
-    this.wuXingText.setAlpha(1)
+    this.rangeIndicator.lineStyle(2, InkColor.ink, 0.35)
+    this.rangeIndicator.fillStyle(InkColor.ink, 0.06)
+    const range = this.getEffectiveStats().attackRange
+    this.rangeIndicator.fillCircle(0, 0, range)
+    this.rangeIndicator.strokeCircle(0, 0, range)
   }
 
   /**
