@@ -7,6 +7,9 @@ export interface EquipmentBase {
   name: string
   rarity: Rarity
   bonuses: Partial<HeroStats>  // 属性加成
+  image?: string               // 贴图/素材 key
+  description?: string        // 装备描述/背景典故
+  exclusiveHeroes?: string[]  // 专属武将列表（武将名或武将ID）
 }
 
 // 武器

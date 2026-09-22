@@ -737,24 +737,36 @@ export default class HeroListScene extends Phaser.Scene {
 
     // 装备列表
     const rowsTop = 56
+    const hero = this.heroes.get(heroId)
     for (let i = 0; i < unequipped.length; i++) {
       const equip = unequipped[i]
       const detail = this.equipmentManager.getEquipmentDetail(equip.instanceId)
       if (!detail) continue
 
+      const canEquip = this.equipmentManager.canEquipToHero(equip.instanceId, heroId, hero?.name)
+      const isExclusive = Boolean(detail.exclusiveHeroes && detail.exclusiveHeroes.length > 0)
       const rowY = rowsTop + i * rowGap + 18
       const rarityStyle = INK_RARITY[equip.rarity as Rarity]
 
-      const btnBg = this.add.rectangle(panelW / 2, rowY, 352, 36, rarityStyle.tint, 0.9)
-      btnBg.setStrokeStyle(1, rarityStyle.border)
+      const btnBg = this.add.rectangle(panelW / 2, rowY, 352, 36, canEquip ? rarityStyle.tint : 0xe8e2d5, canEquip ? 0.9 : 0.45)
+      btnBg.setStrokeStyle(1, canEquip ? rarityStyle.border : 0xaaaaaa)
       btnBg.setInteractive({ useHandCursor: true })
       popup.add(btnBg)
 
-      popup.add(inkText(this, 36, rowY, detail.name, { size: 14, color: InkText.ink }))
-      popup.add(inkText(this, 180, rowY, RarityNames[equip.rarity as Rarity], {
+      popup.add(inkText(this, 36, rowY, detail.name, { size: 14, color: canEquip ? InkText.ink : InkText.faint }))
+      popup.add(inkText(this, 150, rowY, RarityNames[equip.rarity as Rarity], {
         size: InkFontSize.xs,
-        color: rarityStyle.text
+        color: canEquip ? rarityStyle.text : InkText.faint
       }))
+
+      // 专属标记
+      if (isExclusive) {
+        popup.add(inkText(this, 210, rowY, canEquip ? '【专属】' : '【专属限制】', {
+          size: 11,
+          color: canEquip ? InkText.cinnabar : InkText.faint,
+          bold: canEquip
+        }))
+      }
 
       // 属性加成
       const bonuses = detail.bonuses
@@ -763,14 +775,23 @@ export default class HeroListScene extends Phaser.Scene {
       if (bonuses.attackSpeed) bonusText += ` 速+${bonuses.attackSpeed.toFixed(1)}`
       popup.add(inkText(this, panelW - 12, rowY, bonusText, {
         size: 11,
-        color: InkText.faint,
+        color: canEquip ? InkText.faint : '#999999',
         originX: 1
       }))
 
-      btnBg.on('pointerover', () => btnBg.setFillStyle(rarityStyle.tint, 1))
-      btnBg.on('pointerout', () => btnBg.setFillStyle(rarityStyle.tint, 0.9))
+      btnBg.on('pointerover', () => {
+        if (canEquip) btnBg.setFillStyle(rarityStyle.tint, 1)
+      })
+      btnBg.on('pointerout', () => {
+        btnBg.setFillStyle(canEquip ? rarityStyle.tint : 0xe8e2d5, canEquip ? 0.9 : 0.45)
+      })
       btnBg.on('pointerdown', () => {
-        this.equipmentManager.equipToHero(equip.instanceId, heroId)
+        if (!canEquip) {
+          const names = detail.exclusiveHeroes?.filter(h => !h.startsWith('hero_')).join('、') || ''
+          this.showMessage(`专属限制：此神器仅限【${names}】穿戴`)
+          return
+        }
+        this.equipmentManager.equipToHero(equip.instanceId, heroId, hero?.name)
         overlay.destroy()
         popup.destroy()
         this.updateDetailPanel(heroId)

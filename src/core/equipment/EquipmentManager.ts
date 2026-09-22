@@ -37,6 +37,17 @@ export class EquipmentManager {
     this.addEquipment('artifact_common_1')
     this.addEquipment('artifact_epic_1')
 
+    // 三国专属神兵宝物
+    this.addEquipment('artifact_chitu')
+    this.addEquipment('artifact_fangtian')
+    this.addEquipment('artifact_dilu')
+    this.addEquipment('artifact_qinglong')
+    this.addEquipment('artifact_shemao')
+    this.addEquipment('artifact_sherigong')
+    this.addEquipment('artifact_sunzi')
+    this.addEquipment('artifact_tongque')
+    this.addEquipment('artifact_yuxi')
+
     // 给玩家一些初始宝石
     this.addGem('metal', 1)
     this.addGem('metal', 2)
@@ -124,11 +135,29 @@ export class EquipmentManager {
   }
 
   /**
-   * 装备到武将
+   * 检查装备是否可装备到指定武将
    */
-  equipToHero(instanceId: string, heroId: string): boolean {
+  canEquipToHero(instanceId: string, heroId: string, heroName?: string): boolean {
+    const instance = this.ownedEquipment.get(instanceId)
+    if (!instance) return false
+    const detail = this.getEquipmentDetail(instanceId)
+    if (!detail) return false
+    if (!detail.exclusiveHeroes || detail.exclusiveHeroes.length === 0) return true
+    return detail.exclusiveHeroes.some(h => h === heroId || (heroName && h === heroName))
+  }
+
+  /**
+   * 装备到武将（含专属限制校验）
+   */
+  equipToHero(instanceId: string, heroId: string, heroName?: string): boolean {
     const instance = this.ownedEquipment.get(instanceId)
     if (!instance || instance.isEquipped) {
+      return false
+    }
+
+    // 检查专属武将限制
+    if (!this.canEquipToHero(instanceId, heroId, heroName)) {
+      console.warn(`专属限制：无法为武将 ${heroName || heroId} 穿戴此装备`)
       return false
     }
 

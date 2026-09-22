@@ -53,7 +53,13 @@ export default class EquipmentScene extends Phaser.Scene {
   private equipmentCards: Phaser.GameObjects.Container[] = []
   private gemCards: Phaser.GameObjects.Container[] = []
   private detailPanel: Phaser.GameObjects.Container | null = null
-  private gemGridTop = 0
+
+  // 左栏分类与滚动
+  private currentTab: 'all' | 'artifact' | 'weapon' | 'gem' = 'artifact'
+  private tabButtons: Phaser.GameObjects.Container[] = []
+  private listContainer!: Phaser.GameObjects.Container
+  private scrollY = 0
+  private maxScrollY = 0
 
   constructor() {
     super({ key: 'EquipmentScene' })
@@ -64,7 +70,7 @@ export default class EquipmentScene extends Phaser.Scene {
     drawPaperBackground(this)
     renderPageHeader(this, '装备', '· 军械')
 
-    // 左栏：装备 + 宝石 + 合成按钮
+    // 左栏：分类标签 + 装备与宝石列表 + 滚轮滚动
     this.renderLeftColumn()
 
     // 右侧详情面板
@@ -76,62 +82,185 @@ export default class EquipmentScene extends Phaser.Scene {
       this.scene.start('TitleScene')
     })
 
-    // 默认选中第一件装备
-    const first = this.equipmentManager.getOwnedEquipment()[0]
-    if (first) {
-      this.selectEquipment(first)
+    // 优先默认选中三国神器（如赤兔马）或第一件装备
+    const allEquip = this.equipmentManager.getOwnedEquipment()
+    const preferred = allEquip.find(e => e.equipmentId === 'artifact_chitu') || allEquip[0]
+    if (preferred) {
+      this.selectEquipment(preferred)
     }
   }
 
   // ==================== 左栏 ====================
 
   /**
-   * 左栏：装备分节网格 → 宝石分节网格 → 合成按钮（y 随装备行动态衔接）
+   * 左栏：顶部标签栏 + 滚动列表容器（装备网格 / 宝石网格 / 合成按钮）
    */
   private renderLeftColumn(): void {
     const L = EquipmentScene.LEFT_X
+    const topY = 88
 
-    let y = 96
-    y += sectionHeader(this, null, L, y, `装备 (${this.equipmentManager.getOwnedEquipment().length})`, EquipmentScene.LEFT_W)
-    const equipTop = y + 8
-    this.createEquipmentList(equipTop)
+    // 分类标签栏
+    this.renderTabs(L, topY)
 
-    const equipRows = Math.ceil(this.equipmentManager.getOwnedEquipment().length / EquipmentScene.EQUIP_COLS)
-    y = equipTop + equipRows * (EquipmentScene.EQUIP_H + EquipmentScene.EQUIP_GAP) + 16
+    // 列表容器
+    this.listContainer = this.add.container(0, 126)
 
-    y += sectionHeader(this, null, L, y, `宝石 (${this.equipmentManager.getOwnedGems().length})`, EquipmentScene.LEFT_W)
-    this.gemGridTop = y + 8
-    this.createGemList(this.gemGridTop)
+    // 几何遮罩（可视区域 126 ~ 696，高 570）
+    const maskShape = this.make.graphics({})
+    maskShape.fillStyle(0xffffff)
+    maskShape.fillRect(L - 6, 126, EquipmentScene.LEFT_W + 12, 570)
+    const mask = maskShape.createGeometryMask()
+    this.listContainer.setMask(mask)
 
-    const gemRows = Math.ceil(this.equipmentManager.getOwnedGems().length / EquipmentScene.GEM_COLS)
-    const buttonY = this.gemGridTop + gemRows * (EquipmentScene.GEM_H + EquipmentScene.GEM_GAP) + 28
+    // 鼠标滚轮监听
+    this.input.on('wheel', (pointer: Phaser.Input.Pointer, _gameObjects: any[], _deltaX: number, deltaY: number) => {
+      if (pointer.x >= L && pointer.x <= L + EquipmentScene.LEFT_W && pointer.y >= 120 && pointer.y <= 700) {
+        this.scrollY = Phaser.Math.Clamp(this.scrollY - deltaY * 0.6, this.maxScrollY, 0)
+        this.listContainer.y = 126 + this.scrollY
+      }
+    })
 
-    createInkButton(this, L + 64, buttonY, 128, 40, '宝石合成', {
-      fill: InkColor.paperPanel,
-      hoverFill: InkColor.paperDeep,
-      textColor: InkText.ink,
-      fontSize: InkFontSize.md,
-      stroke: InkColor.ink,
-      onClick: () => this.showGemSynthesisPanel()
+    // 渲染内容
+    this.refreshListContent()
+  }
+
+  /**
+   * 渲染分类标签栏（全部 / 神器 / 武器 / 宝石）
+   */
+  private renderTabs(startX: number, startY: number): void {
+    for (const btn of this.tabButtons) {
+      btn.destroy()
+    }
+    this.tabButtons = []
+
+    const tabs: { key: 'all' | 'artifact' | 'weapon' | 'gem'; label: string }[] = [
+      { key: 'artifact', label: '神器' },
+      { key: 'all', label: '全部' },
+      { key: 'weapon', label: '武器' },
+      { key: 'gem', label: '宝石' }
+    ]
+
+    const tabW = 78
+    const tabH = 30
+    const gap = 8
+
+    tabs.forEach((tab, index) => {
+      const x = startX + index * (tabW + gap) + tabW / 2
+      const y = startY + tabH / 2
+      const isActive = this.currentTab === tab.key
+
+      const container = this.add.container(x, y)
+      const bg = this.add.rectangle(0, 0, tabW, tabH, isActive ? InkColor.cinnabar : InkColor.paperPanel)
+      bg.setStrokeStyle(1, isActive ? InkColor.cinnabar : InkColor.inkFaint)
+      container.add(bg)
+
+      container.add(inkText(this, 0, 0, tab.label, {
+        size: 13,
+        color: isActive ? '#ffffff' : InkText.ink,
+        bold: isActive,
+        originX: 0.5,
+        originY: 0.5
+      }))
+
+      bg.setInteractive({ useHandCursor: true })
+      bg.on('pointerdown', () => {
+        if (this.currentTab !== tab.key) {
+          this.currentTab = tab.key
+          this.renderTabs(startX, startY)
+          this.refreshListContent()
+        }
+      })
+
+      this.tabButtons.push(container)
     })
   }
 
   /**
-   * 创建装备列表（2 列网格，卡片中心坐标）
+   * 刷新左栏滚动列表内容
    */
-  private createEquipmentList(gridTop: number): void {
-    const equipment = this.equipmentManager.getOwnedEquipment()
+  private refreshListContent(): void {
+    this.listContainer.removeAll(true)
+    this.equipmentCards = []
+    this.gemCards = []
+    this.scrollY = 0
+    this.listContainer.y = 126
 
-    for (let i = 0; i < equipment.length; i++) {
-      const equip = equipment[i]
-      const col = i % EquipmentScene.EQUIP_COLS
-      const row = Math.floor(i / EquipmentScene.EQUIP_COLS)
-      const x = EquipmentScene.LEFT_X + col * (EquipmentScene.EQUIP_W + EquipmentScene.EQUIP_GAP) + EquipmentScene.EQUIP_W / 2
-      const y = gridTop + row * (EquipmentScene.EQUIP_H + EquipmentScene.EQUIP_GAP) + EquipmentScene.EQUIP_H / 2
+    const allEquip = this.equipmentManager.getOwnedEquipment()
+    let displayEquip: EquipmentInstance[] = []
+    let showGems = false
 
-      const card = this.createEquipmentCard(equip, x, y)
-      this.equipmentCards.push(card)
+    if (this.currentTab === 'all') {
+      displayEquip = allEquip
+      showGems = true
+    } else if (this.currentTab === 'artifact') {
+      displayEquip = allEquip.filter(e => e.type === 'artifact')
+      showGems = false
+    } else if (this.currentTab === 'weapon') {
+      displayEquip = allEquip.filter(e => e.type === 'weapon')
+      showGems = false
+    } else if (this.currentTab === 'gem') {
+      displayEquip = []
+      showGems = true
     }
+
+    const L = EquipmentScene.LEFT_X
+    let curY = 0
+
+    if (displayEquip.length > 0) {
+      const title = this.currentTab === 'artifact' ? `神器宝物 (${displayEquip.length})` : (this.currentTab === 'weapon' ? `武器兵刃 (${displayEquip.length})` : `装备 (${displayEquip.length})`)
+      curY += sectionHeader(this, this.listContainer, L, curY, title, EquipmentScene.LEFT_W)
+      const equipTop = curY + 8
+
+      for (let i = 0; i < displayEquip.length; i++) {
+        const equip = displayEquip[i]
+        const col = i % EquipmentScene.EQUIP_COLS
+        const row = Math.floor(i / EquipmentScene.EQUIP_COLS)
+        const x = L + col * (EquipmentScene.EQUIP_W + EquipmentScene.EQUIP_GAP) + EquipmentScene.EQUIP_W / 2
+        const y = equipTop + row * (EquipmentScene.EQUIP_H + EquipmentScene.EQUIP_GAP) + EquipmentScene.EQUIP_H / 2
+
+        const card = this.createEquipmentCard(equip, x, y)
+        this.listContainer.add(card)
+        this.equipmentCards.push(card)
+      }
+
+      const equipRows = Math.ceil(displayEquip.length / EquipmentScene.EQUIP_COLS)
+      curY = equipTop + equipRows * (EquipmentScene.EQUIP_H + EquipmentScene.EQUIP_GAP) + 16
+    }
+
+    if (showGems) {
+      const gems = this.equipmentManager.getOwnedGems()
+      curY += sectionHeader(this, this.listContainer, L, curY, `宝石 (${gems.length})`, EquipmentScene.LEFT_W)
+      const gemTop = curY + 8
+
+      for (let i = 0; i < gems.length; i++) {
+        const gem = gems[i]
+        const col = i % EquipmentScene.GEM_COLS
+        const row = Math.floor(i / EquipmentScene.GEM_COLS)
+        const x = L + col * (EquipmentScene.GEM_W + EquipmentScene.GEM_GAP) + EquipmentScene.GEM_W / 2
+        const y = gemTop + row * (EquipmentScene.GEM_H + EquipmentScene.GEM_GAP) + EquipmentScene.GEM_H / 2
+
+        const card = this.createGemCard(gem, x, y)
+        this.listContainer.add(card)
+        this.gemCards.push(card)
+      }
+
+      const gemRows = Math.ceil(gems.length / EquipmentScene.GEM_COLS)
+      const buttonY = gemTop + gemRows * (EquipmentScene.GEM_H + EquipmentScene.GEM_GAP) + 24
+
+      const synthBtn = createInkButton(this, L + EquipmentScene.LEFT_W / 2, buttonY, 140, 36, '宝石合成', {
+        fill: InkColor.paperPanel,
+        hoverFill: InkColor.paperDeep,
+        textColor: InkText.ink,
+        fontSize: InkFontSize.md,
+        stroke: InkColor.ink,
+        onClick: () => this.showGemSynthesisPanel()
+      })
+      this.listContainer.add(synthBtn)
+      curY = buttonY + 36
+    }
+
+    const totalHeight = curY + 20
+    this.maxScrollY = Math.min(0, 560 - totalHeight)
   }
 
   /**
@@ -148,44 +277,78 @@ export default class EquipmentScene extends Phaser.Scene {
     bg.setStrokeStyle(2, INK_RARITY[rarity]?.border ?? InkColor.inkFaint)
     card.add(bg)
 
-    // 装备类型字
-    const isWeapon = equip.type === 'weapon'
-    card.add(inkText(this, 0, -28, isWeapon ? '武' : '神', {
-      size: 18,
-      color: isWeapon ? InkText.cinnabar : INK_WUXING.water.text,
-      bold: true,
-      originX: 0.5
-    }))
-
-    // 装备详情（名称）
     const detail = this.equipmentManager.getEquipmentDetail(equip.instanceId)
     const name = detail ? detail.name : '未知装备'
-    card.add(inkText(this, 0, -6, name, {
-      size: InkFontSize.sm,
-      color: InkText.strong,
-      bold: true,
-      originX: 0.5
-    }))
+    const hasImage = Boolean(detail?.image && this.textures.exists(detail.image))
 
-    // 稀有度
-    card.add(inkText(this, 0, 14, RarityNames[rarity] ?? equip.rarity, {
-      size: InkFontSize.xs,
-      color: INK_RARITY[rarity]?.text ?? InkText.faint,
-      originX: 0.5
-    }))
+    if (hasImage && detail?.image) {
+      // 缩略图框（左侧 48×48）
+      const thumbBg = this.add.rectangle(-48, 0, 50, 50, InkColor.paperDeep, 0.7)
+      thumbBg.setStrokeStyle(1, INK_RARITY[rarity]?.border ?? InkColor.inkFaint)
+      card.add(thumbBg)
 
-    // 装备状态
-    if (equip.isEquipped) {
-      card.add(inkText(this, 0, 32, '已装备', {
-        size: InkFontSize.xs,
-        color: InkText.green,
+      const thumb = this.add.image(-48, 0, detail.image)
+      thumb.setDisplaySize(46, 46)
+      card.add(thumb)
+
+      // 右侧文字信息 (x: -16 起，左对齐)
+      card.add(inkText(this, -16, -26, name, {
+        size: 13,
+        color: InkText.strong,
+        bold: true,
+        originX: 0
+      }))
+
+      card.add(inkText(this, -16, -8, `${RarityNames[rarity] ?? equip.rarity} · ${equip.type === 'weapon' ? '武器' : '神器'}`, {
+        size: 10,
+        color: INK_RARITY[rarity]?.text ?? InkText.faint,
+        originX: 0
+      }))
+
+      // 专属标签
+      if (detail.exclusiveHeroes && detail.exclusiveHeroes.length > 0) {
+        const exclusiveNames = detail.exclusiveHeroes.filter(h => !h.startsWith('hero_')).join('/')
+        card.add(inkText(this, -16, 8, `专:${exclusiveNames}`, {
+          size: 10,
+          color: InkText.cinnabar,
+          bold: true,
+          originX: 0
+        }))
+      }
+
+      card.add(inkText(this, -16, 24, equip.isEquipped ? '已装备' : '未装备', {
+        size: 10,
+        color: equip.isEquipped ? InkText.green : InkText.faint,
+        bold: equip.isEquipped,
+        originX: 0
+      }))
+    } else {
+      // 传统字样卡片
+      const isWeapon = equip.type === 'weapon'
+      card.add(inkText(this, 0, -28, isWeapon ? '武' : '神', {
+        size: 18,
+        color: isWeapon ? InkText.cinnabar : INK_WUXING.water.text,
         bold: true,
         originX: 0.5
       }))
-    } else {
-      card.add(inkText(this, 0, 32, '未装备', {
+
+      card.add(inkText(this, 0, -6, name, {
+        size: InkFontSize.sm,
+        color: InkText.strong,
+        bold: true,
+        originX: 0.5
+      }))
+
+      card.add(inkText(this, 0, 14, RarityNames[rarity] ?? equip.rarity, {
         size: InkFontSize.xs,
-        color: InkText.faint,
+        color: INK_RARITY[rarity]?.text ?? InkText.faint,
+        originX: 0.5
+      }))
+
+      card.add(inkText(this, 0, 32, equip.isEquipped ? '已装备' : '未装备', {
+        size: InkFontSize.xs,
+        color: equip.isEquipped ? InkText.green : InkText.faint,
+        bold: equip.isEquipped,
         originX: 0.5
       }))
     }
@@ -502,20 +665,77 @@ export default class EquipmentScene extends Phaser.Scene {
 
     const PAD = EquipmentScene.PAD
     let y = EquipmentScene.PAD
+    const hasImage = Boolean(detail.image && this.textures.exists(detail.image))
 
-    // 名称 + 稀有度·类型
-    this.detailPanel.add(inkText(this, PAD, y + 12, detail.name, {
-      size: InkFontSize.lg,
-      color: InkText.strong,
-      bold: true
-    }))
-    y += 32
+    if (hasImage && detail.image) {
+      // 神器插画大图展示 (左侧 104×104)
+      const frameX = PAD + 52
+      const frameY = y + 54
+      const frameBg = this.add.rectangle(frameX, frameY, 108, 108, InkColor.paperDeep, 0.7)
+      frameBg.setStrokeStyle(2, INK_RARITY[detail.rarity]?.border ?? InkColor.ink)
+      this.detailPanel.add(frameBg)
 
-    this.detailPanel.add(inkText(this, PAD, y + 8, `${RarityNames[detail.rarity]} · ${equip.type === 'weapon' ? '武器' : '神器'}`, {
-      size: 14,
-      color: INK_RARITY[detail.rarity]?.text ?? InkText.faint
-    }))
-    y += 30
+      const img = this.add.image(frameX, frameY, detail.image)
+      img.setDisplaySize(100, 100)
+      this.detailPanel.add(img)
+
+      // 右侧信息（从 PAD + 120 开始）
+      const textX = PAD + 120
+      this.detailPanel.add(inkText(this, textX, y + 6, detail.name, {
+        size: 22,
+        color: InkText.strong,
+        bold: true
+      }))
+
+      this.detailPanel.add(inkText(this, textX, y + 36, `${RarityNames[detail.rarity]} · ${equip.type === 'weapon' ? '武器' : '神器'}`, {
+        size: 14,
+        color: INK_RARITY[detail.rarity]?.text ?? InkText.faint
+      }))
+
+      // 专属武将展示
+      if (detail.exclusiveHeroes && detail.exclusiveHeroes.length > 0) {
+        const exclusiveNames = detail.exclusiveHeroes.filter(h => !h.startsWith('hero_')).join('、')
+        this.detailPanel.add(inkText(this, textX, y + 60, `【专属神将】${exclusiveNames}`, {
+          size: 14,
+          color: InkText.cinnabar,
+          bold: true
+        }))
+      }
+
+      // 装备背景典故描述
+      if (detail.description) {
+        this.detailPanel.add(inkText(this, textX, y + 84, `“${detail.description}”`, {
+          size: 12,
+          color: InkText.faint
+        }))
+      }
+
+      y += 122
+    } else {
+      // 传统文字布局
+      this.detailPanel.add(inkText(this, PAD, y + 12, detail.name, {
+        size: InkFontSize.lg,
+        color: InkText.strong,
+        bold: true
+      }))
+      y += 32
+
+      this.detailPanel.add(inkText(this, PAD, y + 8, `${RarityNames[detail.rarity]} · ${equip.type === 'weapon' ? '武器' : '神器'}`, {
+        size: 14,
+        color: INK_RARITY[detail.rarity]?.text ?? InkText.faint
+      }))
+      y += 30
+
+      if (detail.exclusiveHeroes && detail.exclusiveHeroes.length > 0) {
+        const exclusiveNames = detail.exclusiveHeroes.filter(h => !h.startsWith('hero_')).join('、')
+        this.detailPanel.add(inkText(this, PAD, y + 8, `【专属神将】${exclusiveNames}`, {
+          size: 14,
+          color: InkText.cinnabar,
+          bold: true
+        }))
+        y += 28
+      }
+    }
 
     // 属性加成
     y += sectionHeader(this, this.detailPanel, PAD, y, '属性加成', EquipmentScene.CONTENT_W)
@@ -528,7 +748,7 @@ export default class EquipmentScene extends Phaser.Scene {
       y += 26
     }
     if (bonuses.attackSpeed) {
-      this.detailPanel.add(inkText(this, PAD, y + 10, `攻速 +${bonuses.attackSpeed.toFixed(1)}`, {
+      this.detailPanel.add(inkText(this, PAD, y + 10, `攻速 +${bonuses.attackSpeed.toFixed(2)}`, {
         size: InkFontSize.md,
         color: InkText.green
       }))
@@ -656,14 +876,7 @@ export default class EquipmentScene extends Phaser.Scene {
    * 刷新宝石列表
    */
   private refreshGemList(): void {
-    // 清除旧卡片
-    for (const card of this.gemCards) {
-      card.destroy()
-    }
-    this.gemCards = []
-
-    // 重新创建
-    this.createGemList(this.gemGridTop)
+    this.refreshListContent()
   }
 
   /**

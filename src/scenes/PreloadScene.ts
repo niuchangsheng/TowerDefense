@@ -134,7 +134,18 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('fullbody_zhaoyun_stand', 'assets/images/heroes/fullbody/zhaoyun/赵云站立.png')
     this.load.image('fullbody_zhaoyun_attack', 'assets/images/heroes/fullbody/zhaoyun/赵云攻击.png')
 
-    console.log('PreloadScene: 武将头像、暴击图和全身模型加载完成')
+    // 加载神器/兵器素材
+    this.load.image('artifact_chitu', 'assets/images/weapons/赤兔马.png')
+    this.load.image('artifact_fangtian', 'assets/images/weapons/方天画戟.png')
+    this.load.image('artifact_dilu', 'assets/images/weapons/的卢.png')
+    this.load.image('artifact_qinglong', 'assets/images/weapons/青龙偃月刀.png')
+    this.load.image('artifact_shemao', 'assets/images/weapons/丈八蛇矛.png')
+    this.load.image('artifact_sherigong', 'assets/images/weapons/射日弓.png')
+    this.load.image('artifact_sunzi', 'assets/images/weapons/孙子兵法.png')
+    this.load.image('artifact_tongque', 'assets/images/weapons/铜雀.png')
+    this.load.image('artifact_yuxi', 'assets/images/weapons/玉玺.png')
+
+    console.log('PreloadScene: 武将头像、暴击图、全身模型与神器素材加载完成')
   }
 
   /**
