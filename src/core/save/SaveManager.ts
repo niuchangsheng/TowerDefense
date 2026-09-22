@@ -225,8 +225,8 @@ export class SaveManager {
     saveData.inventory.equipment = [
       'weapon_common_1',
       'weapon_rare_1',
-      'artifact_common_1',
-      'artifact_epic_1'
+      'artifact_chitu',
+      'artifact_qinglong'
     ]
 
     // 初始化金币

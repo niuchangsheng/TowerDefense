@@ -69,20 +69,6 @@ export const weapons: Weapon[] = [
  * 神器配置
  */
 export const artifacts: Artifact[] = [
-  // 普通神器
-  {
-    id: 'artifact_common_1',
-    name: '铜镜',
-    type: 'artifact',
-    rarity: 'common',
-    bonuses: { attack: 3 },
-    gemSocket: {
-      requiredWuXing: 'metal',
-      currentGem: null
-    },
-    activatedEffect: null
-  },
-
   // 稀有神器
   {
     id: 'artifact_rare_1',
@@ -92,20 +78,6 @@ export const artifacts: Artifact[] = [
     bonuses: { attack: 10 },
     gemSocket: {
       requiredWuXing: 'earth',
-      currentGem: null
-    },
-    activatedEffect: null
-  },
-
-  // 史诗神器
-  {
-    id: 'artifact_epic_1',
-    name: '赤兔马鞍',
-    type: 'artifact',
-    rarity: 'epic',
-    bonuses: { attackSpeed: 0.25 },
-    gemSocket: {
-      requiredWuXing: 'fire',
       currentGem: null
     },
     activatedEffect: null

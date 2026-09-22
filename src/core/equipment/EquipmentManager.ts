@@ -34,8 +34,6 @@ export class EquipmentManager {
     // 给玩家一些初始装备
     this.addEquipment('weapon_common_1')
     this.addEquipment('weapon_rare_1')
-    this.addEquipment('artifact_common_1')
-    this.addEquipment('artifact_epic_1')
 
     // 三国专属神兵宝物
     this.addEquipment('artifact_chitu')

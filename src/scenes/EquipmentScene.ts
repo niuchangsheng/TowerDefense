@@ -55,7 +55,7 @@ export default class EquipmentScene extends Phaser.Scene {
   private detailPanel: Phaser.GameObjects.Container | null = null
 
   // 左栏分类与滚动
-  private currentTab: 'all' | 'artifact' | 'weapon' | 'gem' = 'artifact'
+  private currentTab: 'artifact' | 'weapon' | 'gem' = 'artifact'
   private tabButtons: Phaser.GameObjects.Container[] = []
   private listContainer!: Phaser.GameObjects.Container
   private scrollY = 0
@@ -125,7 +125,7 @@ export default class EquipmentScene extends Phaser.Scene {
   }
 
   /**
-   * 渲染分类标签栏（全部 / 神器 / 武器 / 宝石）
+   * 渲染分类标签栏（神器 / 武器 / 宝石）
    */
   private renderTabs(startX: number, startY: number): void {
     for (const btn of this.tabButtons) {
@@ -133,16 +133,15 @@ export default class EquipmentScene extends Phaser.Scene {
     }
     this.tabButtons = []
 
-    const tabs: { key: 'all' | 'artifact' | 'weapon' | 'gem'; label: string }[] = [
+    const tabs: { key: 'artifact' | 'weapon' | 'gem'; label: string }[] = [
       { key: 'artifact', label: '神器' },
-      { key: 'all', label: '全部' },
       { key: 'weapon', label: '武器' },
       { key: 'gem', label: '宝石' }
     ]
 
-    const tabW = 78
+    const tabW = 104
     const tabH = 30
-    const gap = 8
+    const gap = 12
 
     tabs.forEach((tab, index) => {
       const x = startX + index * (tabW + gap) + tabW / 2
@@ -189,10 +188,7 @@ export default class EquipmentScene extends Phaser.Scene {
     let displayEquip: EquipmentInstance[] = []
     let showGems = false
 
-    if (this.currentTab === 'all') {
-      displayEquip = allEquip
-      showGems = true
-    } else if (this.currentTab === 'artifact') {
+    if (this.currentTab === 'artifact') {
       displayEquip = allEquip.filter(e => e.type === 'artifact')
       showGems = false
     } else if (this.currentTab === 'weapon') {
