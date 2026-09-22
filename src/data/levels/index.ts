@@ -38,8 +38,10 @@ export function getChapterLevels(chapterId: string): LevelConfig[] {
 
   // 按关卡ID排序
   levels.sort((a, b) => {
-    const numA = parseInt(a.id.split('_').pop() || '0')
-    const numB = parseInt(b.id.split('_').pop() || '0')
+    const matchA = a.id.match(/level(\d+)/)
+    const matchB = b.id.match(/level(\d+)/)
+    const numA = matchA ? parseInt(matchA[1], 10) : 0
+    const numB = matchB ? parseInt(matchB[1], 10) : 0
     return numA - numB
   })
 
@@ -58,9 +60,12 @@ export function isLevelUnlocked(levelId: string, completedLevels: string[]): boo
   }
 
   // 其他关卡需要前置关卡通关
-  const chapterId = levelId.split('_')[0] + '_' + levelId.split('_')[1]
-  const levelNum = parseInt(levelId.split('_').pop() || '0')
-  const prevLevelId = `${chapterId}_level${levelNum - 1}`
+  const match = levelId.match(/^(.*)_level(\d+)$/)
+  if (!match) return false
+  const chapterPrefix = match[1]
+  const levelNum = parseInt(match[2], 10)
+  if (levelNum <= 1) return true
+  const prevLevelId = `${chapterPrefix}_level${levelNum - 1}`
 
   return completedLevels.includes(prevLevelId)
 }
@@ -77,7 +82,10 @@ export function isChapterUnlocked(chapterId: string, completedLevels: string[]):
   }
 
   // 其他章节需要前置章节最后一关通关
-  const chapterNum = parseInt(chapterId.split('chapter')[1] || '0')
+  const match = chapterId.match(/chapter(\d+)/)
+  if (!match) return false
+  const chapterNum = parseInt(match[1], 10)
+  if (chapterNum <= 1) return true
   const prevChapterId = `chapter${chapterNum - 1}`
   const prevChapterLastLevel = `${prevChapterId}_level3`
 

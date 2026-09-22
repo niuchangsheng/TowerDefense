@@ -13,6 +13,12 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   title: GAME_TITLE,
   backgroundColor: '#e8e0cf',  // 宣纸底色（水墨风）
 
+  // 响应式自适应缩放
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+
   // 物理系统配置（暂时不需要）
   physics: {
     default: 'arcade',

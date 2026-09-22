@@ -35,6 +35,7 @@ export default class LevelSelectScene extends Phaser.Scene {
   private currentChapterIndex: number = 0
   private completedLevels: string[] = []
   private selectedLevelId: string = ''
+  private isTransitioning: boolean = false
 
   // 容器组件与动效管理
   private sandTableContainer!: Phaser.GameObjects.Container
@@ -47,7 +48,20 @@ export default class LevelSelectScene extends Phaser.Scene {
     this.saveManager = SaveManager.getInstance()
   }
 
+  init(): void {
+    this.isTransitioning = false
+    if (this.input) this.input.enabled = true
+  }
+
   create(): void {
+    this.isTransitioning = false
+    if (this.input) this.input.enabled = true
+
+    this.events.once('shutdown', () => {
+      this.clearTweens()
+      this.isTransitioning = false
+    })
+
     SoundFX.unlock()
     this.loadProgress()
 
@@ -57,6 +71,10 @@ export default class LevelSelectScene extends Phaser.Scene {
 
     // 返回标题界面按钮
     createPageBackButton(this, () => {
+      if (this.isTransitioning) return
+      this.isTransitioning = true
+      if (this.input) this.input.enabled = false
+      this.clearTweens()
       this.scene.start('TitleScene')
     })
 
@@ -557,8 +575,10 @@ export default class LevelSelectScene extends Phaser.Scene {
 
       let traveled = 0
       let drawing = true
-      while (traveled < dist) {
+      let iterations = 0
+      while (traveled < dist && iterations++ < 500) {
         const step = Math.min(drawing ? dashLen : gapLen, dist - traveled)
+        if (step <= 0.01) break
         if (drawing) {
           g.beginPath()
           g.moveTo(p1.x + ux * traveled, p1.y + uy * traveled)
@@ -778,9 +798,10 @@ export default class LevelSelectScene extends Phaser.Scene {
       })
     })
 
-    hitArea.on('pointerdown', () => {
+    hitArea.on('pointerup', () => {
       if (this.selectedLevelId !== level.id) {
         this.selectedLevelId = level.id
+        this.clearTweens()
         this.renderSandTable()
         this.renderIntelPanel()
       }
@@ -1143,6 +1164,9 @@ export default class LevelSelectScene extends Phaser.Scene {
    * 开始关卡出征
    */
   private startLevel(levelId: string): void {
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+    if (this.input) this.input.enabled = false
     console.log(`[战役沙盘] 出征关卡: ${levelId}`)
     this.clearTweens()
     this.scene.start('BattleScene', { levelId })
