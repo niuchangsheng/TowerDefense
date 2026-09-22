@@ -1,17 +1,21 @@
 import Phaser from 'phaser'
 import { Enemy, Point } from '@/types'
 import { InkColor, INK_WUXING, inkText } from '@/ui/InkTheme'
+import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
+import { InkSilhouetteRenderer } from '@/rendering/InkSilhouetteRenderer'
 
 /**
- * 敌人渲染实体（水墨风）
- * 敌人 = 五行印章徽记：圆形纸底 + 五行描边 + 中央楷体五行字；
- * 精英加印章红外环，Boss 放大 + 双环。
+ * 敌人渲染实体（水墨战阵兵人风）
+ * 彻底废弃单一圈圈字，采用水墨黄巾小兵/首领剪影与灵动的五行灵魄微芒。
+ * 行军时自适应水平翻转朝向，并伴随步态微颠簸动效。
  */
 export class EnemyEntity extends Phaser.GameObjects.Container {
   private enemyData: Enemy
   private healthBar: Phaser.GameObjects.Graphics
-  private badge: Phaser.GameObjects.Arc
+  private warriorSprite: Phaser.GameObjects.Image
+  private wispSprite: Phaser.GameObjects.Image
   private badgeRadius: number
+  private lastX: number
 
   // 减速状态
   private slowPercent: number = 0
@@ -20,42 +24,62 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     super(scene, enemy.position.x, enemy.position.y)
 
     this.enemyData = enemy
+    this.lastX = enemy.position.x
 
-    const wuxing = INK_WUXING[enemy.wuXing]
+    InkSilhouetteRenderer.init(scene)
+
     const isBoss = enemy.type === 'boss'
     const isElite = enemy.type === 'elite'
 
-    // 徽记半径（Boss 更大）
     this.badgeRadius = isBoss ? 26 : 18
 
-    // 圆形纸底 + 五行描边
-    this.badge = scene.add.circle(0, 0, this.badgeRadius, InkColor.paper, 0.95)
-    this.badge.setStrokeStyle(2, wuxing.border)
-    this.add(this.badge)
+    // 1. 敌军水墨兵人剪影
+    const textureKey = isBoss ? 'ink_enemy_boss' : isElite ? 'ink_enemy_elite' : 'ink_enemy_scout'
+    this.warriorSprite = scene.add.image(0, -2, textureKey)
+    const scale = isBoss ? 0.68 : isElite ? 0.72 : 0.68
+    this.warriorSprite.setScale(scale)
+    this.add(this.warriorSprite)
 
-    // 精英：印章红外环；Boss：双环
+    // 精英/Boss 附加淡墨气旋光晕底
     if (isElite) {
-      const ring = scene.add.circle(0, 0, this.badgeRadius + 5, InkColor.cinnabar, 0)
-      ring.setStrokeStyle(1.5, InkColor.cinnabar, 0.85)
-      this.add(ring)
+      const aura = scene.add.circle(0, 0, 22, InkColor.cinnabar, 0)
+      aura.setStrokeStyle(1.5, InkColor.cinnabar, 0.7)
+      this.addAt(aura, 0)
     } else if (isBoss) {
-      const ringInner = scene.add.circle(0, 0, this.badgeRadius + 5, InkColor.cinnabar, 0)
-      ringInner.setStrokeStyle(2, InkColor.cinnabar, 0.9)
-      const ringOuter = scene.add.circle(0, 0, this.badgeRadius + 9, InkColor.ink, 0)
-      ringOuter.setStrokeStyle(1, InkColor.ink, 0.6)
-      this.add([ringInner, ringOuter])
+      const bossAura = scene.add.circle(0, 0, 28, InkColor.ink, 0)
+      bossAura.setStrokeStyle(1.5, 0x8b261e, 0.8)
+      this.addAt(bossAura, 0)
     }
 
-    // 中央五行字（楷体）
-    const charText = inkText(scene, 0, 0, wuxing.label, {
-      size: isBoss ? 22 : 16,
-      color: wuxing.text,
-      bold: true,
-      originX: 0.5
-    })
-    this.add(charText)
+    // 2. 五行微芒灵魄（浮动于兵刃或肩头）
+    const wispKey = `ink_wisp_${enemy.wuXing}`
+    this.wispSprite = scene.add.image(13, -15, wispKey)
+    this.wispSprite.setScale(0.85)
+    this.add(this.wispSprite)
 
-    // 创建血条
+    // 灵魄微光悬浮呼吸动画
+    scene.tweens.add({
+      targets: this.wispSprite,
+      y: -18,
+      scaleX: 0.95,
+      scaleY: 0.95,
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+
+    // 3. 行军步态微颤动效
+    scene.tweens.add({
+      targets: this.warriorSprite,
+      y: -4,
+      duration: 220,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Quad.easeInOut'
+    })
+
+    // 4. 创建血条（底部整洁微型墨底血条）
     this.healthBar = scene.add.graphics()
     this.add(this.healthBar)
     this.updateHealthBar()
@@ -68,9 +92,19 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   }
 
   /**
-   * 更新位置
+   * 更新位置并自适应朝向
    */
   updatePosition(position: Point): void {
+    const dx = position.x - this.lastX
+    if (dx < -0.4) {
+      this.warriorSprite.setFlipX(true)
+      this.wispSprite.setX(-13)
+    } else if (dx > 0.4) {
+      this.warriorSprite.setFlipX(false)
+      this.wispSprite.setX(13)
+    }
+    this.lastX = position.x
+
     this.setPosition(position.x, position.y)
     this.enemyData.position = position
   }
@@ -81,16 +115,16 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   private updateHealthBar(): void {
     this.healthBar.clear()
 
-    const width = this.badgeRadius * 2 + 4
-    const height = 4
-    const yOffset = this.badgeRadius + 8
+    const width = this.enemyData.type === 'boss' ? 40 : 28
+    const height = 3.5
+    const yOffset = this.enemyData.type === 'boss' ? 24 : 18
 
     // 血条背景
-    this.healthBar.fillStyle(InkColor.ink, 0.35)
+    this.healthBar.fillStyle(InkColor.ink, 0.4)
     this.healthBar.fillRect(-width / 2, yOffset, width, height)
 
     // 当前血量
-    const healthPercent = this.enemyData.currentHealth / this.enemyData.maxHealth
+    const healthPercent = Math.max(0, this.enemyData.currentHealth / this.enemyData.maxHealth)
     const healthColor = healthPercent > 0.5 ? 0x5f7a4a : healthPercent > 0.25 ? 0xa0782f : 0x9e2b25
     this.healthBar.fillStyle(healthColor)
     this.healthBar.fillRect(-width / 2, yOffset, width * healthPercent, height)
@@ -112,11 +146,11 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     this.enemyData.currentHealth -= actualDamage
     this.updateHealthBar()
 
-    // 受伤动画
+    // 受伤受击白闪
     this.scene.tweens.add({
-      targets: this.badge,
-      alpha: 0.5,
-      duration: 100,
+      targets: this.warriorSprite,
+      alpha: 0.45,
+      duration: 80,
       yoyo: true
     })
 
@@ -125,18 +159,16 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
 
   /**
    * 受击抖动（打击感反馈）
-   * 只抖动子元素 badge 的局部坐标，不动容器本身，
-   * 避免与"沿路径移动"的容器位置更新互相打架。
    */
   hitShake(strength = 4): void {
-    const sprite = this.badge
+    const sprite = this.warriorSprite
     if (!sprite || !sprite.active) return
-    const baseX = 0 // badge 的局部基准 x
+    const baseX = sprite.x
 
     this.scene.tweens.add({
       targets: sprite,
       x: baseX + strength,
-      duration: 40,
+      duration: 35,
       yoyo: true,
       repeat: 2,
       onComplete: () => {
@@ -151,12 +183,17 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   die(): void {
     this.enemyData.isActive = false
 
-    // 死亡动画
+    // 播放水墨消散特效（墨散化烟）
+    const fx = new CharacterAttackFX(this.scene)
+    fx.inkDissolve({ x: this.x, y: this.y })
+
+    // 死亡消融动画
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
-      scale: 0.5,
-      duration: 300,
+      scale: 0.3,
+      duration: 220,
+      ease: 'Sine.easeIn',
       onComplete: () => {
         this.destroy()
       }

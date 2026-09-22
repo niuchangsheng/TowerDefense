@@ -1,11 +1,12 @@
 import Phaser from 'phaser'
 import { Hero, DeployedHero, Point, HeroStats } from '@/types'
-import { InkColor, InkText, InkRadius, INK_WUXING, inkText } from '@/ui/InkTheme'
+import { InkColor, INK_WUXING, InkRadius, inkText, InkText } from '@/ui/InkTheme'
+import { InkSilhouetteRenderer } from '@/rendering/InkSilhouetteRenderer'
 
 /**
- * 英雄渲染实体（水墨风）
- * 立绘（San11 头像/全身）保留，周边标注统一为水墨：
- * 纸片名牌、楷体五行标签、淡墨范围圈、墨底冷却条。
+ * 英雄渲染实体（水墨战阵将印风）
+ * 彻底废弃写实大头像，采用专属水墨神将武姿立像（赵云白袍银枪、关羽青龙偃月刀、张飞丈八蛇矛），
+ * 搭配八卦五行铜盘地台。
  */
 export class HeroEntity extends Phaser.GameObjects.Container {
   private heroData: Hero
@@ -22,7 +23,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   // 技能冷却状态（主动技能）
   private activeSkillCooldownPercent: number = 0
 
-  // 全身模型标志
+  // 全身模型标志（战场网格模式下统一使用战术将印徽章，杜绝过大立绘遮挡上下行邻格与路径）
   private useFullbody: boolean = false
 
   constructor(scene: Phaser.Scene, hero: Hero, deployed: DeployedHero) {
@@ -30,80 +31,90 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
     this.heroData = hero
     this.deployedData = deployed
+    this.useFullbody = false
 
-    // 判断是否使用全身模型
-    this.useFullbody = this.shouldUseFullbody(hero.id)
+    InkSilhouetteRenderer.init(scene)
 
-    // 获取图片key（根据英雄ID和模型类型）
+    const wuxing = INK_WUXING[hero.wuXing]
+
+    // 1. 战术将印底座（微阴影 + 宣纸圆盘 + 五行属性边框）
+    const tokenBg = scene.add.graphics()
+    tokenBg.fillStyle(0x000000, 0.12)
+    tokenBg.fillCircle(2, 3, 28)
+    tokenBg.fillStyle(InkColor.paperPanel, 1)
+    tokenBg.fillCircle(0, 0, 27)
+    tokenBg.lineStyle(2.5, wuxing.border, 1)
+    tokenBg.strokeCircle(0, 0, 27)
+    tokenBg.lineStyle(1, InkColor.ink, 0.4)
+    tokenBg.strokeCircle(0, 0, 23)
+    this.add(tokenBg)
+
+    // 2. 英雄头像（规范为 50x50 紧凑尺寸，完全容纳在 80px 格子内）
     const imageKey = this.getHeroImageKey(hero.id)
-
-    // 创建英雄图片（根据类型调整尺寸）
     this.heroImage = scene.add.image(0, 0, imageKey)
-    if (this.useFullbody) {
-      // 全身模型：较大尺寸
-      this.heroImage.setDisplaySize(120, 150)
-    } else {
-      // 头像：标准尺寸
-      this.heroImage.setDisplaySize(80, 80)
-    }
+    this.heroImage.setDisplaySize(48, 48)
     this.add(this.heroImage)
 
-    // 纸片名牌（圆角宣纸底 + 墨线 + 楷体）
-    const nameY = this.useFullbody ? -85 : -50
+    // 3. 紧凑名牌（圆角宣纸底，置于下方 y = 28，完全收敛在 80px 格子内）
+    const nameY = 28
     this.heroNameText = inkText(scene, 0, nameY, hero.name, {
-      size: 14,
+      size: 11,
       color: InkText.strong,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     })
-    const nameBg = this.makeChipBg(this.heroNameText, 6, 4)
+    const nameBg = this.makeChipBg(this.heroNameText, 5, 2)
     this.add([nameBg, this.heroNameText])
 
-    // 五行标签（楷体，五行色）
-    const wuxing = INK_WUXING[hero.wuXing]
-    const wuXingY = this.useFullbody ? 85 : 50
-    this.wuXingText = inkText(scene, 0, wuXingY, wuxing.label, {
-      size: 12,
+    // 4. 五行属性角印（置于圆徽左上方 (-18, -18)，不占用额外上下垂直空间）
+    const wxBadge = scene.add.graphics()
+    wxBadge.fillStyle(wuxing.fill, 0.95)
+    wxBadge.fillCircle(-18, -18, 9)
+    wxBadge.lineStyle(1.5, wuxing.border, 1)
+    wxBadge.strokeCircle(-18, -18, 9)
+    this.add(wxBadge)
+
+    this.wuXingText = inkText(scene, -18, -18, wuxing.label, {
+      size: 10,
       color: wuxing.text,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     })
-    const wuXingBg = this.makeChipBg(this.wuXingText, 5, 2)
-    this.add([wuXingBg, this.wuXingText])
+    this.add(this.wuXingText)
 
-    // 创建范围指示器
+    // 5. 创建范围指示器
     this.rangeIndicator = scene.add.graphics()
     this.addAt(this.rangeIndicator, 0)
     this.hideRangeIndicator()
 
-    // 创建技能冷却进度条（位置根据模型类型调整）
+    // 6. 技能冷却进度条与遮罩
     this.skillCooldownBar = scene.add.graphics()
     this.add(this.skillCooldownBar)
 
-    // 创建技能冷却遮罩（覆盖在图片上）
     this.skillCooldownOverlay = scene.add.graphics()
     this.add(this.skillCooldownOverlay)
 
-    // 技能就绪提示（纸底印章红小标签）
-    const skillY = this.useFullbody ? -100 : -65
-    this.skillReadyText = inkText(scene, 0, 0, '技能就绪', {
-      size: 10,
-      color: InkText.cinnabar,
+    // 7. 技能就绪提示
+    this.skillReadyText = inkText(scene, 0, 0, '令', {
+      size: 9,
+      color: InkText.paper,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     })
-    const readyBg = this.makeChipBg(this.skillReadyText, 4, 2)
-    this.skillReadyIndicator = scene.add.container(0, skillY, [readyBg, this.skillReadyText])
-    this.skillReadyIndicator.setAlpha(0)  // 初始隐藏
+    const readyBg = scene.add.rectangle(0, 0, 16, 16, InkColor.cinnabar)
+    readyBg.setStrokeStyle(1, 0x6e1b15)
+    this.skillReadyIndicator = scene.add.container(20, -22, [readyBg, this.skillReadyText])
+    this.skillReadyIndicator.setAlpha(0)
     this.add(this.skillReadyIndicator)
 
     // 设置深度
     this.setDepth(15)
-
-    // 添加到场景
     scene.add.existing(this)
 
-    const hit = this.useFullbody ? { w: 120, h: 150 } : { w: 80, h: 80 }
+    const hit = { w: 60, h: 72 }
     this.setSize(hit.w, hit.h)
     this.setInteractive({
       hitArea: new Phaser.Geom.Rectangle(-hit.w / 2, -hit.h / 2, hit.w, hit.h),
@@ -141,74 +152,47 @@ export class HeroEntity extends Phaser.GameObjects.Container {
    * 获取英雄图片key
    */
   private getHeroImageKey(heroId: string): string {
-    // 如果使用全身模型，返回站立状态的纹理
-    if (this.useFullbody) {
-      const fullbodyKey = `fullbody_${heroId.replace('hero_', '')}_stand`
-      if (this.scene.textures.exists(fullbodyKey)) {
-        return fullbodyKey
-      }
+    const silhouetteMap: Record<string, string> = {
+      'hero_guanyu': 'ink_hero_guanyu',
+      'hero_zhangfei': 'ink_hero_zhangfei',
+      'hero_zhaoyun': 'ink_hero_zhaoyun'
     }
 
-    // 否则使用头像
-    const imageKeyMap: Record<string, string> = {
-      'hero_guanyu': 'hero_guanyu',
-      'hero_zhangfei': 'hero_zhangfei',
-      'hero_zhaoyun': 'hero_zhaoyun'
-    }
-
-    const key = imageKeyMap[heroId]
+    const key = silhouetteMap[heroId]
     if (key && this.scene.textures.exists(key)) {
       return key
     }
 
-    // 如果没有找到，使用占位符
+    if (this.scene.textures.exists('ink_hero_generic')) {
+      return 'ink_hero_generic'
+    }
+
     return 'hero_placeholder'
   }
 
   /**
-   * 更新攻击动画（全身模型切换纹理，头像缩放效果）
+   * 更新攻击动画（冷兵器前冲突刺与神将气魄震荡）
    */
   playAttackAnimation(): void {
-    if (this.useFullbody) {
-      // 全身模型：切换到攻击帧
-      const attackKey = `fullbody_${this.heroData.id.replace('hero_', '')}_attack`
-      if (this.scene.textures.exists(attackKey)) {
-        this.heroImage.setTexture(attackKey)
-        this.heroImage.setDisplaySize(120, 150)
+    const origX = this.heroImage.x
+    const origScaleX = this.heroImage.scaleX
+    const origScaleY = this.heroImage.scaleY
 
-        // 攻击动画效果（轻微前冲）
-        this.scene.tweens.add({
-          targets: this.heroImage,
-          x: 10,
-          duration: 100,
-          yoyo: true,
-          ease: 'Power2',
-          onComplete: () => {
-            // 攻击结束后切换回站立帧
-            const standKey = `fullbody_${this.heroData.id.replace('hero_', '')}_stand`
-            if (this.scene.textures.exists(standKey)) {
-              this.heroImage.setTexture(standKey)
-              this.heroImage.setDisplaySize(120, 150)
-            }
-          }
-        })
+    this.scene.tweens.add({
+      targets: this.heroImage,
+      x: origX + 7,
+      scaleX: origScaleX * 1.08,
+      scaleY: origScaleY * 1.08,
+      duration: 80,
+      yoyo: true,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        if (this.heroImage && this.heroImage.active) {
+          this.heroImage.setX(origX)
+          this.heroImage.setScale(origScaleX, origScaleY)
+        }
       }
-    } else {
-      // 头像：缩放+闪烁效果
-      this.scene.tweens.add({
-        targets: this.heroImage,
-        scale: 1.3,
-        duration: 100,
-        yoyo: true
-      })
-
-      this.scene.tweens.add({
-        targets: this.heroImage,
-        alpha: 0.7,
-        duration: 50,
-        yoyo: true
-      })
-    }
+    })
   }
 
   /**

@@ -188,7 +188,11 @@ export class HeroBattleManager {
     const targetData = target.getEnemyData()
     const deployedData = hero.getDeployedData()
 
-    // 计算伤害
+    // 计算伤害与五行生克倍率
+    const multiplier = DamageCalculator.getCounterMultiplier(heroData.wuXing, targetData.wuXing)
+    const isCounter = multiplier > 1.05
+    const isResisted = multiplier < 0.95
+
     const damage = DamageCalculator.calculateDamage(
       stats,
       heroData.wuXing,
@@ -202,7 +206,7 @@ export class HeroBattleManager {
     hero.playAttackAnimation()
 
     // 播放武器特效（冲锋 → 挥砍/前刺 → 飘字/受击抖动/命中顿帧/音效）
-    this.playWeaponFX(hero, target, actualDamage)
+    this.playWeaponFX(hero, target, actualDamage, isCounter, isResisted)
 
     // 触发被动技能（攻击时触发）
     this.triggerPassiveSkill(hero, target)
@@ -218,12 +222,14 @@ export class HeroBattleManager {
 
   /**
    * 播放攻击特效（打击感全家桶）
-   *   1. 英雄朝目标微微前冲（近战起手式）
-   *   2. 武器动作：大刀挥砍 / 长矛前刺（战斗距离下武器真正够到敌人）
-   *   3. 命中反馈：伤害飘字 + 敌人受击抖动 + 墨迹飞溅 + 音效 + 命中顿帧
-   *      （顿帧/音效/墨迹已在 WeaponFX 内部处理，这里只补飘字与抖动）
    */
-  private playWeaponFX(hero: HeroEntity, target: EnemyEntity, actualDamage: number): void {
+  private playWeaponFX(
+    hero: HeroEntity,
+    target: EnemyEntity,
+    actualDamage: number,
+    isCounter: boolean = false,
+    isResisted: boolean = false
+  ): void {
     const weapon = this.getWeaponType(hero.getHeroData().id)
 
     // 两个实体都是直接加入场景的 Container，x/y 即世界坐标
@@ -239,7 +245,9 @@ export class HeroBattleManager {
     const onHit = () => {
       if (target.active) target.hitShake()
       this.attackFX.damageText(to, actualDamage, {
-        crit: actualDamage >= 80
+        crit: actualDamage >= 80,
+        counter: isCounter,
+        resisted: isResisted
       })
     }
 

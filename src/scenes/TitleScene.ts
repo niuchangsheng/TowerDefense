@@ -39,6 +39,9 @@ export default class TitleScene extends Phaser.Scene {
 
     drawPaperBackground(this)
 
+    // 绘制写意水墨山水远景与远天归雁
+    this.drawLandscapeBackground(width, height)
+
     // 创建标题
     this.createTitle(width, height)
 
@@ -48,8 +51,108 @@ export default class TitleScene extends Phaser.Scene {
     // 创建菜单按钮
     this.createMenuButtons(width, height)
 
-    // 添加背景动画效果（可选）
+    // 添加背景动画效果
     this.createBackgroundEffect()
+  }
+
+  /**
+   * 绘制写意水墨山水背景（多重淡墨远山 + 孤舟 + 归雁）
+   */
+  private drawLandscapeBackground(width: number, height: number): void {
+    const g = this.add.graphics()
+    g.setDepth(1)
+
+    const drawMountain = (points: [number, number][], fillAlpha: number) => {
+      g.fillStyle(InkColor.ink, fillAlpha)
+      g.beginPath()
+      g.moveTo(points[0][0], height)
+      for (const pt of points) {
+        g.lineTo(pt[0], pt[1])
+      }
+      g.lineTo(width, height)
+      g.closePath()
+      g.fillPath()
+    }
+
+    // 1. 最远层：极淡墨色重峦 (alpha 0.05)
+    drawMountain([
+      [0, height - 200],
+      [width * 0.12, height - 260],
+      [width * 0.22, height - 340],
+      [width * 0.35, height - 220],
+      [width * 0.48, height - 280],
+      [width * 0.62, height - 330],
+      [width * 0.76, height - 240],
+      [width * 0.88, height - 310],
+      [width, height - 220]
+    ], 0.05)
+
+    // 2. 中层：次淡墨色峰峦 (alpha 0.09)
+    drawMountain([
+      [0, height - 150],
+      [width * 0.15, height - 230],
+      [width * 0.28, height - 160],
+      [width * 0.40, height - 220],
+      [width * 0.55, height - 140],
+      [width * 0.70, height - 200],
+      [width * 0.85, height - 130],
+      [width, height - 160]
+    ], 0.09)
+
+    // 3. 近水洲渚：矮坡 (alpha 0.13)
+    drawMountain([
+      [0, height - 70],
+      [width * 0.25, height - 110],
+      [width * 0.45, height - 60],
+      [width * 0.68, height - 100],
+      [width * 0.88, height - 65],
+      [width, height - 80]
+    ], 0.13)
+
+    // 4. 水平淡墨水纹线
+    g.lineStyle(1, InkColor.ink, 0.12)
+    for (let i = 0; i < 4; i++) {
+      const lineY = height - 45 + i * 10
+      const startX = (i % 2 === 0 ? 80 : 300) + i * 50
+      g.beginPath()
+      g.moveTo(startX, lineY)
+      g.lineTo(startX + 180 + i * 60, lineY)
+      g.strokePath()
+    }
+
+    // 5. 远天归雁（一组飞翔的水墨剪影）
+    this.createFlyingBirds(width * 0.75, 140)
+    this.createFlyingBirds(width * 0.82, 115, 0.8)
+    this.createFlyingBirds(width * 0.88, 160, 0.65)
+  }
+
+  /**
+   * 绘制单只翱翔归雁（两道优雅的毛笔弧线）
+   */
+  private createFlyingBirds(x: number, y: number, scale: number = 1): void {
+    const bird = this.add.graphics()
+    bird.setDepth(2)
+    bird.lineStyle(1.6 * scale, InkColor.ink, 0.45)
+
+    // 优雅两翼线条
+    bird.beginPath()
+    bird.moveTo(x - 12 * scale, y + 4 * scale)
+    bird.lineTo(x - 5 * scale, y - 4 * scale)
+    bird.lineTo(x, y)
+    bird.lineTo(x + 5 * scale, y - 4 * scale)
+    bird.lineTo(x + 12 * scale, y + 4 * scale)
+    bird.strokePath()
+
+    // 极微弱的气流浮动动画
+    this.tweens.add({
+      targets: bird,
+      y: y - 8 * scale,
+      x: x - 12 * scale,
+      duration: 3500 + Phaser.Math.Between(0, 1000),
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1
+    })
   }
 
   /**
@@ -131,30 +234,37 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建背景效果（飘动的五行字，使用水墨五行配色）
+   * 创建背景效果（在左右山水远景中飘动的五行字，避开中央标题和菜单按钮区域）
    */
   private createBackgroundEffect(): void {
-    const elements: WuXing[] = ['metal', 'wood', 'water', 'fire', 'earth']
+    const width = this.cameras.main.width
 
-    for (let i = 0; i < elements.length; i++) {
-      const style = INK_WUXING[elements[i]]
-      const x = Phaser.Math.Between(100, this.cameras.main.width - 100)
-      const y = Phaser.Math.Between(100, this.cameras.main.height - 100)
+    // 锚定于山水留白处的意境点位，严禁落在中轴线 440~840 区域（避免遮挡中央按钮与标题）
+    const atmosphericSpots: { wx: WuXing; x: number; y: number }[] = [
+      { wx: 'metal', x: width * 0.14, y: 160 },  // 西北方 · 远天
+      { wx: 'wood',  x: width * 0.16, y: 520 },  // 西南方 · 苍峦
+      { wx: 'water', x: width * 0.28, y: 640 },  // 沧浪洲渚
+      { wx: 'fire',  x: width * 0.85, y: 530 },  // 东南方 · 晚照
+      { wx: 'earth', x: width * 0.86, y: 170 }   // 东北方 · 极目
+    ]
 
-      const elementText = inkText(this, x, y, style.label, {
+    for (const spot of atmosphericSpots) {
+      const style = INK_WUXING[spot.wx]
+
+      const elementText = inkText(this, spot.x, spot.y, style.label, {
         size: 32,
         color: style.text,
         originX: 0.5,
         originY: 0.5
-      }).setAlpha(0.3)
+      }).setAlpha(0.28)
 
-      // 飘动动画
+      // 悠缓的微风漂移质感（限制漂移幅度，不往中路靠拢）
       this.tweens.add({
         targets: elementText,
-        x: x + Phaser.Math.Between(-50, 50),
-        y: y + Phaser.Math.Between(-50, 50),
-        alpha: { from: 0.3, to: 0.5 },
-        duration: Phaser.Math.Between(2000, 4000),
+        x: spot.x + Phaser.Math.Between(-15, 15),
+        y: spot.y + Phaser.Math.Between(-20, 20),
+        alpha: { from: 0.22, to: 0.42 },
+        duration: Phaser.Math.Between(3000, 4500),
         ease: 'Sine.easeInOut',
         yoyo: true,
         repeat: -1

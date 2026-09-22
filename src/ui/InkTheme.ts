@@ -123,14 +123,15 @@ export function drawPaperBackground(scene: Phaser.Scene): void {
   const h = scene.cameras.main.height
   const g = scene.add.graphics()
 
-  const blots = [
-    { x: w * 0.12, y: h * 0.18, r: 90 },
-    { x: w * 0.86, y: h * 0.82, r: 130 },
-    { x: w * 0.55, y: h * 0.5, r: 110 },
-    { x: w * 0.28, y: h * 0.9, r: 70 }
+  // 极轻微的边缘宣纸晕染（避免在正中央或文字背后形成明显圆圈印记）
+  const cornerBlots = [
+    { x: w * 0.05, y: h * 0.08, r: 100 },
+    { x: w * 0.95, y: h * 0.92, r: 120 },
+    { x: w * 0.92, y: h * 0.08, r: 80 },
+    { x: w * 0.08, y: h * 0.92, r: 90 }
   ]
-  for (const blot of blots) {
-    g.fillStyle(InkColor.ink, 0.035)
+  for (const blot of cornerBlots) {
+    g.fillStyle(InkColor.ink, 0.012)
     g.fillCircle(blot.x, blot.y, blot.r)
   }
 }
@@ -211,7 +212,7 @@ export function inkText(
   })
   text.setOrigin(originX, originY)
   if (wrapWidth !== undefined) {
-    text.setWordWrapWidth(wrapWidth)
+    text.setWordWrapWidth(wrapWidth, true)
   }
   return text
 }

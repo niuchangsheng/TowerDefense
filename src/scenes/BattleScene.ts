@@ -1,10 +1,11 @@
 import Phaser from 'phaser'
 import { BattleSystem } from '@/core/battle/BattleSystem'
 import { level1Config } from '@/data/levels/chapter1'
+import { getLevelConfig } from '@/data/levels'
 import { TerrainManager } from '@/core/terrain/TerrainManager'
 import { PathRenderer } from '@/core/terrain/PathRenderer'
 import { DeploymentZoneRenderer } from '@/core/terrain/DeploymentZoneRenderer'
-import { Hero, TroopConfig } from '@/types'
+import { Hero, TroopConfig, LevelConfig } from '@/types'
 import { GridCell, cellAt, cellInBounds } from '@/config/constants'
 import { troops } from '@/data/troops'
 import { SaveManager } from '@/core/save/SaveManager'
@@ -21,6 +22,7 @@ import {
   inkToast,
   drawPaperBackground
 } from '@/ui/InkTheme'
+import { InkSilhouetteRenderer } from '@/rendering/InkSilhouetteRenderer'
 
 type RangeUnit = HeroEntity | TroopEntity
 
@@ -49,7 +51,7 @@ interface DockHeroItem {
 
 /** 底部栏兵种槽位（冷却时变暗） */
 interface DockTroopItem {
-  charText: Phaser.GameObjects.Text
+  icon: Phaser.GameObjects.Image
   nameText: Phaser.GameObjects.Text
   costText: Phaser.GameObjects.Text
 }
@@ -60,6 +62,7 @@ interface DockTroopItem {
  */
 export default class BattleScene extends Phaser.Scene {
   private levelId: string = ''
+  private currentLevelConfig: LevelConfig = level1Config
   private battleSystem!: BattleSystem
 
   // 地形系统
@@ -71,6 +74,10 @@ export default class BattleScene extends Phaser.Scene {
   private costText!: Phaser.GameObjects.Text
   private healthText!: Phaser.GameObjects.Text
   private waveText!: Phaser.GameObjects.Text
+  private speedBtnText!: Phaser.GameObjects.Text
+  private pauseBtnText!: Phaser.GameObjects.Text
+  private earlyWaveBtn!: Phaser.GameObjects.Container
+  private pauseOverlay: Phaser.GameObjects.Container | null = null
   private deployDock!: Phaser.GameObjects.Container
   private dockHeight = 96
 
@@ -101,7 +108,8 @@ export default class BattleScene extends Phaser.Scene {
    */
   init(data: { levelId: string }): void {
     this.levelId = data.levelId || 'chapter1_level1'
-    console.log(`BattleScene: 进入关卡 ${this.levelId}`)
+    this.currentLevelConfig = getLevelConfig(this.levelId) || level1Config
+    console.log(`BattleScene: 进入关卡 ${this.levelId} (${this.currentLevelConfig.name})`)
   }
 
   /**
@@ -124,6 +132,7 @@ export default class BattleScene extends Phaser.Scene {
 
     // 0.5 宣纸底（纸色 + 淡墨晕染），地形在其上以水墨程序绘制
     drawPaperBackground(this)
+    InkSilhouetteRenderer.init(this)
 
     // 1. 创建地形系统
     this.createTerrainSystem()
@@ -140,7 +149,7 @@ export default class BattleScene extends Phaser.Scene {
     // 5. 初始化战斗系统（使用存档中的武将数据）
     const saveManager = SaveManager.getInstance()
     const heroes = saveManager.loadHeroes()
-    this.battleSystem = new BattleSystem(this, level1Config, heroes)
+    this.battleSystem = new BattleSystem(this, this.currentLevelConfig, heroes)
 
     // 6. 创建UI（覆盖在最上层）
     this.createUI(width, height)
@@ -161,7 +170,7 @@ export default class BattleScene extends Phaser.Scene {
    * 创建地形系统
    */
   private createTerrainSystem(): void {
-    const mapConfig = level1Config.map
+    const mapConfig = this.currentLevelConfig.map
 
     this.terrainManager = new TerrainManager(
       this,
@@ -169,9 +178,9 @@ export default class BattleScene extends Phaser.Scene {
       mapConfig.defaultTerrain || 'grass'
     )
 
-    this.pathRenderer = new PathRenderer(this, mapConfig.path)
+    this.pathRenderer = new PathRenderer(this, mapConfig.path, true, this.terrainManager)
 
-    this.deploymentZoneRenderer = new DeploymentZoneRenderer(this, mapConfig.deployableAreas)
+    this.deploymentZoneRenderer = new DeploymentZoneRenderer(this, mapConfig.deployableAreas, mapConfig.path)
   }
 
   /**
@@ -190,12 +199,8 @@ export default class BattleScene extends Phaser.Scene {
         return
       }
 
-      const cell = this.deploymentZoneRenderer.cellAtPoint({ x: pointer.x, y: pointer.y })
-      if (cell && !this.isPointerOverDock(pointer)) {
-        this.deploymentZoneRenderer.highlightCell(cell)
-      } else {
-        this.deploymentZoneRenderer.clearCellHighlight()
-      }
+      // 常态下无拖拽操作时保持战场清爽，不随鼠标全图漫游高亮
+      this.deploymentZoneRenderer.clearCellHighlight()
     })
 
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
@@ -210,6 +215,8 @@ export default class BattleScene extends Phaser.Scene {
       // 松开：收起射程与属性卡
       this.hideRange()
       this.hideUnitInfo()
+      this.deploymentZoneRenderer.setGridVisible(false)
+      this.deploymentZoneRenderer.clearCellHighlight()
     })
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -242,6 +249,8 @@ export default class BattleScene extends Phaser.Scene {
     this.dragPayload = payload
     this.dragGhost = this.createDragGhost(payload)
     this.dragGhost.setPosition(pointer.x, pointer.y)
+    // 动态唤起战场网格
+    this.deploymentZoneRenderer.setGridVisible(true)
     this.updateDrag(pointer)
   }
 
@@ -276,6 +285,7 @@ export default class BattleScene extends Phaser.Scene {
     this.clearDragGhost()
     this.dragPayload = null
     this.deploymentZoneRenderer.clearCellHighlight()
+    this.deploymentZoneRenderer.setGridVisible(false)
 
     if (!payload) return
     if (this.isPointerOverDock(pointer)) return
@@ -320,7 +330,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 拖拽幽灵（头像或兵种单字）
+   * 拖拽幽灵（神将立像或兵人剪影）
    */
   private createDragGhost(payload: DragPayload): Phaser.GameObjects.Container {
     const ghost = this.add.container(0, 0)
@@ -331,30 +341,30 @@ export default class BattleScene extends Phaser.Scene {
       const imageKey = this.getHeroImageKey(payload.hero.id)
       if (this.textures.exists(imageKey)) {
         const img = this.add.image(0, 0, imageKey)
-        img.setDisplaySize(64, 64)
+        img.setDisplaySize(54, 54)
         ghost.add(img)
       }
-      const name = inkText(this, 0, 42, payload.hero.name, {
-        size: 12,
+      const name = inkText(this, 0, 36, payload.hero.name, {
+        size: 11,
         color: InkText.ink,
+        bold: true,
         originX: 0.5
       })
       ghost.add(name)
     } else {
-      const chip = this.add.graphics()
-      chip.fillStyle(InkColor.paperPanel, 0.92)
-      chip.fillRoundedRect(-28, -28, 56, 56, InkRadius.sm)
-      chip.lineStyle(1, InkColor.ink, 0.55)
-      chip.strokeRoundedRect(-28, -28, 56, 56, InkRadius.sm)
-      ghost.add(chip)
-
-      const charText = inkText(this, 0, 0, payload.troop.displayChar, {
-        size: 28,
-        color: payload.troop.color,
+      const textureKey = this.getTroopTextureKey(payload.troop.type)
+      if (this.textures.exists(textureKey)) {
+        const img = this.add.image(0, 0, textureKey)
+        img.setDisplaySize(50, 50)
+        ghost.add(img)
+      }
+      const name = inkText(this, 0, 32, payload.troop.name, {
+        size: 11,
+        color: InkText.ink,
         bold: true,
         originX: 0.5
       })
-      ghost.add(charText)
+      ghost.add(name)
     }
 
     return ghost
@@ -458,6 +468,7 @@ export default class BattleScene extends Phaser.Scene {
       this.hideUnitInfo()   // 拖动中收起属性卡
       drag.unit.setDepth(40)
       drag.unit.setAlpha(0.85)
+      this.deploymentZoneRenderer.setGridVisible(true)
     }
 
     drag.unit.setPosition(pointer.x, pointer.y)
@@ -486,6 +497,7 @@ export default class BattleScene extends Phaser.Scene {
     this.hideRange()
     this.hideUnitInfo()
     this.deploymentZoneRenderer.clearCellHighlight()
+    this.deploymentZoneRenderer.setGridVisible(false)
     drag.unit.setDepth(drag.originalDepth)
     drag.unit.setAlpha(1)
 
@@ -511,9 +523,13 @@ export default class BattleScene extends Phaser.Scene {
     const result = this.battleSystem.dropUnitOnCell(drag.instanceId, cell, drag.originalFootprint)
     if (!result.success) {
       this.battleSystem.cancelUnitDrag(drag.instanceId, drag.originalFootprint)
-      this.showTemporaryMessage(result.reason === 'cellOccupied'
-        ? (drag.kind === 'hero' ? '英雄需横占相邻两格' : '该格已被占用')
-        : '无法移动到该格')
+      this.showTemporaryMessage(
+        result.reason === 'onPath'
+          ? '行军路线上不可布防'
+          : (result.reason === 'cellOccupied'
+              ? (drag.kind === 'hero' ? '英雄需横占相邻两格' : '该格已被占用')
+              : '无法移动到该格')
+      )
     }
   }
 
@@ -614,7 +630,7 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     for (const item of this.dockTroopItems.values()) {
-      item.charText.setAlpha(cooling ? 0.55 : 1)
+      item.icon.setAlpha(cooling ? 0.55 : 1)
       item.nameText.setAlpha(cooling ? 0.6 : 1)
       item.costText.setAlpha(cooling ? 0.6 : 1)
     }
@@ -627,6 +643,7 @@ export default class BattleScene extends Phaser.Scene {
     switch (reason) {
       case 'insufficientCost': return '费用不足'
       case 'heroNotUnlocked': return '尚未解锁'
+      case 'onPath': return '行军路线上不可布防'
       case 'invalidPosition': return '无法部署到该格'
       case 'cellOccupied': return occupiedHint
       case 'deployCooling': return '部署冷却中，请稍候'
@@ -643,54 +660,251 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 画一个宣纸圆角小片（HUD 文字底衬，保证地形上可读）
+   * 创建中军令台（顶部整合水墨长卷式 HUD）
    */
-  private drawHudChip(x: number, y: number, w: number, h: number): void {
+  private createTopCommandBar(width: number): void {
+    const barHeight = 52
+    const bar = this.add.container(0, 0)
+    bar.setDepth(25)
+
+    // 1. 底衬：宣纸微透长卷 + 底部浓墨双边线 + 墨韵端头
+    const bg = this.add.graphics()
+    bg.fillStyle(InkColor.paperPanel, 0.95)
+    bg.fillRect(0, 0, width, barHeight)
+    // 底部墨线
+    bg.lineStyle(1.5, InkColor.ink, 0.6)
+    bg.beginPath()
+    bg.moveTo(0, barHeight)
+    bg.lineTo(width, barHeight)
+    bg.strokePath()
+
+    // 左右端头朱砂印方块
+    bg.fillStyle(InkColor.cinnabar, 0.85)
+    bg.fillRect(10, 19, 10, 14)
+    bg.fillRect(width - 20, 19, 10, 14)
+
+    // 竖向淡墨分隔线
+    const drawDivider = (x: number) => {
+      bg.lineStyle(1, InkColor.ink, 0.18)
+      bg.beginPath()
+      bg.moveTo(x, 14)
+      bg.lineTo(x, barHeight - 14)
+      bg.strokePath()
+    }
+    drawDivider(155)
+    drawDivider(305)
+    drawDivider(width - 345)
+    drawDivider(width - 230)
+    bar.add(bg)
+
+    // 2. 左区：军费 (粮草) 模块
+    this.createBadgeInBar(bar, 34, 26, '粮', 0xdadfc9, 0x5f7a4a)
+    this.costText = inkText(this, 56, 26, '军费 20', {
+      size: 16,
+      color: InkText.strong,
+      bold: true,
+      originY: 0.5
+    })
+    bar.add(this.costText)
+
+    // 3. 左中区：帅营 (生命) 模块
+    this.createBadgeInBar(bar, 185, 26, '帅', 0xe6d2ca, InkColor.cinnabar)
+    this.healthText = inkText(this, 207, 26, '帅营 20', {
+      size: 16,
+      color: InkText.strong,
+      bold: true,
+      originY: 0.5
+    })
+    bar.add(this.healthText)
+
+    // 4. 中央：关卡名称 + 印章
+    const title = inkText(this, width / 2, 26, level1Config.name, {
+      size: 22,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    bar.add(title)
+    const seal = this.add.rectangle(width / 2 + title.width / 2 + 16, 26, 15, 15, InkColor.cinnabar)
+    bar.add(seal)
+    const sealChar = inkText(this, width / 2 + title.width / 2 + 16, 26, '战', {
+      size: 10,
+      color: InkText.paper,
+      originX: 0.5,
+      originY: 0.5
+    })
+    bar.add(sealChar)
+
+    // 5. 右区：波次模块
+    this.createBadgeInBar(bar, width - 325, 26, '阵', InkColor.paperDeep, InkColor.ink)
+    this.waveText = inkText(this, width - 304, 26, '波次 1/3', {
+      size: 16,
+      color: InkText.strong,
+      bold: true,
+      originY: 0.5
+    })
+    bar.add(this.waveText)
+
+    // 6. 击鼓迎敌按钮
+    this.earlyWaveBtn = createInkButton(this, width - 175, 26, 92, 32, '击鼓迎敌', {
+      fill: InkColor.cinnabar,
+      hoverFill: 0xb53a32,
+      textColor: InkText.paper,
+      fontSize: 13,
+      onClick: () => this.handleEarlyWave()
+    })
+    this.earlyWaveBtn.setDepth(26)
+
+    // 7. 倍速控制按钮 (1X / 2X)
+    const speedBtn = createInkButton(this, width - 95, 26, 52, 32, '1X', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.ink,
+      fontSize: 14,
+      stroke: InkColor.ink,
+      onClick: () => this.toggleSpeed()
+    })
+    speedBtn.setDepth(26)
+    const speedTxt = speedBtn.getAt(1) as Phaser.GameObjects.Text
+    if (speedTxt) this.speedBtnText = speedTxt
+
+    // 8. 暂停控制按钮 (⏸ / ▶)
+    const pauseBtn = createInkButton(this, width - 38, 26, 46, 32, '⏸', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.ink,
+      fontSize: 15,
+      stroke: InkColor.ink,
+      onClick: () => this.togglePause()
+    })
+    pauseBtn.setDepth(26)
+    const pauseTxt = pauseBtn.getAt(1) as Phaser.GameObjects.Text
+    if (pauseTxt) this.pauseBtnText = pauseTxt
+  }
+
+  /**
+   * 中军令台徽章图标小方块
+   */
+  private createBadgeInBar(
+    container: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    text: string,
+    bgColor: number,
+    borderColor: number
+  ): void {
+    const size = 26
     const g = this.add.graphics()
-    g.setDepth(20)
-    g.fillStyle(InkColor.paperPanel, 0.85)
-    g.fillRoundedRect(x, y, w, h, InkRadius.sm)
-    g.lineStyle(1, InkColor.ink, 0.6)
-    g.strokeRoundedRect(x, y, w, h, InkRadius.sm)
+    g.fillStyle(bgColor, 1)
+    g.fillRoundedRect(x - size / 2, y - size / 2, size, size, 4)
+    g.lineStyle(1.5, borderColor, 0.9)
+    g.strokeRoundedRect(x - size / 2, y - size / 2, size, size, 4)
+    container.add(g)
+
+    const label = inkText(this, x, y, text, {
+      size: 13,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    container.add(label)
+  }
+
+  /**
+   * 切换战斗速度 (1X / 2X)
+   */
+  private toggleSpeed(): void {
+    const current = this.battleSystem.getTimeScale()
+    const next = current >= 2.0 ? 1.0 : 2.0
+    this.battleSystem.setTimeScale(next)
+    if (this.speedBtnText) {
+      this.speedBtnText.setText(`${next}X`)
+    }
+    inkToast(this, `战速已调整为 ${next}X`, 60)
+  }
+
+  /**
+   * 切换暂停 / 继续
+   */
+  private togglePause(): void {
+    const paused = this.battleSystem.togglePause()
+    if (this.pauseBtnText) {
+      this.pauseBtnText.setText(paused ? '▶' : '⏸')
+    }
+    if (paused) {
+      this.showPauseOverlay()
+    } else {
+      this.hidePauseOverlay()
+    }
+  }
+
+  /**
+   * 显示暂停状态幕帘
+   */
+  private showPauseOverlay(): void {
+    if (this.pauseOverlay) return
+    const width = this.cameras.main.width
+    const height = this.cameras.main.height
+
+    const c = this.add.container(0, 0)
+    c.setDepth(50)
+
+    const mask = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.25)
+    mask.setInteractive()
+    mask.on('pointerdown', () => this.togglePause())
+    c.add(mask)
+
+    const box = this.add.graphics()
+    box.fillStyle(InkColor.paperPanel, 0.96)
+    box.fillRoundedRect(width / 2 - 140, height / 2 - 45, 280, 90, 8)
+    box.lineStyle(2, InkColor.ink, 0.75)
+    box.strokeRoundedRect(width / 2 - 140, height / 2 - 45, 280, 90, 8)
+    c.add(box)
+
+    const title = inkText(this, width / 2, height / 2 - 15, '战局休整 · 暂停中', {
+      size: 20,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    const tip = inkText(this, width / 2, height / 2 + 18, '点击屏幕任意处或右上角继续战斗', {
+      size: 13,
+      color: InkText.faint,
+      originX: 0.5,
+      originY: 0.5
+    })
+    c.add([title, tip])
+
+    this.pauseOverlay = c
+  }
+
+  private hidePauseOverlay(): void {
+    if (this.pauseOverlay) {
+      this.pauseOverlay.destroy()
+      this.pauseOverlay = null
+    }
+  }
+
+  /**
+   * 击鼓迎敌：提前召唤下一波敌人
+   */
+  private handleEarlyWave(): void {
+    const res = this.battleSystem.callNextWaveEarly()
+    if (res.success) {
+      inkToast(this, `擂鼓迎敌！士气大振，赏银 +${res.bonusCost}`, 120)
+    } else {
+      inkToast(this, '尚未到迎敌时机', 60)
+    }
   }
 
   /**
    * 创建UI
    */
   private createUI(width: number, height: number): void {
-    // 费用显示
-    this.drawHudChip(20, 12, 160, 32)
-    this.costText = inkText(this, 34, 28, '费用: 20', {
-      size: 18,
-      color: InkText.ink
-    })
-    this.costText.setDepth(20)
-
-    // 生命显示
-    this.drawHudChip(20, 50, 160, 32)
-    this.healthText = inkText(this, 34, 66, '生命: 20', {
-      size: 18,
-      color: InkText.ink
-    })
-    this.healthText.setDepth(20)
-
-    // 波次显示
-    this.drawHudChip(width - 190, 12, 170, 32)
-    this.waveText = inkText(this, width - 176, 28, '波次: 0/3', {
-      size: 18,
-      color: InkText.ink
-    })
-    this.waveText.setDepth(20)
-
-    // 关卡名称（顶部中间，纸片底衬）
-    this.drawHudChip(width / 2 - 140, 10, 280, 38)
-    inkText(this, width / 2, 29, level1Config.name, {
-      size: 24,
-      color: InkText.strong,
-      bold: true,
-      originX: 0.5
-    }).setDepth(20)
-
+    this.createTopCommandBar(width)
     this.createDeployDock(width, height)
   }
 
@@ -723,11 +937,6 @@ export default class BattleScene extends Phaser.Scene {
     const heroes = Array.from(saveManager.loadHeroes().values())
 
     let x = 180
-    this.dockHintText = inkText(this, x, dockY - 32, '拖拽部署 · 按住单位看射程 · 拖回底栏撤下', {
-      size: 11,
-      color: InkText.faint
-    })
-
     for (const hero of heroes) {
       this.addDockHero(hero, x, dockY)
       x += 86
@@ -741,16 +950,32 @@ export default class BattleScene extends Phaser.Scene {
       this.addDockTroop(troop, x, dockY)
       x += 72
     }
+
+    // 右侧布防操作指引（放置在右侧独立宣纸底框内，杜绝覆盖武将槽位）
+    const hintW = 280
+    const hintH = 32
+    const hintX = width - 180
+    const hintBg = this.add.rectangle(hintX, dockY, hintW, hintH, InkColor.paperDeep, 0.5)
+    hintBg.setStrokeStyle(1, InkColor.inkFaint, 0.4)
+    this.deployDock.add(hintBg)
+
+    this.dockHintText = inkText(this, hintX, dockY, '拖拽部署 · 按住看射程 · 拖回撤阵', {
+      size: 11,
+      color: InkText.wash,
+      originX: 0.5,
+      originY: 0.5
+    })
+    this.deployDock.add(this.dockHintText)
   }
 
   private addDockHero(hero: Hero, x: number, y: number): void {
     const imageKey = this.getHeroImageKey(hero.id)
     if (this.textures.exists(imageKey)) {
       const heroImage = this.add.image(x, y - 8, imageKey)
-      heroImage.setDisplaySize(48, 48)
+      heroImage.setDisplaySize(42, 42)
       heroImage.setInteractive({ useHandCursor: true })
       heroImage.on('pointerover', () => heroImage.setScale(heroImage.scaleX * 1.08))
-      heroImage.on('pointerout', () => heroImage.setDisplaySize(48, 48))
+      heroImage.on('pointerout', () => heroImage.setDisplaySize(42, 42))
       heroImage.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
         this.beginDrag({ kind: 'hero', hero }, pointer)
       })
@@ -774,46 +999,66 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   private addDockTroop(troop: TroopConfig, x: number, y: number): void {
-    const charText = inkText(this, x, y - 10, troop.displayChar, {
-      size: 26,
-      color: troop.color,
-      bold: true,
-      originX: 0.5
-    })
-    charText.setInteractive({ useHandCursor: true })
-    charText.on('pointerover', () => charText.setScale(1.15))
-    charText.on('pointerout', () => charText.setScale(1))
-    charText.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    const textureKey = this.getTroopTextureKey(troop.type)
+    const troopIcon = this.add.image(x, y - 8, textureKey)
+    troopIcon.setDisplaySize(38, 38)
+    troopIcon.setInteractive({ useHandCursor: true })
+    troopIcon.on('pointerover', () => troopIcon.setScale(troopIcon.scaleX * 1.12))
+    troopIcon.on('pointerout', () => troopIcon.setDisplaySize(38, 38))
+    troopIcon.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.beginDrag({ kind: 'troop', troop }, pointer)
     })
 
-    const nameText = inkText(this, x, y + 18, troop.name, {
+    const nameText = inkText(this, x, y + 24, troop.name, {
       size: 11,
       color: InkText.ink,
       originX: 0.5
     })
-    const costText = inkText(this, x, y + 32, `${troop.deploymentCost}`, {
+    const costText = inkText(this, x, y + 38, `${troop.deploymentCost}`, {
       size: 10,
       color: InkText.gold,
       originX: 0.5
     })
-    this.deployDock.add(charText)
+    this.deployDock.add(troopIcon)
     this.deployDock.add(nameText)
     this.deployDock.add(costText)
 
-    this.dockTroopItems.set(troop.id, { charText, nameText, costText })
+    this.dockTroopItems.set(troop.id, { icon: troopIcon, nameText, costText })
   }
 
   /**
-   * 获取英雄头像图片key
+   * 获取兵种剪影纹理key
+   */
+  private getTroopTextureKey(type: string): string {
+    const map: Record<string, string> = {
+      spearman: 'ink_troop_spearman',
+      archer: 'ink_troop_archer',
+      cavalry: 'ink_troop_cavalry',
+      swordsman: 'ink_troop_swordsman'
+    }
+    return map[type] || 'ink_troop_spearman'
+  }
+
+  /**
+   * 获取英雄头像图片key（优先使用水墨将魂剪影）
    */
   private getHeroImageKey(heroId: string): string {
-    const imageKeyMap: Record<string, string> = {
-      'hero_guanyu': 'hero_guanyu',
-      'hero_zhangfei': 'hero_zhangfei',
-      'hero_zhaoyun': 'hero_zhaoyun'
+    const silhouetteMap: Record<string, string> = {
+      'hero_guanyu': 'ink_hero_guanyu',
+      'hero_zhangfei': 'ink_hero_zhangfei',
+      'hero_zhaoyun': 'ink_hero_zhaoyun'
     }
-    return imageKeyMap[heroId] || 'hero_placeholder'
+
+    const key = silhouetteMap[heroId]
+    if (key && this.textures.exists(key)) {
+      return key
+    }
+
+    if (this.textures.exists('ink_hero_generic')) {
+      return 'ink_hero_generic'
+    }
+
+    return 'hero_placeholder'
   }
 
   /**
@@ -865,9 +1110,13 @@ export default class BattleScene extends Phaser.Scene {
   private updateUI(): void {
     const state = this.battleSystem.getState()
 
-    this.costText.setText(`费用: ${state.currentCost}`)
-    this.healthText.setText(`生命: ${state.playerHealth}`)
-    this.waveText.setText(`波次: ${state.currentWave}/${state.totalWaves}`)
+    this.costText.setText(`军费 ${state.currentCost}`)
+    this.healthText.setText(`帅营 ${state.playerHealth}`)
+    this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
     this.updateDockState()
+
+    // 动态更新击鼓迎敌按钮状态
+    const canEarly = this.battleSystem.canCallNextWaveEarly()
+    this.earlyWaveBtn.setVisible(canEarly)
   }
 }

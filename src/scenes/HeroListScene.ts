@@ -351,10 +351,124 @@ export default class HeroListScene extends Phaser.Scene {
       panel.add(inkText(this, 200, expY, '已达顶级', { size: 14, color: InkText.gold, bold: true }))
     }
 
+    // 绘制水墨五维演武雷达图（右侧区域）
+    this.renderRadarChart(panel, hero, 735, y + 54, 40)
+
     // 头部下分隔墨线
     inkRule(this, panel, 24, y + 124, HeroListScene.CONTENT_WIDTH, 0.35)
 
     return y + 140
+  }
+
+  /**
+   * 水墨五维演武雷达图（武/统/魄/敏/谋）
+   */
+  private renderRadarChart(
+    panel: Phaser.GameObjects.Container,
+    hero: Hero,
+    cx: number,
+    cy: number,
+    radius: number = 40
+  ): void {
+    const dimensions = [
+      { label: '武', angle: 0 },
+      { label: '统', angle: (2 * Math.PI) / 5 },
+      { label: '魄', angle: (4 * Math.PI) / 5 },
+      { label: '敏', angle: (6 * Math.PI) / 5 },
+      { label: '谋', angle: (8 * Math.PI) / 5 }
+    ]
+
+    // 根据英雄基础属性与稀有度计算五维归一化值 (0.45 ~ 1.0)
+    const effectiveStats = this.getEffectiveStatsWithEquipment(hero)
+    const wu = Phaser.Math.Clamp(effectiveStats.attack / 75, 0.45, 1.0)
+    const tong = Phaser.Math.Clamp(effectiveStats.attackRange / 220, 0.45, 1.0)
+    const min = Phaser.Math.Clamp(effectiveStats.attackSpeed / 1.4, 0.45, 1.0)
+    const mou = hero.rarity === 'legendary' ? 0.88 : hero.rarity === 'epic' ? 0.80 : 0.68
+    const po = hero.rarity === 'legendary' ? 0.96 : hero.rarity === 'epic' ? 0.85 : 0.72
+
+    const values = [wu, tong, po, min, mou]
+
+    const g = this.add.graphics()
+
+    // 1. 绘制正五边形背景网格（3层）与5条放射轴线
+    const levels = [0.35, 0.7, 1.0]
+    for (const lvl of levels) {
+      g.lineStyle(1, InkColor.ink, lvl === 1.0 ? 0.22 : 0.12)
+      g.beginPath()
+      for (let i = 0; i < 5; i++) {
+        const a = dimensions[i].angle - Math.PI / 2
+        const r = radius * lvl
+        const px = cx + Math.cos(a) * r
+        const py = cy + Math.sin(a) * r
+        if (i === 0) g.moveTo(px, py)
+        else g.lineTo(px, py)
+      }
+      g.closePath()
+      g.strokePath()
+    }
+
+    // 5条放射轴线
+    g.lineStyle(1, InkColor.ink, 0.18)
+    for (let i = 0; i < 5; i++) {
+      const a = dimensions[i].angle - Math.PI / 2
+      const px = cx + Math.cos(a) * radius
+      const py = cy + Math.sin(a) * radius
+      g.beginPath()
+      g.moveTo(cx, cy)
+      g.lineTo(px, py)
+      g.strokePath()
+    }
+
+    // 2. 绘制五维数据多边形
+    const wuxingStyle = INK_WUXING[hero.wuXing]
+    g.fillStyle(wuxingStyle.fill, 0.6)
+    g.lineStyle(1.5, wuxingStyle.border, 0.95)
+    g.beginPath()
+    const points: { x: number; y: number }[] = []
+    for (let i = 0; i < 5; i++) {
+      const a = dimensions[i].angle - Math.PI / 2
+      const r = radius * values[i]
+      const px = cx + Math.cos(a) * r
+      const py = cy + Math.sin(a) * r
+      points.push({ x: px, y: py })
+      if (i === 0) g.moveTo(px, py)
+      else g.lineTo(px, py)
+    }
+    g.closePath()
+    g.fillPath()
+    g.strokePath()
+
+    // 顶点小圆点
+    for (const pt of points) {
+      g.fillStyle(InkColor.cinnabar, 0.9)
+      g.fillCircle(pt.x, pt.y, 2.5)
+    }
+    panel.add(g)
+
+    // 3. 维度文字标示
+    for (let i = 0; i < 5; i++) {
+      const a = dimensions[i].angle - Math.PI / 2
+      const labelDist = radius + 13
+      const lx = cx + Math.cos(a) * labelDist
+      const ly = cy + Math.sin(a) * labelDist
+      const t = inkText(this, lx, ly, dimensions[i].label, {
+        size: 11,
+        color: InkText.strong,
+        bold: true,
+        originX: 0.5,
+        originY: 0.5
+      })
+      panel.add(t)
+    }
+
+    // 标题小标（图表下方居中注记）
+    const headerText = inkText(this, cx, cy + radius + 14, '· 五维演武 ·', {
+      size: 11,
+      color: InkText.faint,
+      originX: 0.5,
+      originY: 0.5
+    })
+    panel.add(headerText)
   }
 
   /**

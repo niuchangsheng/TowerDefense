@@ -11,15 +11,20 @@ import { InkColor, InkText, InkFontSize, inkText } from '@/ui/InkTheme'
 export class DeploymentZoneRenderer {
   private scene: Phaser.Scene
   private deployableAreas: Area[]
+  private pathCells: Set<string>
   private zoneGraphics: Phaser.GameObjects.Graphics[]
   private zoneLabels: (Phaser.GameObjects.Container | Phaser.GameObjects.Text)[]
   private highlightedIndex: number | null
   private isHighlightMode: boolean
   private cellHighlightGraphics: Phaser.GameObjects.Graphics
 
-  constructor(scene: Phaser.Scene, deployableAreas: Area[]) {
+  constructor(scene: Phaser.Scene, deployableAreas: Area[], path?: Point[]) {
     this.scene = scene
     this.deployableAreas = deployableAreas
+    this.pathCells = new Set()
+    if (path && path.length > 0) {
+      this.initPathCells(path)
+    }
     this.zoneGraphics = []
     this.zoneLabels = []
     this.highlightedIndex = null
@@ -29,11 +34,37 @@ export class DeploymentZoneRenderer {
   }
 
   /**
-   * 渲染全图淡墨格网（任意格均可拖拽落子）
+   * 将行军路线折线映射并注册为路径禁止布防格
+   */
+  private initPathCells(path: Point[]): void {
+    for (let i = 0; i < path.length - 1; i++) {
+      const p0 = path[i]
+      const p1 = path[i + 1]
+      const dx = p1.x - p0.x
+      const dy = p1.y - p0.y
+      const dist = Math.hypot(dx, dy)
+      const steps = Math.max(1, Math.ceil(dist / 10))
+
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps
+        const x = p0.x + dx * t
+        const y = p0.y + dy * t
+        const col = Math.min(GRID.cols - 1, Math.max(0, Math.floor(x / GRID.cellSize)))
+        const row = Math.min(GRID.rows - 1, Math.max(0, Math.floor(y / GRID.cellSize)))
+        this.pathCells.add(`${col},${row}`)
+      }
+    }
+  }
+
+  private gridGraphics: Phaser.GameObjects.Graphics | null = null
+
+  /**
+   * 渲染全图淡墨格网（默认隐藏，拖拽落子时动态唤起）
    */
   renderDeploymentZones(): void {
     const graphics = this.scene.add.graphics()
     graphics.setDepth(5)
+    graphics.setAlpha(0) // 默认隐藏常态网格
 
     const area: Area = {
       x: 0,
@@ -42,10 +73,25 @@ export class DeploymentZoneRenderer {
       height: GRID.rows * GRID.cellSize
     }
 
-    graphics.lineStyle(1, InkColor.ink, 0.08)
+    graphics.lineStyle(1, InkColor.ink, 0.12)
     this.drawGridPattern(graphics, area)
 
+    this.gridGraphics = graphics
     this.zoneGraphics.push(graphics)
+  }
+
+  /**
+   * 动态控制战场网格显隐（拖拽时唤出，释放后淡出）
+   */
+  setGridVisible(visible: boolean): void {
+    if (!this.gridGraphics) return
+    this.scene.tweens.killTweensOf(this.gridGraphics)
+    this.scene.tweens.add({
+      targets: this.gridGraphics,
+      alpha: visible ? 1 : 0,
+      duration: 180,
+      ease: 'Sine.easeOut'
+    })
   }
 
   /**
@@ -158,56 +204,66 @@ export class DeploymentZoneRenderer {
   }
 
   /**
-   * 绘制网格图案（与全局 80px 格子对齐的真实部署格）
+   * 绘制网格图案（仅在非行军路线的合法部署格上绘制淡墨框）
    */
-  private drawGridPattern(graphics: Phaser.GameObjects.Graphics, area: Area): void {
+  private drawGridPattern(graphics: Phaser.GameObjects.Graphics, _area: Area): void {
     const gridSize = GRID.cellSize
 
-    for (let x = area.x; x <= area.x + area.width; x += gridSize) {
-      graphics.beginPath()
-      graphics.moveTo(x, area.y)
-      graphics.lineTo(x, area.y + area.height)
-      graphics.strokePath()
-    }
+    for (let r = 0; r < GRID.rows; r++) {
+      for (let c = 0; c < GRID.cols; c++) {
+        // 行军路线上不画部署网格
+        if (this.pathCells.has(`${c},${r}`)) continue
 
-    for (let y = area.y; y <= area.y + area.height; y += gridSize) {
-      graphics.beginPath()
-      graphics.moveTo(area.x, y)
-      graphics.lineTo(area.x + area.width, y)
-      graphics.strokePath()
+        graphics.strokeRect(
+          c * gridSize + 0.5,
+          r * gridSize + 0.5,
+          gridSize - 1,
+          gridSize - 1
+        )
+      }
     }
   }
 
   /**
-   * 拖拽落点预览：合法为淡墨，非法为印章红
+   * 拖拽落点预览：合法为青绿水墨微光，非法为印章红墨晕
    */
   highlightDropPreview(cells: GridCell[], valid: boolean): void {
     this.cellHighlightGraphics.clear()
-    const color = valid ? InkColor.ink : InkColor.cinnabar
-    const fillAlpha = valid ? 0.10 : 0.16
+    const color = valid ? 0x5f7a4a : InkColor.cinnabar
+    const fillAlpha = valid ? 0.22 : 0.26
+    const radius = 6
 
     for (const cell of cells) {
-      const x = cell.col * GRID.cellSize + 1
-      const y = cell.row * GRID.cellSize + 1
-      const size = GRID.cellSize - 2
+      const x = cell.col * GRID.cellSize + 2
+      const y = cell.row * GRID.cellSize + 2
+      const size = GRID.cellSize - 4
       this.cellHighlightGraphics.fillStyle(color, fillAlpha)
-      this.cellHighlightGraphics.fillRect(x, y, size, size)
-      this.cellHighlightGraphics.lineStyle(2, color, 0.85)
-      this.cellHighlightGraphics.strokeRect(x, y, size, size)
+      this.cellHighlightGraphics.fillRoundedRect(x, y, size, size, radius)
+      this.cellHighlightGraphics.lineStyle(2, color, 0.9)
+      this.cellHighlightGraphics.strokeRoundedRect(x, y, size, size, radius)
     }
   }
 
   /**
-   * 高亮指定格子（悬停反馈：印章红细框）
+   * 高亮指定格子（悬停反馈：青润水墨圆角细框）
    */
   highlightCell(cell: GridCell): void {
     this.cellHighlightGraphics.clear()
-    this.cellHighlightGraphics.lineStyle(2, InkColor.cinnabar, 0.9)
-    this.cellHighlightGraphics.strokeRect(
-      cell.col * GRID.cellSize + 1,
-      cell.row * GRID.cellSize + 1,
-      GRID.cellSize - 2,
-      GRID.cellSize - 2
+    this.cellHighlightGraphics.fillStyle(InkColor.paperDeep, 0.2)
+    this.cellHighlightGraphics.fillRoundedRect(
+      cell.col * GRID.cellSize + 2,
+      cell.row * GRID.cellSize + 2,
+      GRID.cellSize - 4,
+      GRID.cellSize - 4,
+      6
+    )
+    this.cellHighlightGraphics.lineStyle(2, 0x5f7a4a, 0.8)
+    this.cellHighlightGraphics.strokeRoundedRect(
+      cell.col * GRID.cellSize + 2,
+      cell.row * GRID.cellSize + 2,
+      GRID.cellSize - 4,
+      GRID.cellSize - 4,
+      6
     )
   }
 

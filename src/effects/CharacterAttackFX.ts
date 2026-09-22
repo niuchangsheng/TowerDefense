@@ -33,6 +33,8 @@ export interface ShootOptions {
 /** 伤害飘字配置 */
 export interface DamageTextOptions {
   crit?: boolean               // 暴击（更大更亮）
+  counter?: boolean            // 五行克制（金墨色加成）
+  resisted?: boolean           // 五行被克（淡墨削减）
   color?: string               // 自定义颜色
   offsetX?: number             // 水平随机偏移，避免重叠
 }
@@ -193,32 +195,91 @@ export class CharacterAttackFX {
     this.scene.time.delayedCall(500, () => emitter.destroy())
   }
 
+  /**
+   * 敌人阵亡：水墨消散特效（墨散化烟）
+   * 零贴图：向外扩散的淡墨粒子逐渐淡化入宣纸底色
+   */
+  inkDissolve(at: Point): void {
+    const key = this.ensureInkTexture()
+    // 墨烟粒子扩散（淡墨团徐徐膨胀并淡入宣纸）
+    const emitter = this.scene.add.particles(at.x, at.y, key, {
+      speed: { min: 20, max: 80 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 0.8, end: 1.8 },
+      alpha: { start: 0.7, end: 0 },
+      tint: [0x2a2a2a, 0x4a453a, 0x7a7567],
+      lifespan: 550,
+      gravityY: -30, // 墨烟轻盈升腾
+      emitting: false
+    })
+    emitter.setDepth(35)
+    emitter.explode(14, at.x, at.y)
+
+    // 地面散开一圈水墨微漪
+    const ring = this.scene.add.graphics()
+    ring.setDepth(15)
+    ring.lineStyle(1.5, 0x2a2a2a, 0.45)
+    ring.strokeCircle(at.x, at.y, 14)
+    this.scene.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scale: 1.4,
+      duration: 500,
+      ease: 'Sine.easeOut',
+      onComplete: () => ring.destroy()
+    })
+
+    this.scene.time.delayedCall(600, () => emitter.destroy())
+  }
+
   /* ------------------------------------------------------------------ *
-   * 5. 伤害飘字
-   *    墨色描边的数字向上飘起并淡出，暴击更大更亮。
+   * 5. 伤害飘字（支持五行克制/微弱/暴击风格）
+   *    墨色描边的数字向上飘起并淡出，克制金色微爆、微弱淡灰收敛。
    * ------------------------------------------------------------------ */
   damageText(at: Point, damage: number, opts: DamageTextOptions = {}): void {
-    const { crit = false, color, offsetX } = opts
+    const { crit = false, counter = false, resisted = false, color, offsetX } = opts
     const jitterX = offsetX ?? Phaser.Math.Between(-8, 8)
 
+    let displayStr = `-${damage}`
+    let textColor = color ?? '#f5f0e6'
+    let fontSize = '20px'
+    let scaleTo = 1.0
+
+    if (counter) {
+      displayStr = `【克制】 -${damage}`
+      textColor = '#d97706' // 金墨色
+      fontSize = '22px'
+      scaleTo = 1.25
+    } else if (resisted) {
+      displayStr = `【微弱】 -${damage}`
+      textColor = '#8a8577' // 淡墨色
+      fontSize = '18px'
+      scaleTo = 0.95
+    } else if (crit) {
+      displayStr = `【暴击】 -${damage}`
+      textColor = '#ffd24a'
+      fontSize = '25px'
+      scaleTo = 1.35
+    }
+
     const text = this.scene.add
-      .text(at.x + jitterX, at.y - 14, `-${damage}`, {
+      .text(at.x + jitterX, at.y - 14, displayStr, {
         fontFamily: '"STKaiti","KaiTi","Noto Serif SC",serif',
-        fontSize: crit ? '30px' : '20px',
-        color: color ?? (crit ? '#ffd24a' : '#f5f0e6'),
+        fontSize,
+        color: textColor,
         fontStyle: 'bold',
         stroke: '#1a1a1a',
-        strokeThickness: 4
+        strokeThickness: 3.5
       })
       .setOrigin(0.5)
       .setDepth(60)
 
     this.scene.tweens.add({
       targets: text,
-      y: at.y - 52,
+      y: at.y - 54,
       alpha: 0,
-      scale: crit ? 1.35 : 1,
-      duration: 620,
+      scale: scaleTo,
+      duration: 650,
       ease: 'Cubic.easeOut',
       onComplete: () => text.destroy()
     })

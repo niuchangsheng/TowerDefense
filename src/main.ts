@@ -8,6 +8,7 @@ class Game {
   constructor() {
     // 创建Phaser游戏实例
     this.game = new Phaser.Game(gameConfig)
+    ;(window as any).game = this.game
 
     // 窗口大小变化时调整游戏尺寸
     window.addEventListener('resize', this.handleResize.bind(this))

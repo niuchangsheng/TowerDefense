@@ -4,6 +4,7 @@ import { EnemyEntity } from '@/entities/EnemyEntity'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { SkillManager } from './SkillManager'
 import { getSkill } from '@/data/skills'
+import { InkColor, InkText, inkText } from '@/ui/InkTheme'
 
 /**
  * 技能效果执行结果
@@ -311,85 +312,80 @@ export class SkillExecutor {
   }
 
   /**
-   * 展示暴击图（三国志11风格）
-   * 动画：从右侧滑入 → 中间停留 → 左侧滑出
+   * 显示绝技释放水墨横幅动效（杜绝巨型方块遮挡战场与单位）
    * @param heroId 英雄ID
    * @param skillName 技能名称
    */
   private showBaojiImage(heroId: string, skillName: string): void {
-    // 获取对应的暴击图key
     const baojiKey = this.getBaojiImageKey(heroId)
-    if (!baojiKey) return
-
-    // 检查纹理是否存在
-    if (!this.scene.textures.exists(baojiKey)) {
-      console.warn(`暴击图未加载: ${baojiKey}`)
-      return
-    }
+    if (!baojiKey || !this.scene.textures.exists(baojiKey)) return
 
     const width = this.scene.cameras.main.width
-    const height = this.scene.cameras.main.height
+    const bannerY = 108
+    const bannerW = 440
+    const bannerH = 56
 
-    // 创建暴击图容器
-    const container = this.scene.add.container(0, 0)
-    container.setDepth(1000) // 确保在最上层显示
+    // 创建绝技切入横幅容器（顶部居中轻量掠过，不干扰下层布阵与战局）
+    const banner = this.scene.add.container(width + bannerW / 2, bannerY)
+    banner.setDepth(200)
 
-    // 半透明黑色背景（增加视觉冲击）
-    const bg = this.scene.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3)
+    // 宣纸横幅底板与金铜墨韵边饰
+    const bg = this.scene.add.graphics()
+    bg.fillStyle(InkColor.paperPanel, 0.96)
+    bg.fillRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 4)
+    bg.lineStyle(1.5, 0xa0782f, 0.9)
+    bg.strokeRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 4)
 
-    // 暴击图（适中尺寸，屏幕中央）
-    const baojiImage = this.scene.add.image(0, height / 2, baojiKey)
-    baojiImage.setDisplaySize(300, 300) // 适中尺寸
+    // 上下墨韵细线
+    bg.lineStyle(1, InkColor.ink, 0.25)
+    bg.lineBetween(-bannerW / 2 + 10, -bannerH / 2 + 4, bannerW / 2 - 10, -bannerH / 2 + 4)
+    bg.lineBetween(-bannerW / 2 + 10, bannerH / 2 - 4, bannerW / 2 - 10, bannerH / 2 - 4)
 
-    // 技能名称（白色粗体，显示在暴击图下方）
-    const skillText = this.scene.add.text(0, height / 2 + 170, skillName, {
-      fontSize: '28px',
+    // 左侧武将特写圆徽（50×50，金铜圆框）
+    const avatar = this.scene.add.image(-bannerW / 2 + 38, 0, baojiKey)
+    avatar.setDisplaySize(48, 48)
+
+    const ring = this.scene.add.graphics()
+    ring.lineStyle(2, 0xa0782f, 0.9)
+    ring.strokeCircle(-bannerW / 2 + 38, 0, 24)
+
+    // 右侧「绝技」朱砂印
+    const seal = this.scene.add.rectangle(bannerW / 2 - 34, 0, 36, 20, InkColor.cinnabar)
+    seal.setStrokeStyle(1, 0x6e1b15)
+    const sealText = inkText(this.scene, bannerW / 2 - 34, 0, '绝技', {
+      size: 11,
       color: '#ffffff',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5)
-
-    // 将所有元素添加到容器
-    container.add([bg, baojiImage, skillText])
-
-    // 设置初始状态：在右侧屏幕外
-    container.setX(width + 250)
-    bg.setAlpha(0)
-
-    // 动画序列
-    // 1. 背景快速淡入
-    this.scene.tweens.add({
-      targets: bg,
-      alpha: 0.3,
-      duration: 150,
-      ease: 'Power2'
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
     })
 
-    // 2. 从右侧滑入到中间（快速）
+    // 技能名称
+    const titleText = inkText(this.scene, -10, 0, `「${skillName}」`, {
+      size: 18,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+
+    banner.add([bg, avatar, ring, seal, sealText, titleText])
+
+    // 横幅飞掠入场 -> 定格展示 -> 疾速掠出销毁
     this.scene.tweens.add({
-      targets: container,
+      targets: banner,
       x: width / 2,
-      duration: 300,
-      ease: 'Power2.easeOut',
+      duration: 250,
+      ease: 'Back.easeOut',
       onComplete: () => {
-        // 3. 在中间停留一段时间
-        this.scene.time.delayedCall(500, () => {
-          // 4. 从左侧滑出
+        this.scene.time.delayedCall(450, () => {
           this.scene.tweens.add({
-            targets: container,
-            x: -250,
-            duration: 300,
+            targets: banner,
+            x: -bannerW,
+            alpha: 0,
+            duration: 200,
             ease: 'Power2.easeIn',
-            onComplete: () => {
-              // 5. 背景淡出并销毁
-              this.scene.tweens.add({
-                targets: bg,
-                alpha: 0,
-                duration: 150,
-                onComplete: () => container.destroy()
-              })
-            }
+            onComplete: () => banner.destroy()
           })
         })
       }

@@ -37,12 +37,12 @@ export const level1Config: LevelConfig = {
     terrainAreas: [
       // 整体背景草地
       { type: 'grass', area: { x: 0, y: 0, width: 1280, height: 720 } },
-      // 山地障碍（路径上方）
-      { type: 'mountain', area: { x: 250, y: 100, width: 300, height: 60 } },
-      // 河流区域（路径右侧）
-      { type: 'river', area: { x: 850, y: 280, width: 150, height: 200 } },
-      // 森林区域（左下角）
-      { type: 'forest', area: { x: 50, y: 500, width: 200, height: 150 } }
+      // 山地障碍（北方群峦）
+      { type: 'mountain', area: { x: 240, y: 70, width: 330, height: 100 } },
+      // 河流区域（东方清溪，南北流向，道路架木栈道穿行）
+      { type: 'river', area: { x: 850, y: 150, width: 95, height: 390 } },
+      // 森林区域（西南密林，松篁茂盛）
+      { type: 'forest', area: { x: 40, y: 460, width: 220, height: 130 } }
     ],
     defaultTerrain: 'grass'
   },

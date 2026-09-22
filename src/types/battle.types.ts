@@ -48,6 +48,7 @@ export interface PlaceHeroResult {
     | 'invalidPosition'
     | 'heroNotUnlocked'
     | 'cellOccupied'
+    | 'onPath'               // 目标格在行军路线上（不可布防）
     | 'deployCooling'        // 部署冷却中
     | 'heroAlreadyDeployed'  // 该武将已上阵（每位武将同时只能部署一次）
   remainingCost?: number
@@ -56,7 +57,7 @@ export interface PlaceHeroResult {
 // 拖拽移动已部署单位的结果
 export interface MoveUnitResult {
   success: boolean
-  reason?: 'cellOccupied' | 'invalidPosition'
+  reason?: 'cellOccupied' | 'invalidPosition' | 'onPath'
 }
 
 // 撤退英雄结果

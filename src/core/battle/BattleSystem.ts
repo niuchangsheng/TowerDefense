@@ -60,6 +60,7 @@ export class BattleSystem {
   private elapsedTime: number
   private isRunning: boolean
   private isPaused: boolean
+  private timeScale: number = 1.0
   /** 已通知过"波次开始"的最大波次号（防止重复通知） */
   private lastNotifiedWave: number
   /** 部署冷却剩余（毫秒）：冷却结束前不能再部署新单位 */
@@ -98,8 +99,8 @@ export class BattleSystem {
     // 初始化兵种战斗管理
     this.troopBattleManager = new TroopBattleManager(scene, this.enemyManager)
 
-    // 初始化部署格占位表（兵占1格、将占2格）
-    this.deployGrid = new DeployGrid(levelConfig.map.deployableAreas)
+    // 初始化部署格占位表（兵占1格、将占2格，行军路线不可布防）
+    this.deployGrid = new DeployGrid(levelConfig.map.deployableAreas, levelConfig.map.path)
 
     // 初始化部署英雄列表
     this.deployedHeroEntities = new Map()
@@ -183,9 +184,10 @@ export class BattleSystem {
     // 计算 1×2 脚印并校验（必须在部署区内且未被占用）
     const footprint = this.deployGrid.heroFootprint(cell)
     if (!footprint) {
+      const isOnPath = this.deployGrid.isPathCell(cell)
       return {
         success: false,
-        reason: this.deployGrid.isCellDeployable(cell) ? 'cellOccupied' : 'invalidPosition'
+        reason: isOnPath ? 'onPath' : (this.deployGrid.isCellDeployable(cell) ? 'cellOccupied' : 'invalidPosition')
       }
     }
 
@@ -280,9 +282,10 @@ export class BattleSystem {
     // 兵种脚印 = 单格：须在部署区内且未被占用
     const footprint = [cell]
     if (!this.deployGrid.canPlaceFootprint(footprint)) {
+      const isOnPath = this.deployGrid.isPathCell(cell)
       return {
         success: false,
-        reason: this.deployGrid.isCellDeployable(cell) ? 'cellOccupied' : 'invalidPosition'
+        reason: isOnPath ? 'onPath' : (this.deployGrid.isCellDeployable(cell) ? 'cellOccupied' : 'invalidPosition')
       }
     }
 
@@ -409,18 +412,19 @@ export class BattleSystem {
       return
     }
 
-    this.elapsedTime += deltaTime
+    const scaledDelta = deltaTime * this.timeScale
+    this.elapsedTime += scaledDelta
 
     // 推进部署冷却
     if (this.deployCooldownRemaining > 0) {
-      this.deployCooldownRemaining = Math.max(0, this.deployCooldownRemaining - deltaTime)
+      this.deployCooldownRemaining = Math.max(0, this.deployCooldownRemaining - scaledDelta)
     }
 
     // 更新波次（生成敌人）
-    this.updateWaves(deltaTime)
+    this.updateWaves(scaledDelta)
 
     // 更新敌人（移动）
-    const reachedExitEnemies = this.enemyManager.update(deltaTime)
+    const reachedExitEnemies = this.enemyManager.update(scaledDelta)
 
     // 处理到达终点的敌人
     for (const enemy of reachedExitEnemies) {
@@ -428,7 +432,7 @@ export class BattleSystem {
     }
 
     // 更新英雄攻击
-    const killedEnemies = this.heroBattleManager.update(deltaTime, this.elapsedTime)
+    const killedEnemies = this.heroBattleManager.update(scaledDelta, this.elapsedTime)
 
     // 处理被击杀的敌人
     for (const enemy of killedEnemies) {
@@ -436,7 +440,7 @@ export class BattleSystem {
     }
 
     // 更新兵种攻击（英雄击杀结算后再取目标，避免重复处理同一敌人）
-    const troopKilledEnemies = this.troopBattleManager.update(deltaTime, this.elapsedTime)
+    const troopKilledEnemies = this.troopBattleManager.update(scaledDelta, this.elapsedTime)
 
     // 处理被兵种击杀的敌人（同一击杀结算路径：费用奖励 + 移除 + 回调）
     for (const enemy of troopKilledEnemies) {
@@ -770,7 +774,8 @@ export class BattleSystem {
       : (this.deployGrid.canPlaceFootprint([cell]) ? [cell] : null)
 
     if (!footprint) {
-      return { success: false, reason: 'cellOccupied' }
+      const isOnPath = this.deployGrid.isPathCell(cell)
+      return { success: false, reason: isOnPath ? 'onPath' : 'cellOccupied' }
     }
 
     this.deployGrid.occupy(footprint, instanceId)
@@ -840,6 +845,52 @@ export class BattleSystem {
 
   resume(): void {
     this.isPaused = false
+  }
+
+  togglePause(): boolean {
+    this.isPaused = !this.isPaused
+    return this.isPaused
+  }
+
+  isBattlePaused(): boolean {
+    return this.isPaused
+  }
+
+  /**
+   * 设置战斗速率倍率 (1.0x, 2.0x 等)
+   */
+  setTimeScale(scale: number): void {
+    this.timeScale = Math.max(0.5, Math.min(3.0, scale))
+  }
+
+  getTimeScale(): number {
+    return this.timeScale
+  }
+
+  /**
+   * 是否可以提前迎敌（叫下一波）
+   */
+  canCallNextWaveEarly(): boolean {
+    return (
+      this.isRunning &&
+      !this.isPaused &&
+      !this.waveManager.isAllWavesComplete() &&
+      this.waveManager.getCurrentWave() < this.levelConfig.waves.length
+    )
+  }
+
+  /**
+   * 提前击鼓迎敌：直接启动下一波，并奖励赏银
+   */
+  callNextWaveEarly(): { success: boolean; bonusCost: number } {
+    if (!this.canCallNextWaveEarly()) {
+      return { success: false, bonusCost: 0 }
+    }
+    const bonusCost = 8 // 提前迎敌赏银 +8 军费
+    this.costManager.addCost(bonusCost)
+    this.battleState.currentCost = this.costManager.getCurrentCost()
+    this.waveManager.startNextWave()
+    return { success: true, bonusCost }
   }
 
   /**

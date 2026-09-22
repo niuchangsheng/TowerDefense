@@ -176,7 +176,15 @@ export default class PreloadScene extends Phaser.Scene {
     this.loadingText.destroy()
     this.titleText.destroy()
 
-    // 转到标题场景
-    this.scene.start('TitleScene')
+    // 支持通过 URL 参数跳转到指定场景 (如 ?scene=BattleScene&levelId=level1)
+    const urlParams = new URLSearchParams(window.location.search)
+    const targetScene = urlParams.get('scene')
+    if (targetScene && this.scene.get(targetScene)) {
+      const levelId = urlParams.get('levelId') || 'level1'
+      this.scene.start(targetScene, { levelId })
+    } else {
+      // 转到标题场景
+      this.scene.start('TitleScene')
+    }
   }
 }

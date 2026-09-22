@@ -35,8 +35,9 @@ export class TerrainManager {
    * 获取指定位置的地形类型
    */
   getTerrainAt(position: Point): TerrainType {
-    // 检查位置是否在某个特殊地形区域内
+    // 优先检查特殊地形区域（跳过全图草地背景）
     for (const terrainArea of this.terrainAreas) {
+      if (terrainArea.type === 'grass') continue
       if (this.isPointInArea(position, terrainArea.area)) {
         return terrainArea.type
       }
