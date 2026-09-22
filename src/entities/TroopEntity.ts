@@ -23,30 +23,30 @@ export class TroopEntity extends Phaser.GameObjects.Container {
     InkSilhouetteRenderer.init(scene)
 
     // 1. 地面青铜微型地钉与水墨战阵阴影
-    const shadow = scene.add.ellipse(0, 18, 30, 7, 0x000000, 0.16)
+    const shadow = scene.add.ellipse(0, 12, 22, 5, 0x000000, 0.16)
     this.add(shadow)
 
-    // 2. 兵人剪影
+    // 2. 兵人剪影（紧凑适配 40px 格子）
     const textureKey = this.getTroopTextureKey(troop.type)
-    this.warriorSprite = scene.add.image(0, -3, textureKey)
-    this.warriorSprite.setScale(0.7)
+    this.warriorSprite = scene.add.image(0, -2, textureKey)
+    this.warriorSprite.setScale(0.50)
     this.add(this.warriorSprite)
 
-    // 3. 兵种微型名签（紧凑置于底部 y = 22）
-    const nameText = inkText(scene, 0, 22, troop.name, {
-      size: 10,
+    // 3. 兵种微型名签（紧凑置于底部 y = 14，完全收敛在 40px 格子内）
+    const nameText = inkText(scene, 0, 14, troop.name, {
+      size: 9,
       color: InkText.wash,
       bold: true,
       originX: 0.5,
       originY: 0.5
     })
     const nameBg = scene.add.graphics()
-    const nw = nameText.width + 8
-    const nh = nameText.height + 2
+    const nw = nameText.width + 6
+    const nh = nameText.height + 1
     nameBg.fillStyle(InkColor.paperPanel, 0.9)
-    nameBg.fillRoundedRect(-nw / 2, 22 - nh / 2, nw, nh, InkRadius.sm)
+    nameBg.fillRoundedRect(-nw / 2, 14 - nh / 2, nw, nh, InkRadius.sm)
     nameBg.lineStyle(1, InkColor.ink, 0.4)
-    nameBg.strokeRoundedRect(-nw / 2, 22 - nh / 2, nw, nh, InkRadius.sm)
+    nameBg.strokeRoundedRect(-nw / 2, 14 - nh / 2, nw, nh, InkRadius.sm)
     this.add([nameBg, nameText])
 
     // 4. 范围指示器
@@ -57,9 +57,9 @@ export class TroopEntity extends Phaser.GameObjects.Container {
     this.setDepth(12)
     scene.add.existing(this)
 
-    this.setSize(48, 54)
+    this.setSize(36, 38)
     this.setInteractive({
-      hitArea: new Phaser.Geom.Rectangle(-24, -27, 48, 54),
+      hitArea: new Phaser.Geom.Rectangle(-18, -19, 36, 38),
       hitAreaCallback: Phaser.Geom.Rectangle.Contains,
       useHandCursor: true
     })

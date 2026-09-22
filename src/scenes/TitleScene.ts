@@ -11,6 +11,7 @@ import {
   inkRule,
   createInkButton
 } from '@/ui/InkTheme'
+import { SoundFX } from '@/effects/SoundFX'
 
 /**
  * 标题场景（水墨宣纸风）
@@ -18,6 +19,7 @@ import {
  */
 export default class TitleScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text
+  private isTransitioning: boolean = false
 
   constructor() {
     super({ key: 'TitleScene' })
@@ -27,6 +29,8 @@ export default class TitleScene extends Phaser.Scene {
    * 场景初始化
    */
   init(): void {
+    this.isTransitioning = false
+    if (this.input) this.input.enabled = true
     console.log('TitleScene: 进入主菜单')
   }
 
@@ -34,6 +38,13 @@ export default class TitleScene extends Phaser.Scene {
    * 创建场景内容
    */
   create(): void {
+    SoundFX.unlock()
+
+    this.events.once('shutdown', () => {
+      this.tweens.killAll()
+      this.isTransitioning = false
+    })
+
     const width = this.cameras.main.width
     const height = this.cameras.main.height
 
@@ -130,17 +141,17 @@ export default class TitleScene extends Phaser.Scene {
    * 绘制单只翱翔归雁（两道优雅的毛笔弧线）
    */
   private createFlyingBirds(x: number, y: number, scale: number = 1): void {
-    const bird = this.add.graphics()
+    const bird = this.add.graphics({ x, y })
     bird.setDepth(2)
     bird.lineStyle(1.6 * scale, InkColor.ink, 0.45)
 
-    // 优雅两翼线条
+    // 优雅两翼线条（局部坐标，以 x,y 为原点）
     bird.beginPath()
-    bird.moveTo(x - 12 * scale, y + 4 * scale)
-    bird.lineTo(x - 5 * scale, y - 4 * scale)
-    bird.lineTo(x, y)
-    bird.lineTo(x + 5 * scale, y - 4 * scale)
-    bird.lineTo(x + 12 * scale, y + 4 * scale)
+    bird.moveTo(-12 * scale, 4 * scale)
+    bird.lineTo(-5 * scale, -4 * scale)
+    bird.lineTo(0, 0)
+    bird.lineTo(5 * scale, -4 * scale)
+    bird.lineTo(12 * scale, 4 * scale)
     bird.strokePath()
 
     // 极微弱的气流浮动动画
@@ -165,11 +176,14 @@ export default class TitleScene extends Phaser.Scene {
       bold: true,
       originX: 0.5
     })
+    this.titleText.setDepth(10)
 
     // 标题下方墨线 + 线尾印章
     const ruleY = height / 3 + 52
-    inkRule(this, null, width / 2 - 160, ruleY, 320, 0.4)
-    this.add.rectangle(width / 2 + 180, ruleY, 12, 12, InkColor.cinnabar)
+    const rule = inkRule(this, null, width / 2 - 160, ruleY, 320, 0.4)
+    rule.setDepth(10)
+    const seal = this.add.rectangle(width / 2 + 180, ruleY, 12, 12, InkColor.cinnabar)
+    seal.setDepth(10)
 
     // 标题动画效果
     this.tweens.add({
@@ -186,13 +200,14 @@ export default class TitleScene extends Phaser.Scene {
    * 创建开始按钮（印章红主按钮）
    */
   private createStartButton(width: number, height: number): void {
-    createInkButton(this, width / 2, height / 2 + 50, 220, 52, '开始游戏', {
+    const btn = createInkButton(this, width / 2, height / 2 + 50, 220, 52, '开始游戏', {
       fill: InkColor.cinnabar,
       hoverFill: 0xb53a32,
       textColor: InkText.paper,
       fontSize: InkFontSize.xl,
       onClick: () => this.onStartGame()
     })
+    btn.setDepth(10)
   }
 
   /**
@@ -205,17 +220,17 @@ export default class TitleScene extends Phaser.Scene {
 
     // 武将按钮
     this.createMenuButton(buttonX, buttonY, '武将', () => {
-      this.scene.start('HeroListScene')
+      this.transitionTo('HeroListScene')
     })
 
     // 装备按钮
     this.createMenuButton(buttonX, buttonY + buttonSpacing, '装备', () => {
-      this.scene.start('EquipmentScene')
+      this.transitionTo('EquipmentScene')
     })
 
     // 存档按钮
     this.createMenuButton(buttonX, buttonY + buttonSpacing * 2, '存档', () => {
-      this.scene.start('SaveScene')
+      this.transitionTo('SaveScene')
     })
   }
 
@@ -223,7 +238,7 @@ export default class TitleScene extends Phaser.Scene {
    * 创建单个菜单按钮（宣纸底 + 墨线描边）
    */
   private createMenuButton(x: number, y: number, text: string, callback: () => void): void {
-    createInkButton(this, x, y, 200, 42, text, {
+    const btn = createInkButton(this, x, y, 200, 42, text, {
       fill: InkColor.paperPanel,
       hoverFill: InkColor.paperDeep,
       textColor: InkText.ink,
@@ -231,6 +246,7 @@ export default class TitleScene extends Phaser.Scene {
       stroke: InkColor.ink,
       onClick: callback
     })
+    btn.setDepth(10)
   }
 
   /**
@@ -257,6 +273,7 @@ export default class TitleScene extends Phaser.Scene {
         originX: 0.5,
         originY: 0.5
       }).setAlpha(0.28)
+      elementText.setDepth(3)
 
       // 悠缓的微风漂移质感（限制漂移幅度，不往中路靠拢）
       this.tweens.add({
@@ -273,10 +290,21 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
+   * 安全场景跳转（带防连击与并发拦截保护）
+   */
+  private transitionTo(sceneKey: string): void {
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+    if (this.input) this.input.enabled = false
+    this.tweens.killAll()
+    this.scene.start(sceneKey)
+  }
+
+  /**
    * 开始游戏按钮回调
    */
   private onStartGame(): void {
     console.log('TitleScene: 开始游戏')
-    this.scene.start('LevelSelectScene')
+    this.transitionTo('LevelSelectScene')
   }
 }

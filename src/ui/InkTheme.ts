@@ -266,6 +266,7 @@ export interface InkButtonOptions {
   fontSize?: number
   stroke?: number
   onClick?: () => void
+  debounceMs?: number
 }
 
 /**
@@ -399,7 +400,8 @@ export function createInkButton(
     textColor = InkText.ink,
     fontSize = InkFontSize.md,
     stroke,
-    onClick
+    onClick,
+    debounceMs = 400
   } = options
 
   const btn = scene.add.container(x, y)
@@ -419,9 +421,35 @@ export function createInkButton(
 
   btn.add([bg, text])
 
+  let isPointerDown = false
+  let lastClickTime = 0
+
   bg.on('pointerover', () => bg.setFillStyle(hoverFill))
-  bg.on('pointerout', () => bg.setFillStyle(fill))
-  bg.on('pointerdown', () => onClick?.())
+  bg.on('pointerout', () => {
+    isPointerDown = false
+    bg.setFillStyle(fill)
+  })
+  bg.on('pointerdown', () => {
+    isPointerDown = true
+    bg.setFillStyle(hoverFill)
+  })
+  bg.on('pointerup', () => {
+    if (!isPointerDown) return
+    isPointerDown = false
+    bg.setFillStyle(hoverFill)
+
+    const now = Date.now()
+    if (now - lastClickTime < debounceMs) {
+      return
+    }
+    lastClickTime = now
+
+    try {
+      onClick?.()
+    } catch (err) {
+      console.error('[InkButton] 点击执行异常:', err)
+    }
+  })
 
   return btn
 }

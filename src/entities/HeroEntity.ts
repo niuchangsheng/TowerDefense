@@ -49,14 +49,14 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     tokenBg.strokeCircle(0, 0, 23)
     this.add(tokenBg)
 
-    // 2. 英雄头像（规范为 50x50 紧凑尺寸，完全容纳在 80px 格子内）
+    // 2. 英雄头像（规范为 48x48 紧凑尺寸，完全容纳在 2×2 田字 80px 方阵内）
     const imageKey = this.getHeroImageKey(hero.id)
     this.heroImage = scene.add.image(0, 0, imageKey)
     this.heroImage.setDisplaySize(48, 48)
     this.add(this.heroImage)
 
-    // 3. 紧凑名牌（圆角宣纸底，置于下方 y = 28，完全收敛在 80px 格子内）
-    const nameY = 28
+    // 3. 紧凑名牌（圆角宣纸底，置于下方 y = 26，完全收敛在 2×2 方阵内）
+    const nameY = 26
     this.heroNameText = inkText(scene, 0, nameY, hero.name, {
       size: 11,
       color: InkText.strong,
@@ -114,7 +114,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.setDepth(15)
     scene.add.existing(this)
 
-    const hit = { w: 60, h: 72 }
+    const hit = { w: 64, h: 68 }
     this.setSize(hit.w, hit.h)
     this.setInteractive({
       hitArea: new Phaser.Geom.Rectangle(-hit.w / 2, -hit.h / 2, hit.w, hit.h),

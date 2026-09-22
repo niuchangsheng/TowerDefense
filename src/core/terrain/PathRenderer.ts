@@ -82,7 +82,7 @@ export class PathRenderer {
     const segDist = this.calculateDistance(p0, p1)
     if (segDist <= 0) return
 
-    const roadWidth = 56
+    const roadWidth = 36
 
     // 检测是否有河流穿过该路段
     const riverInterval = this.detectRiverCrossing(p0, p1)
@@ -426,8 +426,8 @@ export class PathRenderer {
    */
   private drawCornerJunction(_pPrev: Point, pCorner: Point, _pNext: Point): void {
     const g = this.pathGraphics
-    const halfW = 28
-    const size = 56
+    const halfW = 18
+    const size = 36
     const x = pCorner.x - halfW
     const y = pCorner.y - halfW
 
@@ -437,19 +437,19 @@ export class PathRenderer {
 
     // 2. 铺设自然相接的青石板
     g.fillStyle(0x76796c, 0.28)
-    g.fillRect(x + 4, y + 4, size / 2 - 5, size / 2 - 5)
+    g.fillRect(x + 2, y + 2, size / 2 - 3, size / 2 - 3)
     g.fillStyle(0x6e7265, 0.30)
-    g.fillRect(x + size / 2 + 1, y + 4, size / 2 - 5, size / 2 - 5)
-    g.fillRect(x + 4, y + size / 2 + 1, size / 2 - 5, size / 2 - 5)
+    g.fillRect(x + size / 2 + 1, y + 2, size / 2 - 3, size / 2 - 3)
+    g.fillRect(x + 2, y + size / 2 + 1, size / 2 - 3, size / 2 - 3)
     g.fillStyle(0x76796c, 0.28)
-    g.fillRect(x + size / 2 + 1, y + size / 2 + 1, size / 2 - 5, size / 2 - 5)
+    g.fillRect(x + size / 2 + 1, y + size / 2 + 1, size / 2 - 3, size / 2 - 3)
 
     // 石缝墨线
     g.lineStyle(1, 0x4e4a3e, 0.22)
-    g.strokeRect(x + 4, y + 4, size / 2 - 5, size / 2 - 5)
-    g.strokeRect(x + size / 2 + 1, y + 4, size / 2 - 5, size / 2 - 5)
-    g.strokeRect(x + 4, y + size / 2 + 1, size / 2 - 5, size / 2 - 5)
-    g.strokeRect(x + size / 2 + 1, y + size / 2 + 1, size / 2 - 5, size / 2 - 5)
+    g.strokeRect(x + 2, y + 2, size / 2 - 3, size / 2 - 3)
+    g.strokeRect(x + size / 2 + 1, y + 2, size / 2 - 3, size / 2 - 3)
+    g.strokeRect(x + 2, y + size / 2 + 1, size / 2 - 3, size / 2 - 3)
+    g.strokeRect(x + size / 2 + 1, y + size / 2 + 1, size / 2 - 3, size / 2 - 3)
   }
 
   /**

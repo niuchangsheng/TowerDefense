@@ -43,7 +43,7 @@ export class DeploymentZoneRenderer {
       const dx = p1.x - p0.x
       const dy = p1.y - p0.y
       const dist = Math.hypot(dx, dy)
-      const steps = Math.max(1, Math.ceil(dist / 10))
+      const steps = Math.max(1, Math.ceil(dist / 5))
 
       for (let s = 0; s <= steps; s++) {
         const t = s / steps
@@ -231,15 +231,15 @@ export class DeploymentZoneRenderer {
     this.cellHighlightGraphics.clear()
     const color = valid ? 0x5f7a4a : InkColor.cinnabar
     const fillAlpha = valid ? 0.22 : 0.26
-    const radius = 6
+    const radius = 4
 
     for (const cell of cells) {
-      const x = cell.col * GRID.cellSize + 2
-      const y = cell.row * GRID.cellSize + 2
-      const size = GRID.cellSize - 4
+      const x = cell.col * GRID.cellSize + 1
+      const y = cell.row * GRID.cellSize + 1
+      const size = GRID.cellSize - 2
       this.cellHighlightGraphics.fillStyle(color, fillAlpha)
       this.cellHighlightGraphics.fillRoundedRect(x, y, size, size, radius)
-      this.cellHighlightGraphics.lineStyle(2, color, 0.9)
+      this.cellHighlightGraphics.lineStyle(1.5, color, 0.9)
       this.cellHighlightGraphics.strokeRoundedRect(x, y, size, size, radius)
     }
   }
@@ -251,19 +251,19 @@ export class DeploymentZoneRenderer {
     this.cellHighlightGraphics.clear()
     this.cellHighlightGraphics.fillStyle(InkColor.paperDeep, 0.2)
     this.cellHighlightGraphics.fillRoundedRect(
-      cell.col * GRID.cellSize + 2,
-      cell.row * GRID.cellSize + 2,
-      GRID.cellSize - 4,
-      GRID.cellSize - 4,
-      6
+      cell.col * GRID.cellSize + 1,
+      cell.row * GRID.cellSize + 1,
+      GRID.cellSize - 2,
+      GRID.cellSize - 2,
+      4
     )
-    this.cellHighlightGraphics.lineStyle(2, 0x5f7a4a, 0.8)
+    this.cellHighlightGraphics.lineStyle(1.5, 0x5f7a4a, 0.8)
     this.cellHighlightGraphics.strokeRoundedRect(
-      cell.col * GRID.cellSize + 2,
-      cell.row * GRID.cellSize + 2,
-      GRID.cellSize - 4,
-      GRID.cellSize - 4,
-      6
+      cell.col * GRID.cellSize + 1,
+      cell.row * GRID.cellSize + 1,
+      GRID.cellSize - 2,
+      GRID.cellSize - 2,
+      4
     )
   }
 

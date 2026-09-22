@@ -758,7 +758,7 @@ export class BattleSystem {
   }
 
   /**
-   * 拖拽单位落到目标格：英雄按 1×2 脚印（先右后左）、兵种按单格校验；
+   * 拖拽单位落到目标格：英雄按 2×2 田字脚印、兵种按单格校验；
    * 成功则占用新格并把实体移到脚印中心。
    */
   dropUnitOnCell(instanceId: string, cell: GridCell, originalFootprint: GridCell[]): MoveUnitResult {

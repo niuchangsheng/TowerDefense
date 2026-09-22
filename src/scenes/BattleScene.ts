@@ -324,9 +324,14 @@ export default class BattleScene extends Phaser.Scene {
       return { cells: footprint, valid: true }
     }
 
-    const right: GridCell = { col: cell.col + 1, row: cell.row }
-    const intended = cellInBounds(right) ? [cell, right] : [cell]
-    return { cells: intended, valid: false }
+    const quad: GridCell[] = [
+      { col: cell.col, row: cell.row },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col + 1, row: cell.row + 1 }
+    ]
+    const intended = quad.filter(c => cellInBounds(c))
+    return { cells: intended.length > 0 ? intended : [cell], valid: false }
   }
 
   /**
@@ -355,11 +360,11 @@ export default class BattleScene extends Phaser.Scene {
       const textureKey = this.getTroopTextureKey(payload.troop.type)
       if (this.textures.exists(textureKey)) {
         const img = this.add.image(0, 0, textureKey)
-        img.setDisplaySize(50, 50)
+        img.setDisplaySize(36, 36)
         ghost.add(img)
       }
-      const name = inkText(this, 0, 32, payload.troop.name, {
-        size: 11,
+      const name = inkText(this, 0, 26, payload.troop.name, {
+        size: 10,
         color: InkText.ink,
         bold: true,
         originX: 0.5
@@ -391,7 +396,7 @@ export default class BattleScene extends Phaser.Scene {
       console.log(`成功在格子(${cell.col},${cell.row})部署英雄 ${hero.name}`)
     } else {
       console.log(`部署失败: ${result.reason}`)
-      this.showTemporaryMessage(this.deployFailMessage(result.reason, '英雄需横占相邻两格'))
+      this.showTemporaryMessage(this.deployFailMessage(result.reason, '英雄需占 2×2 田字四格空间'))
     }
   }
 

@@ -24,22 +24,30 @@ export class SoundFX {
     return SoundFX.ctx
   }
 
+  private static isUnlocked = false
+
   /**
    * 在场景 create() 调用一次。
    * 监听首次用户手势（点击/触摸/按键）并 resume，解除浏览器静音。
    */
   static unlock(): void {
+    if (SoundFX.isUnlocked) return
     const ctx = SoundFX.ensureCtx()
     if (!ctx) return
+    if (ctx.state === 'running') {
+      SoundFX.isUnlocked = true
+      return
+    }
     const unlockOnce = () => {
+      SoundFX.isUnlocked = true
       void ctx.resume()
       window.removeEventListener('pointerdown', unlockOnce)
       window.removeEventListener('touchstart', unlockOnce)
       window.removeEventListener('keydown', unlockOnce)
     }
-    window.addEventListener('pointerdown', unlockOnce)
-    window.addEventListener('touchstart', unlockOnce)
-    window.addEventListener('keydown', unlockOnce)
+    window.addEventListener('pointerdown', unlockOnce, { once: true, passive: true })
+    window.addEventListener('touchstart', unlockOnce, { once: true, passive: true })
+    window.addEventListener('keydown', unlockOnce, { once: true, passive: true })
   }
 
   /** 生成一小段白噪声 buffer（用于"啪/哆"等瞬态） */
