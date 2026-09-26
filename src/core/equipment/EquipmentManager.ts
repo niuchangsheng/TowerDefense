@@ -441,7 +441,7 @@ export class EquipmentManager {
   }
 
   /**
-   * 镶嵌宝石到神器
+   * 镶嵌宝石到神器（支持同源与相生宝石匹配）
    */
   socketGemToArtifact(artifactInstanceId: string, gemId: string): boolean {
     const artifactInstance = this.ownedEquipment.get(artifactInstanceId)
@@ -452,9 +452,10 @@ export class EquipmentManager {
     const artifactDetail = getArtifact(artifactInstance.equipmentId) as Artifact
     if (!artifactDetail || !artifactDetail.gemSocket) return false
 
-    // 检查五行匹配
-    if (artifactDetail.gemSocket.requiredWuXing !== gem.wuXing) {
-      console.warn(`宝石五行不匹配: 神器需求[${artifactDetail.gemSocket.requiredWuXing}], 当前宝石[${gem.wuXing}]`)
+    // 检查五行匹配（支持同源与相生五行）
+    const allowed = artifactDetail.gemSocket.allowedWuXings || getAllowedGemWuXing(artifactDetail.gemSocket.requiredWuXing).all
+    if (!allowed.includes(gem.wuXing)) {
+      console.warn(`宝石五行不匹配: 神器需[${allowed.map(w => WuXingNames[w]).join('/')}]系宝石, 当前为[${WuXingNames[gem.wuXing]}]`)
       return false
     }
 
