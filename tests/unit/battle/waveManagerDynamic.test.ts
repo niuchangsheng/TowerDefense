@@ -99,4 +99,23 @@ describe('WaveManager 动态无限波次生成调度测试', () => {
     expect(manager.getCurrentWave()).toBe(1005)
     expect(manager.getTotalWaves()).toBe(1005)
   })
+
+  it('支持 setStartWave 直接断点续战进入指定波次', () => {
+    const manager = new WaveManager(initialWaves)
+    manager.setWaveGenerator((waveNum) => ({
+      waveNumber: waveNum,
+      enemies: [{ enemyId: 'enemy_boss', count: 1 }],
+      spawnInterval: 500,
+      delayBeforeWave: 500
+    }))
+
+    // 跳过前19波，直接从第20波断点开局
+    manager.setStartWave(20)
+    expect(manager.getCurrentWave()).toBe(19)
+
+    // 首次 startNextWave 推进到第 20 波
+    manager.startNextWave()
+    expect(manager.getCurrentWave()).toBe(20)
+    expect(manager.isAllWavesComplete()).toBe(false)
+  })
 })

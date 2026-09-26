@@ -34,6 +34,21 @@ export class WaveManager {
   }
 
   /**
+   * 设置起始波次（断点续战支持）
+   * @param startWave 起始波次编号（从1开始）
+   */
+  setStartWave(startWave: number): void {
+    if (startWave <= 1) return
+    const targetIndex = startWave - 1
+    if (this.waveGenerator) {
+      while (this.waves.length <= targetIndex) {
+        this.waves.push(this.waveGenerator(this.waves.length + 1))
+      }
+    }
+    this.currentWave = Math.min(targetIndex, this.waves.length)
+  }
+
+  /**
    * 开始下一波
    */
   startNextWave(): void {

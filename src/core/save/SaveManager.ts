@@ -359,9 +359,52 @@ export class SaveManager {
   /**
    * 获取百战无尽最佳战绩
    */
-  getEndlessRecord(): { highestWave: number; totalKills: number; bestDate: number } {
+  getEndlessRecord(): { highestWave: number; currentWave?: number; totalKills: number; bestDate: number } {
     const save = this.currentSave || this.loadFromSlot(1) || this.loadFromSlot(0)
-    return save?.endlessRecord || { highestWave: 0, totalKills: 0, bestDate: 0 }
+    return save?.endlessRecord || { highestWave: 0, currentWave: 1, totalKills: 0, bestDate: 0 }
+  }
+
+  /**
+   * 获取当前无尽进度波次（断点续战波次，默认为1）
+   */
+  getEndlessCurrentWave(): number {
+    const record = this.getEndlessRecord()
+    return Math.max(1, record.currentWave || record.highestWave || 1)
+  }
+
+  /**
+   * 记录当前无尽波次进度
+   */
+  setEndlessCurrentWave(wave: number): void {
+    let save = this.currentSave || this.loadFromSlot(1)
+    if (!save) {
+      save = this.createNewSave(1)
+    }
+    if (!save.endlessRecord) {
+      save.endlessRecord = { highestWave: 0, currentWave: 1, totalKills: 0, bestDate: 0 }
+    }
+    save.endlessRecord.currentWave = Math.max(1, wave)
+    if (wave > save.endlessRecord.highestWave) {
+      save.endlessRecord.highestWave = wave
+    }
+    this.currentSave = save
+    this.saveCurrent()
+  }
+
+  /**
+   * 重置无尽模式进度（从第1波重新开局）
+   */
+  resetEndlessProgress(): void {
+    let save = this.currentSave || this.loadFromSlot(1)
+    if (!save) {
+      save = this.createNewSave(1)
+    }
+    if (!save.endlessRecord) {
+      save.endlessRecord = { highestWave: 0, currentWave: 1, totalKills: 0, bestDate: 0 }
+    }
+    save.endlessRecord.currentWave = 1
+    this.currentSave = save
+    this.saveCurrent()
   }
 
   /**
@@ -376,8 +419,11 @@ export class SaveManager {
       save = this.createNewSave(1)
     }
     if (!save.endlessRecord) {
-      save.endlessRecord = { highestWave: 0, totalKills: 0, bestDate: 0 }
+      save.endlessRecord = { highestWave: 0, currentWave: 1, totalKills: 0, bestDate: 0 }
     }
+
+    // 更新当前波次进度
+    save.endlessRecord.currentWave = Math.max(1, wave)
 
     let isNewRecord = false
     if (wave > save.endlessRecord.highestWave) {

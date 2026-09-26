@@ -27,6 +27,8 @@ import { EnergyGaugeBar } from '@/ui/EnergyGaugeBar'
 import { AugmentSelectModal } from '@/ui/AugmentSelectModal'
 import { WeatherAmbientFX } from '@/effects/WeatherAmbientFX'
 import { MilitarySituationModal } from '@/ui/MilitarySituationModal'
+import { MilitarySituationDetailModal } from '@/ui/MilitarySituationDetailModal'
+import { AugmentStatusModal } from '@/ui/AugmentStatusModal'
 import { MilitarySituation } from '@/types/militarySituation'
 
 type RangeUnit = HeroEntity | TroopEntity
@@ -83,9 +85,17 @@ export default class BattleScene extends Phaser.Scene {
   private pauseBtnText!: Phaser.GameObjects.Text
   private earlyWaveBtn!: Phaser.GameObjects.Container
   private energyGaugeBar!: EnergyGaugeBar
+  private augmentStatusBtnText!: Phaser.GameObjects.Text
   private augmentModal: AugmentSelectModal | null = null
+  private augmentStatusModal: AugmentStatusModal | null = null
   private militaryModal: MilitarySituationModal | null = null
+  private militaryDetailModal: MilitarySituationDetailModal | null = null
   private militaryBadgeContainer?: Phaser.GameObjects.Container
+  private militarySealBg?: Phaser.GameObjects.Rectangle
+  private militarySealText?: Phaser.GameObjects.Text
+  private lastMilitaryTacticId: string | null = null
+  private readonly speedOptions: number[] = [1.0, 2.0, 3.0, 5.0]
+  private startWave: number = 1
   private weatherFX!: WeatherAmbientFX
   private pauseOverlay: Phaser.GameObjects.Container | null = null
   private deployDock!: Phaser.GameObjects.Container
@@ -116,10 +126,16 @@ export default class BattleScene extends Phaser.Scene {
   /**
    * 场景初始化
    */
-  init(data: { levelId: string }): void {
+  init(data: { levelId: string; startWave?: number }): void {
     this.levelId = data.levelId || 'chapter1_level1'
     this.currentLevelConfig = getLevelConfig(this.levelId) || level1Config
-    console.log(`BattleScene: 进入关卡 ${this.levelId} (${this.currentLevelConfig.name})`)
+    const isEndless = this.currentLevelConfig.chapterId === 'endless' || this.currentLevelConfig.id === 'level_endless_tower'
+    if (isEndless) {
+      this.startWave = data.startWave ?? SaveManager.getInstance().getEndlessCurrentWave()
+    } else {
+      this.startWave = 1
+    }
+    console.log(`BattleScene: 进入关卡 ${this.levelId} (${this.currentLevelConfig.name}), 起始波次: ${this.startWave}`)
   }
 
   /**
@@ -166,7 +182,7 @@ export default class BattleScene extends Phaser.Scene {
     // 5. 初始化战斗系统（使用存档中的武将数据）
     const saveManager = SaveManager.getInstance()
     const heroes = saveManager.loadHeroes()
-    this.battleSystem = new BattleSystem(this, this.currentLevelConfig, heroes)
+    this.battleSystem = new BattleSystem(this, this.currentLevelConfig, heroes, this.startWave)
 
     // 6. 创建UI（覆盖在最上层）
     this.createUI(width, height)
@@ -759,16 +775,30 @@ export default class BattleScene extends Phaser.Scene {
     // 3.5 军令进度条与三选一锦囊
     this.energyGaugeBar = new EnergyGaugeBar(
       this,
-      410,
+      390,
       26,
       this.battleSystem.getAugmentManager(),
       () => this.openAugmentModal()
     )
     bar.add(this.energyGaugeBar)
 
+    // 3.6 军师锦囊叠加状态总览按钮
+    const augmentBtn = createInkButton(this, 492, 26, 80, 28, '锦囊 (0)', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.ink,
+      fontSize: 12,
+      stroke: InkColor.ink,
+      onClick: () => this.openAugmentStatusModal()
+    })
+    bar.add(augmentBtn)
+    const augmentTxt = augmentBtn.getAt(1) as Phaser.GameObjects.Text
+    if (augmentTxt) this.augmentStatusBtnText = augmentTxt
+
     // 4. 中央：关卡名称 + 印章
-    const title = inkText(this, width / 2, 26, level1Config.name, {
-      size: 22,
+    const levelTitle = this.currentLevelConfig?.name || level1Config.name
+    const title = inkText(this, width / 2, 26, levelTitle, {
+      size: 20,
       color: InkText.strong,
       bold: true,
       originX: 0.5,
@@ -785,7 +815,7 @@ export default class BattleScene extends Phaser.Scene {
     })
     bar.add(sealChar)
 
-    // 4.5 军机令印（无尽天候策论）
+    // 4.5 军机令印（天候战况详略，常驻可点）
     this.createMilitaryBadge(bar, width)
 
     // 5. 右区：波次模块
@@ -808,7 +838,7 @@ export default class BattleScene extends Phaser.Scene {
     })
     this.earlyWaveBtn.setDepth(26)
 
-    // 7. 倍速控制按钮 (1X / 2X)
+    // 7. 倍速控制按钮 (1X / 2X / 3X / 5X)
     const speedBtn = createInkButton(this, width - 95, 26, 52, 32, '1X', {
       fill: InkColor.paperDeep,
       hoverFill: InkColor.paper,
@@ -865,11 +895,13 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 切换战斗速度 (1X / 2X)
+   * 切换战斗速度 (1X / 2X / 3X / 5X)
    */
   private toggleSpeed(): void {
     const current = this.battleSystem.getTimeScale()
-    const next = current >= 2.0 ? 1.0 : 2.0
+    let idx = this.speedOptions.findIndex(s => Math.abs(s - current) < 0.1)
+    if (idx === -1) idx = 0
+    const next = this.speedOptions[(idx + 1) % this.speedOptions.length]
     this.battleSystem.setTimeScale(next)
     if (this.speedBtnText) {
       this.speedBtnText.setText(`${next}X`)
@@ -1209,49 +1241,91 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建顶部令台右侧军机令印徽章（width - 435）
+   * 创建顶部令台右侧军机令印徽章（width - 435，常驻可点查阅详情）
    */
   private createMilitaryBadge(bar: Phaser.GameObjects.Container, width: number): void {
-    this.militaryBadgeContainer = this.add.container(width - 435, 26)
-    this.militaryBadgeContainer.setVisible(false)
-    bar.add(this.militaryBadgeContainer)
-  }
-
-  /**
-   * 刷新军机令印显示
-   */
-  private updateMilitaryBadge(): void {
-    if (!this.militaryBadgeContainer) return
-    const mgr = this.battleSystem.getMilitarySituationManager()
-    const tactic = mgr.getActiveTactic()
-    const situation = mgr.getActiveSituation()
-
-    if (!tactic || !situation) {
-      this.militaryBadgeContainer.setVisible(false)
-      return
-    }
-
-    this.militaryBadgeContainer.removeAll(true)
+    this.militaryBadgeContainer = this.add.container(width - 425, 26)
     this.militaryBadgeContainer.setVisible(true)
 
-    const isUpper = tactic.type === 'upper'
-    const sealBg = this.add.rectangle(0, 0, 105, 26, isUpper ? InkColor.cinnabar : 0x2e5c8a)
-    sealBg.setStrokeStyle(1.2, InkColor.ink)
-    sealBg.setInteractive({ useHandCursor: true })
+    this.militarySealBg = this.add.rectangle(0, 0, 86, 28, InkColor.paperDeep, 0.95)
+    this.militarySealBg.setStrokeStyle(1.2, InkColor.ink)
+    this.militarySealBg.setInteractive({ useHandCursor: true })
+    this.militarySealBg.on('pointerdown', () => {
+      this.openMilitaryDetailModal()
+    })
 
-    const label = inkText(this, 0, 0, `军机·${tactic.name}`, {
-      size: 11,
-      color: '#ffffff',
+    this.militarySealText = inkText(this, 0, 0, '军机·平', {
+      size: 12,
+      color: InkText.strong,
       bold: true,
       originX: 0.5,
       originY: 0.5
     })
 
-    sealBg.on('pointerdown', () => {
-      inkToast(this, `【${situation.name} · ${tactic.name}】${tactic.description}`, 120)
-    })
+    this.militaryBadgeContainer.add([this.militarySealBg, this.militarySealText])
+    bar.add(this.militaryBadgeContainer)
+  }
 
-    this.militaryBadgeContainer.add([sealBg, label])
+  /**
+   * 打开军机密报战况详情弹窗
+   */
+  private openMilitaryDetailModal(): void {
+    if (this.militaryDetailModal) {
+      this.militaryDetailModal.destroy()
+      this.militaryDetailModal = null
+    }
+    const mgr = this.battleSystem.getMilitarySituationManager()
+    this.militaryDetailModal = new MilitarySituationDetailModal(
+      this,
+      mgr.getActiveSituation(),
+      mgr.getActiveTactic(),
+      () => {
+        this.militaryDetailModal = null
+      }
+    )
+  }
+
+  /**
+   * 打开已激活锦囊叠加状态总览弹窗
+   */
+  private openAugmentStatusModal(): void {
+    if (this.augmentStatusModal) {
+      this.augmentStatusModal.destroy()
+      this.augmentStatusModal = null
+    }
+    this.augmentStatusModal = new AugmentStatusModal(
+      this,
+      this.battleSystem.getAugmentManager(),
+      () => {
+        this.augmentStatusModal = null
+      }
+    )
+  }
+
+  /**
+   * 刷新军机令印显示（避免每帧反复重建对象）
+   */
+  private updateMilitaryBadge(): void {
+    if (!this.militaryBadgeContainer || !this.militarySealBg || !this.militarySealText) return
+    const mgr = this.battleSystem.getMilitarySituationManager()
+    const tactic = mgr.getActiveTactic()
+    const tacticId = tactic ? tactic.id : null
+
+    if (tacticId === this.lastMilitaryTacticId) return
+    this.lastMilitaryTacticId = tacticId
+
+    if (tactic) {
+      const isUpper = tactic.type === 'upper'
+      this.militarySealBg.setFillStyle(isUpper ? InkColor.cinnabar : 0x2e5c8a, 1)
+      this.militarySealBg.setSize(102, 28)
+      this.militarySealText.setColor('#ffffff')
+      this.militarySealText.setText(`军机·${tactic.name}`)
+    } else {
+      this.militarySealBg.setFillStyle(InkColor.paperDeep, 0.95)
+      this.militarySealBg.setSize(86, 28)
+      this.militarySealText.setColor(InkText.strong)
+      this.militarySealText.setText('军机·平')
+    }
   }
 
   /**
@@ -1272,7 +1346,20 @@ export default class BattleScene extends Phaser.Scene {
 
     this.costText.setText(`军费 ${state.currentCost}`)
     this.healthText.setText(`帅营 ${state.playerHealth}`)
-    this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
+
+    // 无尽模式无上限波次显示，普通模式保留波次进度
+    if (this.battleSystem.isEndlessMode()) {
+      this.waveText.setText(`第 ${state.currentWave} 波`)
+    } else {
+      this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
+    }
+
+    // 动态刷新锦囊徽章已获得数量
+    const augmentCount = this.battleSystem.getAugmentManager().getActiveAugments().length
+    if (this.augmentStatusBtnText) {
+      this.augmentStatusBtnText.setText(`锦囊 (${augmentCount})`)
+    }
+
     this.energyGaugeBar?.updateProgress()
     this.updateDockState()
     this.updateMilitaryBadge()

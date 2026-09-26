@@ -234,11 +234,13 @@ export default class TitleScene extends Phaser.Scene {
       this.transitionTo('AugmentCompendiumScene')
     })
 
-    // 4. 无尽试炼按钮
+    // 4. 无尽试炼按钮（展示当前断点波次，直接进入）
+    const currentWave = SaveManager.getInstance().getEndlessCurrentWave()
     const record = SaveManager.getInstance().getEndlessRecord()
-    const endlessLabel = record && record.highestWave > 0 ? `百战无尽 · 第${record.highestWave}阵` : '百战无尽'
+    const displayWave = currentWave > 1 ? currentWave : (record && record.highestWave > 0 ? record.highestWave : 0)
+    const endlessLabel = displayWave > 0 ? `百战无尽 · 第${displayWave}阵` : '百战无尽'
     this.createMenuButton(buttonX, buttonY + buttonSpacing * 3, endlessLabel, () => {
-      this.transitionToBattle('level_endless_tower')
+      this.transitionToBattle('level_endless_tower', currentWave)
     })
 
     // 5. 存档按钮
@@ -247,11 +249,11 @@ export default class TitleScene extends Phaser.Scene {
     })
   }
 
-  private transitionToBattle(levelId: string): void {
+  private transitionToBattle(levelId: string, startWave?: number): void {
     if (this.isTransitioning) return
     this.isTransitioning = true
     try {
-      this.scene.start('BattleScene', { levelId })
+      this.scene.start('BattleScene', { levelId, startWave })
     } catch (err) {
       console.error(`[TitleScene] 启动无尽试炼 ${levelId} 异常:`, err)
       this.isTransitioning = false

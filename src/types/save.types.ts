@@ -41,6 +41,7 @@ export interface SaveData {
   // 百战无尽试炼最佳战绩
   endlessRecord?: {
     highestWave: number
+    currentWave?: number   // 当前挑战进度波次（用于无尽断点续战）
     totalKills: number
     bestDate: number
   }

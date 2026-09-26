@@ -736,13 +736,15 @@ export default class SettlementScene extends Phaser.Scene {
 
     const isEndless = Boolean(this.battleResult.stats?.isEndless || this.battleResult.levelId.includes('endless'))
     if (isEndless) {
-      createInkButton(this, width / 2 - 90, buttonY, 140, 44, '再次挑战', {
+      const nextWave = this.saveManager.getEndlessCurrentWave()
+      const retryLabel = nextWave > 1 ? `续战第${nextWave}阵` : '再次挑战'
+      createInkButton(this, width / 2 - 90, buttonY, 140, 44, retryLabel, {
         fill: InkColor.inkStrong,
         hoverFill: InkColor.ink,
         textColor: InkText.paper,
-        fontSize: 17,
+        fontSize: 16,
         onClick: () => {
-          this.scene.start('BattleScene', { levelId: 'level_endless_tower' })
+          this.scene.start('BattleScene', { levelId: 'level_endless_tower', startWave: nextWave })
         }
       })
 

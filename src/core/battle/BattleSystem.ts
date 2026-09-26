@@ -90,7 +90,7 @@ export class BattleSystem {
   private eliteKills: number = 0
   private bossKills: number = 0
 
-  constructor(scene: Phaser.Scene, levelConfig: LevelConfig, heroConfigs: Map<string, Hero>) {
+  constructor(scene: Phaser.Scene, levelConfig: LevelConfig, heroConfigs: Map<string, Hero>, startWave?: number) {
     this.scene = scene
     this.levelConfig = levelConfig
     this.heroConfigs = heroConfigs
@@ -101,8 +101,15 @@ export class BattleSystem {
 
     // 初始化波次管理
     this.waveManager = new WaveManager(levelConfig.waves)
-    if (this.isEndlessMode()) {
+    const isEndless = this.isEndlessMode()
+    if (isEndless) {
       this.waveManager.setWaveGenerator((waveNum) => EndlessModeManager.generateWave(waveNum))
+      if (startWave && startWave > 1) {
+        this.waveManager.setStartWave(startWave)
+        // 补偿跳过波次的开局军费，保证高波次能够布防
+        const bonusCost = (startWave - 1) * 20
+        this.costManager.addCost(bonusCost)
+      }
     }
 
     // 初始化敌人管理
@@ -123,6 +130,15 @@ export class BattleSystem {
         this.playerHealth += amount
       }
     })
+
+    // 无尽模式跳过波次：补偿军令锦囊抽取机会（约每3波赠送1次待选锦囊）
+    if (isEndless && startWave && startWave > 1) {
+      const bonusDraws = Math.floor((startWave - 1) / 3)
+      for (let i = 0; i < bonusDraws; i++) {
+        this.augmentManager.grantInstantStratagem()
+      }
+      SaveManager.getInstance().setEndlessCurrentWave(startWave)
+    }
 
     // 初始化战场天时军情管理器
     this.militarySituationManager = new MilitarySituationManager({
@@ -158,14 +174,14 @@ export class BattleSystem {
     this.elapsedTime = 0
     this.isRunning = false
     this.isPaused = false
-    this.lastNotifiedWave = 0
+    this.lastNotifiedWave = startWave && startWave > 1 ? startWave - 1 : 0
     this.deployCooldownRemaining = 0
 
     this.battleState = {
       status: 'preparing',
       levelId: levelConfig.id,
-      currentWave: 0,
-      totalWaves: levelConfig.waves.length,
+      currentWave: startWave && startWave > 1 ? startWave - 1 : 0,
+      totalWaves: isEndless ? Infinity : levelConfig.waves.length,
       currentCost: this.costManager.getCurrentCost(),
       playerHealth: this.playerHealth,
       deployedHeroes: [],
@@ -540,12 +556,15 @@ export class BattleSystem {
       this.heroBattleManager.resetAllHeroTransforms()
       this.troopBattleManager.resetAllTroopTransforms()
 
-      // 无尽试炼模式：每 10 波整休，奖励 1 次军师刷新令并触发军机天时
-      if (this.isEndlessMode() && currentWave > 1 && currentWave % 10 === 0) {
-        this.augmentManager.grantRerolls(1)
-        const situation = this.militarySituationManager.checkWave(currentWave)
-        if (situation) {
-          this.pauseBattle()
+      // 无尽试炼模式：记录当前波次进度供断点重进；每 10 波整休，奖励 1 次军师刷新令并触发军机天时
+      if (this.isEndlessMode()) {
+        SaveManager.getInstance().setEndlessCurrentWave(currentWave)
+        if (currentWave > 1 && currentWave % 10 === 0) {
+          this.augmentManager.grantRerolls(1)
+          const situation = this.militarySituationManager.checkWave(currentWave)
+          if (situation) {
+            this.pauseBattle()
+          }
         }
       }
 
@@ -654,6 +673,7 @@ export class BattleSystem {
    */
   private updateBattleState(): void {
     this.battleState.currentWave = this.waveManager.getCurrentWave()
+    this.battleState.totalWaves = this.isEndlessMode() ? Infinity : this.waveManager.getTotalWaves()
     this.battleState.currentCost = this.costManager.getCurrentCost()
     this.battleState.playerHealth = this.playerHealth
     this.battleState.elapsedTime = this.elapsedTime
@@ -990,10 +1010,10 @@ export class BattleSystem {
   }
 
   /**
-   * 设置战斗速率倍率 (1.0x, 2.0x 等)
+   * 设置战斗速率倍率 (1.0x, 2.0x, 3.0x, 5.0x 等)
    */
   setTimeScale(scale: number): void {
-    this.timeScale = Math.max(0.5, Math.min(3.0, scale))
+    this.timeScale = Math.max(0.5, Math.min(5.0, scale))
   }
 
   getTimeScale(): number {
@@ -1008,7 +1028,7 @@ export class BattleSystem {
       this.isRunning &&
       !this.isPaused &&
       !this.waveManager.isAllWavesComplete() &&
-      this.waveManager.getCurrentWave() < this.levelConfig.waves.length
+      (this.isEndlessMode() || this.waveManager.getCurrentWave() < this.levelConfig.waves.length)
     )
   }
 
