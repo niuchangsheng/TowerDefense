@@ -17,14 +17,39 @@ export interface Weapon extends EquipmentBase {
   type: 'weapon'
 }
 
+// 专属共鸣类型：无共鸣、同源共鸣、相生滋养
+export type ResonanceType = 'none' | 'same' | 'generating'
+
+// 神器专属共鸣配置
+export interface ExclusiveResonanceConfig {
+  heroName: string                 // 专属神将称号/名
+  hiddenSkillName: string          // 隐藏奥义技能名
+  sameEffectDesc: string           // 同源宝石共鸣效果描述
+  generatingEffectDesc: string     // 相生宝石滋养效果描述
+  ultimateDesc: string             // 5级神石终极唤醒描述
+}
+
 // 神器
 export interface Artifact extends EquipmentBase {
   type: 'artifact'
   gemSocket: {
-    requiredWuXing: WuXing      // 需要的宝石五行属性（相生）
-    currentGem: string | null   // 当前镶嵌的宝石ID
+    requiredWuXing: WuXing        // 神器主五行属性
+    allowedWuXings?: WuXing[]     // 允许镶嵌的宝石五行（同源 + 相生）
+    currentGem: string | null     // 当前镶嵌的宝石ID
   }
-  activatedEffect: string | null  // 激活的效果ID
+  exclusiveResonance?: ExclusiveResonanceConfig // 专属器灵共鸣配置
+  activatedEffect: string | null    // 激活的效果ID
+}
+
+// 武将神器共鸣状态
+export interface HeroResonanceInfo {
+  isExclusive: boolean
+  hasResonance: boolean
+  resonanceType: ResonanceType
+  gemLevel: number
+  artifact: Artifact | null
+  gem: Gem | null
+  resonanceConfig?: ExclusiveResonanceConfig
 }
 
 // 装备（联合类型）

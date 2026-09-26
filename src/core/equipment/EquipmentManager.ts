@@ -1,4 +1,4 @@
-import { Equipment, Weapon, Artifact, Gem, Hero } from '@/types'
+import { Equipment, Weapon, Artifact, Gem, Hero, WuXing, WuXingNames, WuXingGenerate, getAllowedGemWuXing, ResonanceType, HeroResonanceInfo } from '@/types'
 import { getWeapon, getArtifact } from '@/data/equipment'
 
 /**
@@ -37,7 +37,7 @@ export class EquipmentManager {
   }
 
   /**
-   * 初始化默认装备
+   * 初始化默认装备（五虎上将本命神兵全员齐备）
    */
   private initDefaultEquipment(): void {
     // 给玩家一些初始装备
@@ -51,10 +51,12 @@ export class EquipmentManager {
     // 三国专属神兵宝物
     this.addEquipment('artifact_chitu')
     this.addEquipment('artifact_fangtian')
-    const dilu = this.addEquipment('artifact_dilu')
+    this.addEquipment('artifact_dilu')
     const qinglong = this.addEquipment('artifact_qinglong')
     const shemao = this.addEquipment('artifact_shemao')
-    this.addEquipment('artifact_sherigong')
+    const longdan = this.addEquipment('artifact_longdan')
+    const sherigong = this.addEquipment('artifact_sherigong')
+    const zhanjin = this.addEquipment('artifact_zhanjin')
     this.addEquipment('artifact_sunzi')
     this.addEquipment('artifact_tongque')
     this.addEquipment('artifact_yuxi')
@@ -62,39 +64,49 @@ export class EquipmentManager {
     // 给玩家初始宝石（包含5级神品供体验各系攻击特效）
     this.addGem('metal', 1)
     this.addGem('metal', 2)
-    const gemMetal5 = this.addGem('metal', 5) // 白虎神髓 (破甲)
+    const gemMetal5 = this.addGem('metal', 5) // 白虎神髓 (金)
     this.addGem('wood', 1)
-    const gemWood5 = this.addGem('wood', 5)  // 青龙圣珠 (中毒)
+    const gemWood5 = this.addGem('wood', 5)  // 青龙圣珠 (木)
     this.addGem('water', 1)
-    const gemWater5 = this.addGem('water', 5) // 玄武神珠 (冰冻)
+    const gemWater5 = this.addGem('water', 5) // 玄武神珠 (水)
     this.addGem('fire', 2)
-    const gemFire5 = this.addGem('fire', 5)  // 朱雀神髓 (灼烧与红莲殉爆)
+    const gemFire5 = this.addGem('fire', 5)  // 朱雀神髓 (火)
     this.addGem('earth', 1)
-    const gemEarth5 = this.addGem('earth', 5) // 麒麟圣玉 (眩晕)
+    const gemEarth5 = this.addGem('earth', 5) // 麒麟圣玉 (土)
 
-    // 预装神兵与镶嵌5级神品宝石（开局即刻体验五大震撼攻击特效）：
-    // 1. 关羽：青龙偃月刀 + 木系5级【青龙圣珠·中毒】
+    // 预装五虎上将本命神兵与镶嵌5级神品宝石（开局即刻体验专属隐藏奥义与五行相生）：
+    // 1. 关羽：青龙偃月刀 + 木系5级【青龙圣珠·同源木】
     if (qinglong && gemWood5) {
       this.socketGemToArtifact(qinglong.instanceId, gemWood5.id)
       this.equipToHero(qinglong.instanceId, 'hero_guanyu', '关羽')
     }
-    // 2. 张飞：丈八蛇矛 + 火系5级【朱雀神髓·灼烧与红莲殉爆】
-    if (shemao && gemFire5) {
-      this.socketGemToArtifact(shemao.instanceId, gemFire5.id)
+    // 2. 张飞：丈八蛇矛 + 土系5级【麒麟圣玉·同源土】
+    if (shemao && gemEarth5) {
+      this.socketGemToArtifact(shemao.instanceId, gemEarth5.id)
       this.equipToHero(shemao.instanceId, 'hero_zhangfei', '张飞')
     }
-    // 3. 赵云：的卢 + 水系5级【玄武神珠·冰冻】
-    if (dilu && gemWater5) {
-      this.socketGemToArtifact(dilu.instanceId, gemWater5.id)
-      this.equipToHero(dilu.instanceId, 'hero_zhaoyun', '赵云')
+    // 3. 赵云：龙胆亮银枪 + 水系5级【玄武神珠·同源水】
+    if (longdan && gemWater5) {
+      this.socketGemToArtifact(longdan.instanceId, gemWater5.id)
+      this.equipToHero(longdan.instanceId, 'hero_zhaoyun', '赵云')
     }
-    // 4. 白金符印 + 金系5级【白虎神髓·破甲】（通用神兵，任意武将均可装备）
-    if (metalSeal && gemMetal5) {
-      this.socketGemToArtifact(metalSeal.instanceId, gemMetal5.id)
+    // 4. 黄忠：宝雕射日弓 + 火系5级【朱雀神髓·同源火】
+    if (sherigong && gemFire5) {
+      this.socketGemToArtifact(sherigong.instanceId, gemFire5.id)
+      this.equipToHero(sherigong.instanceId, 'hero_huangzhong', '黄忠')
     }
-    // 5. 玉璧 + 土系5级【麒麟圣玉·眩晕】（通用神兵，任意武将均可装备）
-    if (jade && gemEarth5) {
-      this.socketGemToArtifact(jade.instanceId, gemEarth5.id)
+    // 5. 马超：虎头湛金枪 + 金系5级【白虎神髓·同源金】
+    if (zhanjin && gemMetal5) {
+      this.socketGemToArtifact(zhanjin.instanceId, gemMetal5.id)
+      this.equipToHero(zhanjin.instanceId, 'hero_machao', '马超')
+    }
+
+    // 6. 通用神兵
+    if (metalSeal) {
+      // 白金符印可供自由测试
+    }
+    if (jade) {
+      // 玄黄玉璧可供自由测试
     }
   }
 
@@ -177,29 +189,32 @@ export class EquipmentManager {
   }
 
   /**
-   * 检查装备是否可装备到指定武将
+   * 检查装备是否可装备到指定武将（非专属武将亦可装备，获得白板基础属性）
    */
   canEquipToHero(instanceId: string, heroId: string, heroName?: string): boolean {
     const instance = this.ownedEquipment.get(instanceId)
     if (!instance) return false
     const detail = this.getEquipmentDetail(instanceId)
-    if (!detail) return false
-    if (!detail.exclusiveHeroes || detail.exclusiveHeroes.length === 0) return true
+    return Boolean(detail)
+  }
+
+  /**
+   * 判定装备是否为指定武将的专属神兵
+   */
+  isExclusiveForHero(instanceId: string, heroId: string, heroName?: string): boolean {
+    const instance = this.ownedEquipment.get(instanceId)
+    if (!instance) return false
+    const detail = this.getEquipmentDetail(instanceId)
+    if (!detail || !detail.exclusiveHeroes || detail.exclusiveHeroes.length === 0) return false
     return detail.exclusiveHeroes.some(h => h === heroId || (heroName && h === heroName))
   }
 
   /**
-   * 装备到武将（含专属限制校验）
+   * 装备到武将（非专属武将亦可自由佩戴获取白板属性，专属武将方可觉醒隐藏绝技）
    */
   equipToHero(instanceId: string, heroId: string, heroName?: string): boolean {
     const instance = this.ownedEquipment.get(instanceId)
     if (!instance || instance.isEquipped) {
-      return false
-    }
-
-    // 检查专属武将限制
-    if (!this.canEquipToHero(instanceId, heroId, heroName)) {
-      console.warn(`专属限制：无法为武将 ${heroName || heroId} 穿戴此装备`)
       return false
     }
 
@@ -254,6 +269,70 @@ export class EquipmentManager {
     }
 
     return result
+  }
+
+  /**
+   * 获取武将当前装备的神器五行相生与专属器灵共鸣状态
+   */
+  getHeroResonance(heroId: string, heroName?: string): HeroResonanceInfo {
+    const equip = this.getHeroEquipment(heroId)
+    if (!equip.artifact) {
+      return {
+        isExclusive: false,
+        hasResonance: false,
+        resonanceType: 'none',
+        gemLevel: 0,
+        artifact: null,
+        gem: null
+      }
+    }
+
+    const artifact = this.getEquipmentDetail(equip.artifact.instanceId) as Artifact
+    if (!artifact || artifact.type !== 'artifact') {
+      return {
+        isExclusive: false,
+        hasResonance: false,
+        resonanceType: 'none',
+        gemLevel: 0,
+        artifact: null,
+        gem: null
+      }
+    }
+
+    const isExclusive = this.isExclusiveForHero(equip.artifact.instanceId, heroId, heroName)
+
+    let gem: Gem | null = null
+    if (artifact.gemSocket?.currentGem) {
+      if (typeof artifact.gemSocket.currentGem === 'string') {
+        gem = this.ownedGems.get(artifact.gemSocket.currentGem) || null
+      } else {
+        gem = artifact.gemSocket.currentGem as Gem
+      }
+    }
+
+    let resonanceType: ResonanceType = 'none'
+    if (gem && artifact.gemSocket?.requiredWuXing) {
+      const baseWuXing = artifact.gemSocket.requiredWuXing
+      if (gem.wuXing === baseWuXing) {
+        // 同源共鸣（同五行）
+        resonanceType = 'same'
+      } else if (WuXingGenerate[gem.wuXing] === baseWuXing) {
+        // 相生滋养（生我者，如水生木）
+        resonanceType = 'generating'
+      }
+    }
+
+    const hasResonance = isExclusive && resonanceType !== 'none'
+
+    return {
+      isExclusive,
+      hasResonance,
+      resonanceType,
+      gemLevel: gem ? gem.level : 0,
+      artifact,
+      gem,
+      resonanceConfig: artifact.exclusiveResonance
+    }
   }
 
   /**
