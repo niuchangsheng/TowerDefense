@@ -30,6 +30,7 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   private onBurnDeathCallback?: (enemy: EnemyEntity) => void
   private activeStatusMarks: Map<string, Phaser.GameObjects.Text> = new Map()
   private vampiricTimer?: Phaser.Time.TimerEvent
+  private elementalMarkTimer?: Phaser.Time.TimerEvent
 
   constructor(scene: Phaser.Scene, enemy: Enemy) {
     super(scene, enemy.position.x, enemy.position.y)
@@ -366,6 +367,31 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     this.updateStatusMarksLayout()
   }
 
+  /**
+   * 设置头部显性五行元素附着印记（如【水·湿】、【木·毒】、【火·灼】、【土·重】、【金·裂】）
+   */
+  setElementalMark(wuXing: string, label: string, color: string, duration: number = 4500): void {
+    this.setStatusMark('elemental_mark', label, color)
+    if (this.elementalMarkTimer) {
+      this.elementalMarkTimer.destroy()
+    }
+    this.elementalMarkTimer = this.scene.time.delayedCall(duration, () => {
+      this.removeStatusMark('elemental_mark')
+      this.elementalMarkTimer = undefined
+    })
+  }
+
+  /**
+   * 清理显性五行印记
+   */
+  clearElementalMark(): void {
+    if (this.elementalMarkTimer) {
+      this.elementalMarkTimer.destroy()
+      this.elementalMarkTimer = undefined
+    }
+    this.removeStatusMark('elemental_mark')
+  }
+
   // ==================== 5级宝石专属攻击特效 ====================
 
   /**
@@ -564,6 +590,10 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   }
 
   private clearAllTimers(): void {
+    if (this.elementalMarkTimer) {
+      this.elementalMarkTimer.destroy()
+      this.elementalMarkTimer = undefined
+    }
     if (this.vampiricTimer) {
       this.vampiricTimer.destroy()
       this.vampiricTimer = undefined

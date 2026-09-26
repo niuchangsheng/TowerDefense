@@ -17,10 +17,10 @@ import AugmentCompendiumScene from '@/scenes/AugmentCompendiumScene'
 describe('AugmentCompendium 军事锦囊图鉴数据与分类测试', () => {
   const allAugments: Augment[] = [...AUGMENT_POOL, ...REPEATABLE_AUGMENTS]
 
-  it('图鉴总卷数应为 29 卷，且所有 ID 唯一无重复', () => {
-    expect(allAugments.length).toBe(29)
+  it('图鉴总卷数应为 30 卷，且所有 ID 唯一无重复', () => {
+    expect(allAugments.length).toBe(30)
     const idSet = new Set(allAugments.map(a => a.id))
-    expect(idSet.size).toBe(29)
+    expect(idSet.size).toBe(30)
   })
 
   it('每一卷锦囊均具备完整名称、水墨描述、品质与效果定义', () => {
@@ -33,7 +33,7 @@ describe('AugmentCompendium 军事锦囊图鉴数据与分类测试', () => {
     }
   })
 
-  it('分类标签过滤逻辑完整无遗漏且互不重叠（全覆盖 29 卷）', () => {
+  it('分类标签过滤逻辑完整无遗漏且互不重叠（全覆盖 30 卷）', () => {
     const scene = new AugmentCompendiumScene()
     scene.init()
 
@@ -44,15 +44,15 @@ describe('AugmentCompendium 军事锦囊图鉴数据与分类测试', () => {
     const endlessCount = scene.getTabCount('endless')
     const repeatableCount = scene.getTabCount('repeatable')
 
-    expect(allCount).toBe(29)
-    expect(elementalCount).toBe(8)
+    expect(allCount).toBe(30)
+    expect(elementalCount).toBe(9)
     expect(heroCount).toBe(5)
     expect(generalCount).toBe(7)
     expect(endlessCount).toBe(4)
     expect(repeatableCount).toBe(5)
 
-    // 五大类别之和必须精确等于全部 29 卷
-    expect(elementalCount + heroCount + generalCount + endlessCount + repeatableCount).toBe(29)
+    // 五大类别之和必须精确等于全部 30 卷
+    expect(elementalCount + heroCount + generalCount + endlessCount + repeatableCount).toBe(30)
   })
 
   it('五行共鸣锦囊所需元素均为正统五行', () => {

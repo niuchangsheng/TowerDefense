@@ -78,6 +78,21 @@ export const AUGMENT_POOL: Augment[] = [
     }
   },
   {
+    id: 'aug_vaporize_burst',
+    name: '水火既济',
+    subtitle: '水火相克·蒸发共鸣',
+    description: '水火相克化汽：全场火系与水系英雄攻击力 +15%，【水火·蒸发】爆破伤害提升 60%，且蒸发时产生强劲蒸汽冲击波，击退周围小兵 60 像素并附加 1 秒眩晕！',
+    rarity: 'rare',
+    category: 'elemental',
+    wuXingRequirement: ['water', 'fire'],
+    tags: ['水', '火', '蒸发'],
+    effects: {
+      reactionDamageMultiplier: 0.6,
+      attackPercentBonus: 0.15,
+      specialId: 'aug_vaporize_burst'
+    }
+  },
+  {
     id: 'aug_five_cycle',
     name: '生生不息',
     subtitle: '五行大循环',

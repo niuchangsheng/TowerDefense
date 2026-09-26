@@ -25,6 +25,9 @@ export class ElementalReactionManager {
   /** 全局元素反应伤害倍率修正（由军师锦囊等被动影响） */
   private reactionDamageMultiplier: number = 1.0
 
+  /** 水火蒸发冲击波（由锦囊【水火既济】激活） */
+  private vaporizeShockwaveEnabled: boolean = false
+
   constructor(scene?: Phaser.Scene, enemyManager?: EnemyManager) {
     this.scene = scene
     this.enemyManager = enemyManager
@@ -46,6 +49,14 @@ export class ElementalReactionManager {
 
   public getReactionDamageMultiplier(): number {
     return this.reactionDamageMultiplier
+  }
+
+  public setVaporizeShockwave(enabled: boolean): void {
+    this.vaporizeShockwaveEnabled = enabled
+  }
+
+  public isVaporizeShockwaveEnabled(): boolean {
+    return this.vaporizeShockwaveEnabled
   }
 
   /**
@@ -82,24 +93,53 @@ export class ElementalReactionManager {
   }
 
   /**
-   * 判定两个五行之间是否能产生特殊化学反应
+   * 判定两个五行之间是否能产生特殊化学反应（双向等价瞬爆）
    */
   private checkReaction(
     existingWuXing: WuXing,
     newWuXing: WuXing
   ): ElementalReactionType | null {
-    // 水生木【滋养·蔓延】
-    if (existingWuXing === 'water' && newWuXing === 'wood') return 'nourish'
-    // 木生火【燎原·焚尽】
-    if (existingWuXing === 'wood' && newWuXing === 'fire') return 'wildfire'
-    // 火生土【熔岩·焦土】
-    if (existingWuXing === 'fire' && newWuXing === 'earth') return 'magma'
-    // 土生金【淬刃·锋芒】
-    if (existingWuXing === 'earth' && newWuXing === 'metal') return 'spikes'
-    // 金生水【寒芒·碎冰】
-    if (existingWuXing === 'metal' && newWuXing === 'water') return 'shatter'
+    // 水生木【滋养·蔓延】（水+木 双向判定）
+    if (
+      (existingWuXing === 'water' && newWuXing === 'wood') ||
+      (existingWuXing === 'wood' && newWuXing === 'water')
+    ) {
+      return 'nourish'
+    }
 
-    // 水火相克【汽化·蒸发】（水打火 或 火打水）
+    // 木生火【燎原·焚尽】（木+火 双向判定）
+    if (
+      (existingWuXing === 'wood' && newWuXing === 'fire') ||
+      (existingWuXing === 'fire' && newWuXing === 'wood')
+    ) {
+      return 'wildfire'
+    }
+
+    // 火生土【熔岩·焦土】（火+土 双向判定）
+    if (
+      (existingWuXing === 'fire' && newWuXing === 'earth') ||
+      (existingWuXing === 'earth' && newWuXing === 'fire')
+    ) {
+      return 'magma'
+    }
+
+    // 土生金【淬刃·锋芒】（土+金 双向判定）
+    if (
+      (existingWuXing === 'earth' && newWuXing === 'metal') ||
+      (existingWuXing === 'metal' && newWuXing === 'earth')
+    ) {
+      return 'spikes'
+    }
+
+    // 金生水【寒芒·碎冰】（金+水 双向判定）
+    if (
+      (existingWuXing === 'metal' && newWuXing === 'water') ||
+      (existingWuXing === 'water' && newWuXing === 'metal')
+    ) {
+      return 'shatter'
+    }
+
+    // 水火相克【汽化·蒸发】（水+火 双向判定）
     if (
       (existingWuXing === 'fire' && newWuXing === 'water') ||
       (existingWuXing === 'water' && newWuXing === 'fire')
@@ -121,22 +161,27 @@ export class ElementalReactionManager {
       case 'water':
         statusType = 'wet'
         target.applySlow(0.25, 4500)
+        target.setElementalMark?.('water', '【湿】', '#29b6f6', 4500)
         break
       case 'wood':
         statusType = 'parasite'
         target.applyPoison(4500, 0.02)
+        target.setElementalMark?.('wood', '【毒】', '#4caf50', 4500)
         break
       case 'fire':
         statusType = 'burn'
         target.applyBurn(Math.max(8, Math.floor(baseAttack * 0.25)), 4500)
+        target.setElementalMark?.('fire', '【灼】', '#ff5722', 4500)
         break
       case 'earth':
         statusType = 'heavy'
         target.applyArmorBreak(4500, 0.25)
+        target.setElementalMark?.('earth', '【重】', '#a1887f', 4500)
         break
       case 'metal':
         statusType = 'bleed'
         target.applyArmorBreak(4500, 0.35)
+        target.setElementalMark?.('metal', '【裂】', '#ffd54f', 4500)
         break
     }
 
@@ -156,6 +201,7 @@ export class ElementalReactionManager {
         const s = this.statusMap.get(enemyId)
         if (s && s.wuXing === wuXing) {
           this.statusMap.delete(enemyId)
+          target.clearElementalMark?.()
         }
       })
     }
@@ -173,8 +219,9 @@ export class ElementalReactionManager {
   ): ElementalReactionResult {
     const targetPos: Point = { x: target.x, y: target.y }
     const enemyId = target.getEnemyData().id
-    // 反应发生后消耗掉原状态
+    // 反应发生后消耗掉原状态并清除附着印记
     this.statusMap.delete(enemyId)
+    target.clearElementalMark?.()
 
     // 触发五行生克连锁命中，破除敌人【铁壁】护盾
     target.breakIroncladShield?.()
@@ -318,16 +365,36 @@ export class ElementalReactionManager {
 
       case 'vaporize': {
         // 水火相克【汽化·蒸发】
-        const extraDmg = Math.floor(baseAttack * 2.2 * this.reactionDamageMultiplier)
+        let extraDmg = Math.floor(baseAttack * 2.2 * this.reactionDamageMultiplier)
+        if (this.vaporizeShockwaveEnabled) {
+          extraDmg = Math.floor(extraDmg * 1.6)
+        }
         target.takeDamage(extraDmg)
         target.hitShake(8)
 
-        this.showReactionBanner(targetPos, '【水火·蒸发】', '#e040fb')
+        // 蒸汽冲击波（波及震颤周围敌军；激活【水火既济】时击退小兵并眩晕）
+        if (this.enemyManager) {
+          const aoeRange = this.vaporizeShockwaveEnabled ? 90 : 60
+          const nearby = this.enemyManager.getEnemiesInRange(targetPos, aoeRange)
+          for (const near of nearby) {
+            if (near !== target) {
+              near.hitShake(6)
+              if (this.vaporizeShockwaveEnabled) {
+                near.applyStun(1000)
+                near.takeDamage(Math.floor(extraDmg * 0.4))
+              }
+            }
+          }
+        }
+
+        const bannerText = this.vaporizeShockwaveEnabled ? '【水火·蒸发狂啸】' : '【水火·蒸发】'
+        this.showReactionBanner(targetPos, bannerText, '#e040fb')
         result = {
           reactionType: 'vaporize',
           reactionName: '水火·蒸发',
           color: '#e040fb',
           extraDamage: extraDmg,
+          aoeRadius: this.vaporizeShockwaveEnabled ? 90 : 60,
           position: targetPos
         }
         break
@@ -397,5 +464,6 @@ export class ElementalReactionManager {
   public reset(): void {
     this.statusMap.clear()
     this.reactionDamageMultiplier = 1.0
+    this.vaporizeShockwaveEnabled = false
   }
 }

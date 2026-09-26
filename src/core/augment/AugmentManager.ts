@@ -228,6 +228,8 @@ export class AugmentManager {
     // 特殊专属机制
     if (eff.specialId === 'aug_celestial_tome') {
       this.rerollCount += 2
+    } else if (eff.specialId === 'aug_vaporize_burst') {
+      ElementalReactionManager.getInstance().setVaporizeShockwave(true)
     }
   }
 
@@ -271,5 +273,6 @@ export class AugmentManager {
     this.totalReactionMultiplierBonus = 0
     this.totalCostGainBonus = 0
     this.totalCounterMultiplierBonus = 0
+    ElementalReactionManager.getInstance().setVaporizeShockwave(false)
   }
 }
