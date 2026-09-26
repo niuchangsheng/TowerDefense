@@ -18,6 +18,15 @@ export interface EquipmentInstance {
  * 管理玩家拥有的装备
  */
 export class EquipmentManager {
+  private static instance: EquipmentManager | null = null
+
+  public static getInstance(): EquipmentManager {
+    if (!this.instance) {
+      this.instance = new EquipmentManager()
+    }
+    return this.instance
+  }
+
   private ownedEquipment: Map<string, EquipmentInstance> = new Map()
   private ownedGems: Map<string, Gem> = new Map()
   private equipmentCounter: number = 0
@@ -35,23 +44,58 @@ export class EquipmentManager {
     this.addEquipment('weapon_common_1')
     this.addEquipment('weapon_rare_1')
 
+    // 稀有通用神器
+    const jade = this.addEquipment('artifact_rare_1')
+    const metalSeal = this.addEquipment('artifact_rare_metal')
+
     // 三国专属神兵宝物
     this.addEquipment('artifact_chitu')
     this.addEquipment('artifact_fangtian')
-    this.addEquipment('artifact_dilu')
-    this.addEquipment('artifact_qinglong')
-    this.addEquipment('artifact_shemao')
+    const dilu = this.addEquipment('artifact_dilu')
+    const qinglong = this.addEquipment('artifact_qinglong')
+    const shemao = this.addEquipment('artifact_shemao')
     this.addEquipment('artifact_sherigong')
     this.addEquipment('artifact_sunzi')
     this.addEquipment('artifact_tongque')
     this.addEquipment('artifact_yuxi')
 
-    // 给玩家一些初始宝石
+    // 给玩家初始宝石（包含5级神品供体验各系攻击特效）
     this.addGem('metal', 1)
     this.addGem('metal', 2)
+    const gemMetal5 = this.addGem('metal', 5) // 白虎神髓 (破甲)
+    this.addGem('wood', 1)
+    const gemWood5 = this.addGem('wood', 5)  // 青龙圣珠 (中毒)
     this.addGem('water', 1)
+    const gemWater5 = this.addGem('water', 5) // 玄武神珠 (冰冻)
     this.addGem('fire', 2)
+    const gemFire5 = this.addGem('fire', 5)  // 朱雀神髓 (灼烧与红莲殉爆)
     this.addGem('earth', 1)
+    const gemEarth5 = this.addGem('earth', 5) // 麒麟圣玉 (眩晕)
+
+    // 预装神兵与镶嵌5级神品宝石（开局即刻体验五大震撼攻击特效）：
+    // 1. 关羽：青龙偃月刀 + 木系5级【青龙圣珠·中毒】
+    if (qinglong && gemWood5) {
+      this.socketGemToArtifact(qinglong.instanceId, gemWood5.id)
+      this.equipToHero(qinglong.instanceId, 'hero_guanyu', '关羽')
+    }
+    // 2. 张飞：丈八蛇矛 + 火系5级【朱雀神髓·灼烧与红莲殉爆】
+    if (shemao && gemFire5) {
+      this.socketGemToArtifact(shemao.instanceId, gemFire5.id)
+      this.equipToHero(shemao.instanceId, 'hero_zhangfei', '张飞')
+    }
+    // 3. 赵云：的卢 + 水系5级【玄武神珠·冰冻】
+    if (dilu && gemWater5) {
+      this.socketGemToArtifact(dilu.instanceId, gemWater5.id)
+      this.equipToHero(dilu.instanceId, 'hero_zhaoyun', '赵云')
+    }
+    // 4. 白金符印 + 金系5级【白虎神髓·破甲】（通用神兵，任意武将均可装备）
+    if (metalSeal && gemMetal5) {
+      this.socketGemToArtifact(metalSeal.instanceId, gemMetal5.id)
+    }
+    // 5. 玉璧 + 土系5级【麒麟圣玉·眩晕】（通用神兵，任意武将均可装备）
+    if (jade && gemEarth5) {
+      this.socketGemToArtifact(jade.instanceId, gemEarth5.id)
+    }
   }
 
   /**
@@ -213,6 +257,28 @@ export class EquipmentManager {
   }
 
   /**
+   * 获取武将当前装备的神器上镶嵌的5级宝石（若有）
+   */
+  getHeroLevel5Gem(heroId: string): Gem | null {
+    const equip = this.getHeroEquipment(heroId)
+    if (equip.artifact) {
+      const detail = this.getEquipmentDetail(equip.artifact.instanceId) as Artifact
+      if (detail && detail.gemSocket && detail.gemSocket.currentGem) {
+        let gem: Gem | undefined = undefined
+        if (typeof detail.gemSocket.currentGem === 'string') {
+          gem = this.ownedGems.get(detail.gemSocket.currentGem)
+        } else {
+          gem = detail.gemSocket.currentGem as Gem
+        }
+        if (gem && gem.level === 5) {
+          return gem
+        }
+      }
+    }
+    return null
+  }
+
+  /**
    * 添加宝石
    */
   addGem(wuXing: string, level: number): Gem {
@@ -289,6 +355,13 @@ export class EquipmentManager {
   }
 
   /**
+   * 根据ID获取宝石
+   */
+  getGem(gemId: string): Gem | undefined {
+    return this.ownedGems.get(gemId)
+  }
+
+  /**
    * 镶嵌宝石到神器
    */
   socketGemToArtifact(artifactInstanceId: string, gemId: string): boolean {
@@ -298,21 +371,30 @@ export class EquipmentManager {
     if (!artifactInstance || !gem) return false
 
     const artifactDetail = getArtifact(artifactInstance.equipmentId) as Artifact
-    if (!artifactDetail) return false
+    if (!artifactDetail || !artifactDetail.gemSocket) return false
 
-    // 检查五行匹配（相生关系）
+    // 检查五行匹配
     if (artifactDetail.gemSocket.requiredWuXing !== gem.wuXing) {
-      console.warn('宝石五行不匹配')
+      console.warn(`宝石五行不匹配: 神器需求[${artifactDetail.gemSocket.requiredWuXing}], 当前宝石[${gem.wuXing}]`)
       return false
     }
 
-    // 移除旧宝石
-    if (artifactDetail.gemSocket.currentGem) {
-      this.ownedGems.delete(artifactDetail.gemSocket.currentGem)
-    }
-
-    // 镶嵌新宝石
+    // 镶嵌新宝石（旧宝石保留在拥有列表中）
     artifactDetail.gemSocket.currentGem = gemId
+    return true
+  }
+
+  /**
+   * 从神器卸下宝石
+   */
+  unsocketGemFromArtifact(artifactInstanceId: string): boolean {
+    const artifactInstance = this.ownedEquipment.get(artifactInstanceId)
+    if (!artifactInstance) return false
+
+    const artifactDetail = getArtifact(artifactInstance.equipmentId) as Artifact
+    if (!artifactDetail || !artifactDetail.gemSocket) return false
+
+    artifactDetail.gemSocket.currentGem = null
     return true
   }
 

@@ -5,6 +5,10 @@ import { ATTACK_CONFIG } from '@/config/constants'
 import { SkillManager, SkillExecutor } from '../skill'
 import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
 import { WeaponFX, WeaponType } from '@/effects/WeaponFX'
+import { GemAttackEffectManager } from '@/effects/GemAttackEffectManager'
+import { EquipmentManager } from '../equipment/EquipmentManager'
+import { AugmentManager } from '../augment/AugmentManager'
+import { ElementalReactionManager } from '../elemental/ElementalReactionManager'
 import Phaser from 'phaser'
 
 /**
@@ -16,6 +20,7 @@ export class HeroBattleManager {
   private enemyManager: any  // EnemyManager类型，避免循环依赖
   private skillManager: SkillManager
   private skillExecutor: SkillExecutor
+  private augmentManager?: AugmentManager
 
   // 攻击特效（零素材水墨/武器特效 + 音效）
   private scene: Phaser.Scene
@@ -138,6 +143,10 @@ export class HeroBattleManager {
     )
   }
 
+  public setAugmentManager(augmentManager: AugmentManager): void {
+    this.augmentManager = augmentManager
+  }
+
   /**
    * 检查攻击条件并执行攻击
    */
@@ -145,8 +154,10 @@ export class HeroBattleManager {
     const deployedData = hero.getDeployedData()
     const stats = hero.getEffectiveStats()
 
-    // 计算攻击间隔
-    const attackInterval = DamageCalculator.calculateAttackInterval(stats.attackSpeed)
+    // 计算攻击间隔（考虑锦囊攻速加成）
+    const speedBonus = this.augmentManager ? this.augmentManager.getAttackSpeedBonus() : 0
+    const effectiveSpeed = stats.attackSpeed * (1 + speedBonus)
+    const attackInterval = DamageCalculator.calculateAttackInterval(effectiveSpeed)
 
     // 检查是否可以攻击（冷却时间）
     if (currentTime - deployedData.lastAttackTime < attackInterval) {
@@ -170,13 +181,15 @@ export class HeroBattleManager {
 
   /**
    * 选择攻击目标
-   * 策略：优先攻击最近的敌人
+   * 策略：优先攻击最近的敌人（考虑锦囊射程加成）
    */
   private selectTarget(hero: HeroEntity): EnemyEntity | null {
     const deployedData = hero.getDeployedData()
     const stats = hero.getEffectiveStats()
+    const rangeBonus = this.augmentManager ? this.augmentManager.getAttackRangeBonus() : 0
+    const effectiveRange = stats.attackRange + rangeBonus
 
-    return this.enemyManager.getNearestEnemy(deployedData.position, stats.attackRange)
+    return this.enemyManager.getNearestEnemy(deployedData.position, effectiveRange)
   }
 
   /**
@@ -188,15 +201,21 @@ export class HeroBattleManager {
     const targetData = target.getEnemyData()
     const deployedData = hero.getDeployedData()
 
+    // 计算锦囊攻击力与相克加成
+    const attackPercentBonus = this.augmentManager ? this.augmentManager.getAttackPercentBonus() : 0
+    const counterBonus = this.augmentManager ? this.augmentManager.getCounterMultiplierBonus() : 0
+
     // 计算伤害与五行生克倍率
-    const multiplier = DamageCalculator.getCounterMultiplier(heroData.wuXing, targetData.wuXing)
+    const multiplier = DamageCalculator.getCounterMultiplier(heroData.wuXing, targetData.wuXing) + counterBonus
     const isCounter = multiplier > 1.05
     const isResisted = multiplier < 0.95
 
     const damage = DamageCalculator.calculateDamage(
       stats,
       heroData.wuXing,
-      targetData.wuXing
+      targetData.wuXing,
+      counterBonus,
+      attackPercentBonus
     )
 
     // 应用伤害
@@ -208,6 +227,37 @@ export class HeroBattleManager {
     // 播放武器特效（冲锋 → 挥砍/前刺 → 飘字/受击抖动/命中顿帧/音效）
     this.playWeaponFX(hero, target, actualDamage, isCounter, isResisted)
 
+    // 触发五行元素相生相克连锁反应
+    ElementalReactionManager.getInstance(this.scene, this.enemyManager).handleAttack(
+      target,
+      heroData.wuXing,
+      Math.floor(stats.attack * (1 + attackPercentBonus))
+    )
+
+    // 英雄专属锦囊机制
+    if (this.augmentManager) {
+      if (this.augmentManager.hasSpecialAugment('aug_guanyu_yanyu') && heroData.id === 'hero_guanyu') {
+        // 关羽威震华夏：附带木系滋养
+        ElementalReactionManager.getInstance(this.scene, this.enemyManager).handleAttack(
+          target,
+          'wood',
+          Math.floor(stats.attack * (1 + attackPercentBonus) * 0.5)
+        )
+      } else if (this.augmentManager.hasSpecialAugment('aug_zhangfei_roar') && heroData.id === 'hero_zhangfei') {
+        target.applyStun(1500)
+        target.hitShake(8)
+      } else if (this.augmentManager.hasSpecialAugment('aug_zhaoyun_dragon') && heroData.id === 'hero_zhaoyun') {
+        if (Math.random() < 0.25) {
+          const fx = new CharacterAttackFX(this.scene)
+          fx.damageText({ x: target.x, y: target.y }, Math.floor(damage * 1.5), { color: '#00e5ff' })
+          target.takeDamage(Math.floor(damage * 1.5))
+        }
+      }
+    }
+
+    // 触发5级宝石终极特效（破甲、中毒、冰冻、灼烧与红莲殉爆、眩晕）
+    this.triggerGemAttackEffects(hero, target)
+
     // 触发被动技能（攻击时触发）
     this.triggerPassiveSkill(hero, target)
 
@@ -218,6 +268,26 @@ export class HeroBattleManager {
     }
 
     return null
+  }
+
+  /**
+   * 触发5级神品宝石专属终极攻击特效
+   */
+  private triggerGemAttackEffects(hero: HeroEntity, target: EnemyEntity): void {
+    if (!target.active || target.getEnemyData().currentHealth <= 0) return
+
+    const heroData = hero.getHeroData()
+    // 获取武将当前装备的神器上镶嵌的5级宝石
+    const gem = EquipmentManager.getInstance().getHeroLevel5Gem(heroData.id)
+
+    if (gem && gem.level === 5) {
+      GemAttackEffectManager.getInstance(this.scene).triggerLevel5GemEffect(
+        target,
+        gem.wuXing,
+        hero,
+        this.enemyManager
+      )
+    }
   }
 
   /**
@@ -301,6 +371,15 @@ export class HeroBattleManager {
    */
   getHeroCount(): number {
     return this.deployedHeroes.size
+  }
+
+  /**
+   * 重置所有英雄至基准变换（波次交替或防御阵型校验）
+   */
+  resetAllHeroTransforms(): void {
+    for (const hero of this.deployedHeroes.values()) {
+      hero.resetToBaseTransform()
+    }
   }
 
   /**

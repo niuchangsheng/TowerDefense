@@ -3,7 +3,7 @@ import { GRID, GridCell, cellKey, cellInBounds } from '@/config/constants'
 
 /**
  * 部署格占位表
- * 战场按 40px 格子规划：兵种占 1 格（40×40），英雄占 2×2 田字 4 格（80×80）。
+ * 战场按 40px 格子规划：兵种与武将均占 1 格（40×40）。
  * 负责：格子是否可部署（必须在界内且绝不能在行军路线上）、是否被占、脚印合法性、首空位扫描。
  */
 export class DeployGrid {
@@ -83,34 +83,13 @@ export class DeployGrid {
   }
 
   /**
-   * 英雄 2×2 田字脚印：
-   * 优先以锚点格为左上角 (anchor, right, bottom, bottomRight)，
-   * 若靠边或被阻挡则尝试偏移试探，放不下返回 null。
+   * 英雄 1 格脚印：
+   * 校验目标格是否可放置，合法返回 [anchor]，放不下返回 null。
    */
   heroFootprint(anchor: GridCell): GridCell[] | null {
-    const makeQuad = (c: number, r: number): GridCell[] => [
-      { col: c, row: r },
-      { col: c + 1, row: r },
-      { col: c, row: r + 1 },
-      { col: c + 1, row: r + 1 }
-    ]
-
-    // 1. 优先：以 anchor 为左上角
-    const quadTL = makeQuad(anchor.col, anchor.row)
-    if (this.canPlaceFootprint(quadTL)) return quadTL
-
-    // 2. 备选：以 anchor 为右上角（往左移1格）
-    const quadTR = makeQuad(anchor.col - 1, anchor.row)
-    if (this.canPlaceFootprint(quadTR)) return quadTR
-
-    // 3. 备选：以 anchor 为左下角（往上移1格）
-    const quadBL = makeQuad(anchor.col, anchor.row - 1)
-    if (this.canPlaceFootprint(quadBL)) return quadBL
-
-    // 4. 备选：以 anchor 为右下角（往左上各移1格）
-    const quadBR = makeQuad(anchor.col - 1, anchor.row - 1)
-    if (this.canPlaceFootprint(quadBR)) return quadBR
-
+    if (this.canPlaceFootprint([anchor])) {
+      return [anchor]
+    }
     return null
   }
 
@@ -147,23 +126,13 @@ export class DeployGrid {
 
   /**
    * 全图扫描首个放得下的脚印（行优先）。
-   * @param shape 'hero' = 2×2 田字格，'troop' = 1×1 单格
+   * @param shape 'hero' | 'troop' 均占 1 格
    */
-  findFirstFit(shape: 'hero' | 'troop'): GridCell[] | null {
+  findFirstFit(_shape?: 'hero' | 'troop'): GridCell[] | null {
     for (let r = 0; r < GRID.rows; r++) {
       for (let c = 0; c < GRID.cols; c++) {
         const anchor: GridCell = { col: c, row: r }
-        if (shape === 'troop') {
-          if (this.canPlaceFootprint([anchor])) return [anchor]
-        } else {
-          const cells: GridCell[] = [
-            { col: c, row: r },
-            { col: c + 1, row: r },
-            { col: c, row: r + 1 },
-            { col: c + 1, row: r + 1 }
-          ]
-          if (this.canPlaceFootprint(cells)) return cells
-        }
+        if (this.canPlaceFootprint([anchor])) return [anchor]
       }
     }
     return null

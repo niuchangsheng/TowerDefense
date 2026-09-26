@@ -82,6 +82,19 @@ export const artifacts: Artifact[] = [
     },
     activatedEffect: null
   },
+  {
+    id: 'artifact_rare_metal',
+    name: '白金符印',
+    type: 'artifact',
+    rarity: 'rare',
+    bonuses: { attack: 15, attackRange: 15 },
+    gemSocket: {
+      requiredWuXing: 'metal',
+      currentGem: null
+    },
+    activatedEffect: null,
+    description: '太白庚金所铸符印，肃杀凌厉，可镶嵌金系宝石。'
+  },
 
   // 传说神器
   {

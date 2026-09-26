@@ -158,6 +158,15 @@ export class TroopBattleManager {
   }
 
   /**
+   * 重置所有兵种至基准变换（波次交替或防御阵型校验）
+   */
+  resetAllTroopTransforms(): void {
+    for (const troop of this.deployedTroops.values()) {
+      troop.resetToBaseTransform()
+    }
+  }
+
+  /**
    * 重置
    */
   reset(): void {

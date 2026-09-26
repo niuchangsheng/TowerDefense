@@ -26,7 +26,7 @@ export const level1Config: LevelConfig = {
     spawnPoint: { x: 0, y: 380 },
     exitPoint: { x: 1280, y: 380 },
     // 部署区：格对齐矩形（宽高为 40 的整数倍），贴路不压路。
-    // 每格可站 1 个兵种（1×1）；英雄占 2×2 田字四格。
+    // 每格可站 1 个兵种或武将（均占 1 格 40×40）。
     deployableAreas: [
       { x: 240, y: 200, width: 240, height: 160 },  // 格(6-11,5-8)：24格
       { x: 520, y: 80, width: 240, height: 80 },    // 格(13-18,2-3)：12格

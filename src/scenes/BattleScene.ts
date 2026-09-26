@@ -23,6 +23,8 @@ import {
   drawPaperBackground
 } from '@/ui/InkTheme'
 import { InkSilhouetteRenderer } from '@/rendering/InkSilhouetteRenderer'
+import { EnergyGaugeBar } from '@/ui/EnergyGaugeBar'
+import { AugmentSelectModal } from '@/ui/AugmentSelectModal'
 
 type RangeUnit = HeroEntity | TroopEntity
 
@@ -77,6 +79,8 @@ export default class BattleScene extends Phaser.Scene {
   private speedBtnText!: Phaser.GameObjects.Text
   private pauseBtnText!: Phaser.GameObjects.Text
   private earlyWaveBtn!: Phaser.GameObjects.Container
+  private energyGaugeBar!: EnergyGaugeBar
+  private augmentModal: AugmentSelectModal | null = null
   private pauseOverlay: Phaser.GameObjects.Container | null = null
   private deployDock!: Phaser.GameObjects.Container
   private dockHeight = 96
@@ -304,34 +308,17 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 当前指针对应的落点脚印与是否可放
+   * 当前指针对应的落点脚印与是否可放（武将与士兵均占 1 格）
    */
   private getDropPreview(
     pointer: Phaser.Input.Pointer,
-    shape: 'hero' | 'troop'
+    _shape: 'hero' | 'troop'
   ): { cells: GridCell[]; valid: boolean } | null {
     const cell = cellAt(pointer.x, pointer.y)
     if (!cell) return null
 
     const grid = this.battleSystem.getDeployGrid()
-
-    if (shape === 'troop') {
-      return { cells: [cell], valid: grid.canPlaceFootprint([cell]) }
-    }
-
-    const footprint = grid.heroFootprint(cell)
-    if (footprint) {
-      return { cells: footprint, valid: true }
-    }
-
-    const quad: GridCell[] = [
-      { col: cell.col, row: cell.row },
-      { col: cell.col + 1, row: cell.row },
-      { col: cell.col, row: cell.row + 1 },
-      { col: cell.col + 1, row: cell.row + 1 }
-    ]
-    const intended = quad.filter(c => cellInBounds(c))
-    return { cells: intended.length > 0 ? intended : [cell], valid: false }
+    return { cells: [cell], valid: grid.canPlaceFootprint([cell]) }
   }
 
   /**
@@ -346,11 +333,11 @@ export default class BattleScene extends Phaser.Scene {
       const imageKey = this.getHeroImageKey(payload.hero.id)
       if (this.textures.exists(imageKey)) {
         const img = this.add.image(0, 0, imageKey)
-        img.setDisplaySize(54, 54)
+        img.setDisplaySize(36, 36)
         ghost.add(img)
       }
-      const name = inkText(this, 0, 36, payload.hero.name, {
-        size: 11,
+      const name = inkText(this, 0, 24, payload.hero.name, {
+        size: 9,
         color: InkText.ink,
         bold: true,
         originX: 0.5
@@ -387,7 +374,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 部署英雄（横占 1×2）
+   * 部署英雄（占 1 格）
    */
   private tryPlaceHero(hero: Hero, cell: GridCell): void {
     const result = this.battleSystem.placeHero(hero.id, cell)
@@ -396,7 +383,7 @@ export default class BattleScene extends Phaser.Scene {
       console.log(`成功在格子(${cell.col},${cell.row})部署英雄 ${hero.name}`)
     } else {
       console.log(`部署失败: ${result.reason}`)
-      this.showTemporaryMessage(this.deployFailMessage(result.reason, '英雄需占 2×2 田字四格空间'))
+      this.showTemporaryMessage(this.deployFailMessage(result.reason, '该格已被占用'))
     }
   }
 
@@ -532,7 +519,7 @@ export default class BattleScene extends Phaser.Scene {
         result.reason === 'onPath'
           ? '行军路线上不可布防'
           : (result.reason === 'cellOccupied'
-              ? (drag.kind === 'hero' ? '英雄需横占相邻两格' : '该格已被占用')
+              ? '该格已被占用'
               : '无法移动到该格')
       )
     }
@@ -696,8 +683,9 @@ export default class BattleScene extends Phaser.Scene {
       bg.lineTo(x, barHeight - 14)
       bg.strokePath()
     }
-    drawDivider(155)
+    drawDivider(160)
     drawDivider(305)
+    drawDivider(515)
     drawDivider(width - 345)
     drawDivider(width - 230)
     bar.add(bg)
@@ -721,6 +709,16 @@ export default class BattleScene extends Phaser.Scene {
       originY: 0.5
     })
     bar.add(this.healthText)
+
+    // 3.5 军令进度条与三选一锦囊
+    this.energyGaugeBar = new EnergyGaugeBar(
+      this,
+      410,
+      26,
+      this.battleSystem.getAugmentManager(),
+      () => this.openAugmentModal()
+    )
+    bar.add(this.energyGaugeBar)
 
     // 4. 中央：关卡名称 + 印章
     const title = inkText(this, width / 2, 26, level1Config.name, {
@@ -891,6 +889,32 @@ export default class BattleScene extends Phaser.Scene {
       this.pauseOverlay.destroy()
       this.pauseOverlay = null
     }
+  }
+
+  /**
+   * 开启军师锦囊三选一弹窗
+   */
+  private openAugmentModal(): void {
+    if (this.augmentModal) return
+    this.battleSystem.setPaused(true)
+
+    this.augmentModal = new AugmentSelectModal(
+      this,
+      this.battleSystem.getAugmentManager(),
+      this.battleSystem.getDeployedHeroIds(),
+      this.battleSystem.getDeployedWuXing(),
+      (selected) => {
+        this.augmentModal = null
+        this.battleSystem.setPaused(false)
+        this.energyGaugeBar.updateProgress()
+        inkToast(this, `【获锦囊】${selected.name}：${selected.subtitle || ''}`, 90)
+      },
+      () => {
+        this.augmentModal = null
+        this.battleSystem.setPaused(false)
+        this.energyGaugeBar.updateProgress()
+      }
+    )
   }
 
   /**
@@ -1097,6 +1121,14 @@ export default class BattleScene extends Phaser.Scene {
     this.battleSystem.onTroopPlaced((troop) => {
       this.wireUnitPress(troop)
     })
+
+    // 监听军师锦囊就绪事件
+    this.battleSystem.getAugmentManager().setCallbacks({
+      onStratagemReady: (count) => {
+        this.energyGaugeBar?.updateProgress()
+        inkToast(this, `【天命锦囊已就绪 ×${count}】按空格或点击开启`, 120)
+      }
+    })
   }
 
   /**
@@ -1118,6 +1150,7 @@ export default class BattleScene extends Phaser.Scene {
     this.costText.setText(`军费 ${state.currentCost}`)
     this.healthText.setText(`帅营 ${state.playerHealth}`)
     this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
+    this.energyGaugeBar?.updateProgress()
     this.updateDockState()
 
     // 动态更新击鼓迎敌按钮状态

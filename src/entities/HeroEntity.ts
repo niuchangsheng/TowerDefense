@@ -12,6 +12,10 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   private heroData: Hero
   private deployedData: DeployedHero
   private heroImage: Phaser.GameObjects.Image
+  private baseScaleX: number = 1
+  private baseScaleY: number = 1
+  private readonly baseImageX: number = 0
+  private readonly baseImageY: number = -2
   private heroNameText: Phaser.GameObjects.Text  // 英雄名称
   private wuXingText: Phaser.GameObjects.Text   // 五行属性
   private rangeIndicator: Phaser.GameObjects.Graphics
@@ -37,46 +41,48 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
     const wuxing = INK_WUXING[hero.wuXing]
 
-    // 1. 战术将印底座（微阴影 + 宣纸圆盘 + 五行属性边框）
+    // 1. 战术将印底座（微阴影 + 宣纸圆盘 + 五行属性边框，适配 40px 单格）
     const tokenBg = scene.add.graphics()
     tokenBg.fillStyle(0x000000, 0.12)
-    tokenBg.fillCircle(2, 3, 28)
+    tokenBg.fillCircle(1, 0, 16)
     tokenBg.fillStyle(InkColor.paperPanel, 1)
-    tokenBg.fillCircle(0, 0, 27)
-    tokenBg.lineStyle(2.5, wuxing.border, 1)
-    tokenBg.strokeCircle(0, 0, 27)
-    tokenBg.lineStyle(1, InkColor.ink, 0.4)
-    tokenBg.strokeCircle(0, 0, 23)
+    tokenBg.fillCircle(0, -2, 15)
+    tokenBg.lineStyle(2, wuxing.border, 1)
+    tokenBg.strokeCircle(0, -2, 15)
+    tokenBg.lineStyle(0.8, InkColor.ink, 0.35)
+    tokenBg.strokeCircle(0, -2, 12)
     this.add(tokenBg)
 
-    // 2. 英雄头像（规范为 48x48 紧凑尺寸，完全容纳在 2×2 田字 80px 方阵内）
+    // 2. 英雄头像（规范为 24x24 紧凑尺寸，完全容纳在 1 格 40px 内）
     const imageKey = this.getHeroImageKey(hero.id)
-    this.heroImage = scene.add.image(0, 0, imageKey)
-    this.heroImage.setDisplaySize(48, 48)
+    this.heroImage = scene.add.image(this.baseImageX, this.baseImageY, imageKey)
+    this.heroImage.setDisplaySize(24, 24)
+    this.baseScaleX = this.heroImage.scaleX
+    this.baseScaleY = this.heroImage.scaleY
     this.add(this.heroImage)
 
-    // 3. 紧凑名牌（圆角宣纸底，置于下方 y = 26，完全收敛在 2×2 方阵内）
-    const nameY = 26
+    // 3. 紧凑名牌（圆角宣纸底，置于下方 y = 13，完全收敛在 40px 单格内）
+    const nameY = 13
     this.heroNameText = inkText(scene, 0, nameY, hero.name, {
-      size: 11,
+      size: 9,
       color: InkText.strong,
       bold: true,
       originX: 0.5,
       originY: 0.5
     })
-    const nameBg = this.makeChipBg(this.heroNameText, 5, 2)
+    const nameBg = this.makeChipBg(this.heroNameText, 3, 1)
     this.add([nameBg, this.heroNameText])
 
-    // 4. 五行属性角印（置于圆徽左上方 (-18, -18)，不占用额外上下垂直空间）
+    // 4. 五行属性角印（置于圆徽左上方 (-11, -12)，不占用额外空间）
     const wxBadge = scene.add.graphics()
     wxBadge.fillStyle(wuxing.fill, 0.95)
-    wxBadge.fillCircle(-18, -18, 9)
-    wxBadge.lineStyle(1.5, wuxing.border, 1)
-    wxBadge.strokeCircle(-18, -18, 9)
+    wxBadge.fillCircle(-11, -12, 5.5)
+    wxBadge.lineStyle(1, wuxing.border, 1)
+    wxBadge.strokeCircle(-11, -12, 5.5)
     this.add(wxBadge)
 
-    this.wuXingText = inkText(scene, -18, -18, wuxing.label, {
-      size: 10,
+    this.wuXingText = inkText(scene, -11, -12, wuxing.label, {
+      size: 7.5,
       color: wuxing.text,
       bold: true,
       originX: 0.5,
@@ -98,15 +104,15 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
     // 7. 技能就绪提示
     this.skillReadyText = inkText(scene, 0, 0, '令', {
-      size: 9,
+      size: 8,
       color: InkText.paper,
       bold: true,
       originX: 0.5,
       originY: 0.5
     })
-    const readyBg = scene.add.rectangle(0, 0, 16, 16, InkColor.cinnabar)
+    const readyBg = scene.add.rectangle(0, 0, 11, 11, InkColor.cinnabar)
     readyBg.setStrokeStyle(1, 0x6e1b15)
-    this.skillReadyIndicator = scene.add.container(20, -22, [readyBg, this.skillReadyText])
+    this.skillReadyIndicator = scene.add.container(11, -12, [readyBg, this.skillReadyText])
     this.skillReadyIndicator.setAlpha(0)
     this.add(this.skillReadyIndicator)
 
@@ -114,7 +120,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.setDepth(15)
     scene.add.existing(this)
 
-    const hit = { w: 64, h: 68 }
+    const hit = { w: 36, h: 38 }
     this.setSize(hit.w, hit.h)
     this.setInteractive({
       hitArea: new Phaser.Geom.Rectangle(-hit.w / 2, -hit.h / 2, hit.w, hit.h),
@@ -172,27 +178,39 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
   /**
    * 更新攻击动画（冷兵器前冲突刺与神将气魄震荡）
+   * 必须基于不可变的 baseScale 与 baseImage 坐标进行补间，杜绝超高攻速下补间重叠导致的指数级形变
    */
   playAttackAnimation(): void {
-    const origX = this.heroImage.x
-    const origScaleX = this.heroImage.scaleX
-    const origScaleY = this.heroImage.scaleY
+    this.scene.tweens.killTweensOf(this.heroImage)
+    this.heroImage.setPosition(this.baseImageX, this.baseImageY)
+    this.heroImage.setScale(this.baseScaleX, this.baseScaleY)
 
     this.scene.tweens.add({
       targets: this.heroImage,
-      x: origX + 7,
-      scaleX: origScaleX * 1.08,
-      scaleY: origScaleY * 1.08,
-      duration: 80,
+      x: this.baseImageX + 6,
+      scaleX: this.baseScaleX * 1.08,
+      scaleY: this.baseScaleY * 1.08,
+      duration: 65,
       yoyo: true,
       ease: 'Power2.easeOut',
       onComplete: () => {
         if (this.heroImage && this.heroImage.active) {
-          this.heroImage.setX(origX)
-          this.heroImage.setScale(origScaleX, origScaleY)
+          this.heroImage.setPosition(this.baseImageX, this.baseImageY)
+          this.heroImage.setScale(this.baseScaleX, this.baseScaleY)
         }
       }
     })
+  }
+
+  /**
+   * 重置武将至基准变换（波次开始/状态恢复保险机制）
+   */
+  resetToBaseTransform(): void {
+    this.scene.tweens.killTweensOf(this)
+    this.scene.tweens.killTweensOf(this.heroImage)
+    this.setPosition(this.deployedData.position.x, this.deployedData.position.y)
+    this.heroImage.setPosition(this.baseImageX, this.baseImageY)
+    this.heroImage.setScale(this.baseScaleX, this.baseScaleY)
   }
 
   /**
@@ -233,6 +251,9 @@ export class HeroEntity extends Phaser.GameObjects.Container {
    */
   updateDeployedData(data: Partial<DeployedHero>): void {
     this.deployedData = { ...this.deployedData, ...data }
+    if (data.position) {
+      this.setPosition(data.position.x, data.position.y)
+    }
   }
 
   /**
@@ -251,9 +272,9 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
     // 更新冷却进度条（底部）
     this.skillCooldownBar.clear()
-    const barWidth = 60
-    const barHeight = 4
-    const barY = this.useFullbody ? 90 : 55
+    const barWidth = 28
+    const barHeight = 2.5
+    const barY = this.useFullbody ? 90 : 18
 
     // 背景（墨底）
     this.skillCooldownBar.fillStyle(InkColor.ink, 0.35)
@@ -268,11 +289,11 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.skillCooldownOverlay.clear()
     if (cooldownPercent < 1) {
       // 冷却中：显示半透明遮罩
-      const overlaySize = this.useFullbody ? { width: 120, height: 150 } : { width: 80, height: 80 }
+      const overlaySize = this.useFullbody ? { width: 120, height: 150 } : { width: 32, height: 32 }
       this.skillCooldownOverlay.fillStyle(0x000000, 0.3 * (1 - cooldownPercent))
       this.skillCooldownOverlay.fillRect(
         -overlaySize.width / 2,
-        -overlaySize.height / 2,
+        -overlaySize.height / 2 - 2,
         overlaySize.width,
         overlaySize.height
       )
@@ -281,7 +302,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     // 更新技能就绪提示
     if (cooldownPercent >= 1) {
       this.skillReadyIndicator.setAlpha(1)
-      this.skillReadyText.setText('技能就绪')
+      this.skillReadyText.setText('令')
     } else {
       this.skillReadyIndicator.setAlpha(0)
     }

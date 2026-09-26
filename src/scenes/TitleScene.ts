@@ -215,8 +215,8 @@ export default class TitleScene extends Phaser.Scene {
    */
   private createMenuButtons(width: number, height: number): void {
     const buttonX = width / 2
-    const buttonY = height / 2 + 120
-    const buttonSpacing = 50
+    const buttonY = height / 2 + 115
+    const buttonSpacing = 48
 
     // 武将按钮
     this.createMenuButton(buttonX, buttonY, '武将', () => {
@@ -228,10 +228,26 @@ export default class TitleScene extends Phaser.Scene {
       this.transitionTo('EquipmentScene')
     })
 
+    // 无尽试炼按钮
+    this.createMenuButton(buttonX, buttonY + buttonSpacing * 2, '百战无尽', () => {
+      this.transitionToBattle('level_endless_tower')
+    })
+
     // 存档按钮
-    this.createMenuButton(buttonX, buttonY + buttonSpacing * 2, '存档', () => {
+    this.createMenuButton(buttonX, buttonY + buttonSpacing * 3, '存档', () => {
       this.transitionTo('SaveScene')
     })
+  }
+
+  private transitionToBattle(levelId: string): void {
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+    try {
+      this.scene.start('BattleScene', { levelId })
+    } catch (err) {
+      console.error(`[TitleScene] 启动无尽试炼 ${levelId} 异常:`, err)
+      this.isTransitioning = false
+    }
   }
 
   /**
@@ -290,14 +306,27 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * 安全场景跳转（带防连击与并发拦截保护）
+   * 安全场景跳转（带防并发与超时自愈恢复保护）
    */
   private transitionTo(sceneKey: string): void {
     if (this.isTransitioning) return
     this.isTransitioning = true
-    if (this.input) this.input.enabled = false
-    this.tweens.killAll()
-    this.scene.start(sceneKey)
+
+    // 600ms 自动安全解锁保护（若目标场景启动异常，自愈恢复交互状态）
+    this.time.delayedCall(600, () => {
+      if (this.scene.isActive()) {
+        this.isTransitioning = false
+        if (this.input) this.input.enabled = true
+      }
+    })
+
+    try {
+      this.scene.start(sceneKey)
+    } catch (err) {
+      console.error(`[TitleScene] 跳转场景 ${sceneKey} 发生异常:`, err)
+      this.isTransitioning = false
+      if (this.input) this.input.enabled = true
+    }
   }
 
   /**

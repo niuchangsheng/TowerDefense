@@ -73,9 +73,20 @@ export default class LevelSelectScene extends Phaser.Scene {
     createPageBackButton(this, () => {
       if (this.isTransitioning) return
       this.isTransitioning = true
-      if (this.input) this.input.enabled = false
+      this.time.delayedCall(600, () => {
+        if (this.scene.isActive()) {
+          this.isTransitioning = false
+          if (this.input) this.input.enabled = true
+        }
+      })
       this.clearTweens()
-      this.scene.start('TitleScene')
+      try {
+        this.scene.start('TitleScene')
+      } catch (err) {
+        console.error('[LevelSelectScene] 返回主页异常:', err)
+        this.isTransitioning = false
+        if (this.input) this.input.enabled = true
+      }
     })
 
     // 初始化容器
@@ -94,25 +105,30 @@ export default class LevelSelectScene extends Phaser.Scene {
    * 加载存档通关进度
    */
   private loadProgress(): void {
-    if (this.saveManager.hasSave(0)) {
-      const autoSave = this.saveManager.loadFromSlot(0)
-      if (autoSave) {
-        this.completedLevels = autoSave.levelProgress
-          .filter(l => l.isCompleted)
-          .map(l => l.levelId)
-      }
-    }
-
-    for (let i = 1; i <= 3; i++) {
-      if (this.saveManager.hasSave(i)) {
-        const save = this.saveManager.loadFromSlot(i)
-        if (save) {
-          this.completedLevels = save.levelProgress
-            .filter(l => l.isCompleted)
+    try {
+      if (this.saveManager.hasSave(0)) {
+        const autoSave = this.saveManager.loadFromSlot(0)
+        if (autoSave && Array.isArray(autoSave.levelProgress)) {
+          this.completedLevels = autoSave.levelProgress
+            .filter(l => l && l.isCompleted)
             .map(l => l.levelId)
-          break
         }
       }
+
+      for (let i = 1; i <= 3; i++) {
+        if (this.saveManager.hasSave(i)) {
+          const save = this.saveManager.loadFromSlot(i)
+          if (save && Array.isArray(save.levelProgress)) {
+            this.completedLevels = save.levelProgress
+              .filter(l => l && l.isCompleted)
+              .map(l => l.levelId)
+            break
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[LevelSelectScene] 读取通关进度异常，使用空进度兜底:', err)
+      this.completedLevels = []
     }
   }
 
@@ -1166,9 +1182,20 @@ export default class LevelSelectScene extends Phaser.Scene {
   private startLevel(levelId: string): void {
     if (this.isTransitioning) return
     this.isTransitioning = true
-    if (this.input) this.input.enabled = false
+    this.time.delayedCall(600, () => {
+      if (this.scene.isActive()) {
+        this.isTransitioning = false
+        if (this.input) this.input.enabled = true
+      }
+    })
     console.log(`[战役沙盘] 出征关卡: ${levelId}`)
     this.clearTweens()
-    this.scene.start('BattleScene', { levelId })
+    try {
+      this.scene.start('BattleScene', { levelId })
+    } catch (err) {
+      console.error('[LevelSelectScene] 出征关卡异常:', err)
+      this.isTransitioning = false
+      if (this.input) this.input.enabled = true
+    }
   }
 }

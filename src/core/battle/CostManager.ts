@@ -11,10 +11,14 @@ export class CostManager {
   /**
    * 构造函数
    * @param startCost 初始费用
+   * @param maxCost 最大军费存储上限（默认采用 COST_CONFIG.maxCost，即 9999）
    */
-  constructor(startCost: number = COST_CONFIG.startCost) {
+  constructor(
+    startCost: number = COST_CONFIG.startCost,
+    maxCost: number = COST_CONFIG.maxCost
+  ) {
     this.currentCost = startCost
-    this.maxCost = startCost * 2  // 最大费用上限为初始费用的2倍
+    this.maxCost = maxCost
   }
 
   /**
@@ -29,6 +33,16 @@ export class CostManager {
    */
   getMaxCost(): number {
     return this.maxCost
+  }
+
+  /**
+   * 设置最大费用上限
+   */
+  setMaxCost(maxCost: number): void {
+    this.maxCost = maxCost
+    if (this.currentCost > this.maxCost) {
+      this.currentCost = this.maxCost
+    }
   }
 
   /**
@@ -66,10 +80,14 @@ export class CostManager {
   /**
    * 重置费用
    * @param startCost 新的初始费用
+   * @param maxCost 新的上限
    */
-  reset(startCost: number = COST_CONFIG.startCost): void {
+  reset(
+    startCost: number = COST_CONFIG.startCost,
+    maxCost: number = COST_CONFIG.maxCost
+  ): void {
     this.currentCost = startCost
-    this.maxCost = startCost * 2
+    this.maxCost = maxCost
   }
 
   /**

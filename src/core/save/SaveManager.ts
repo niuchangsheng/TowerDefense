@@ -52,6 +52,11 @@ export class SaveManager {
           const jsonStr = localStorage.getItem(this.getSaveKey(i))
           if (jsonStr) {
             summary = JSON.parse(jsonStr) as SaveData
+            if (!summary.heroes || !Array.isArray(summary.heroes)) summary.heroes = []
+            if (!summary.inventory) {
+              summary.inventory = { soulStones: [], equipment: [], gems: [], gold: 0 }
+            }
+            if (!summary.levelProgress || !Array.isArray(summary.levelProgress)) summary.levelProgress = []
           }
         } catch (e) {
           console.error(`读取槽位${i}存档失败:`, e)
@@ -103,6 +108,19 @@ export class SaveManager {
         console.warn('存档版本不兼容')
         return null
       }
+
+      // 数据结构完整性防御，防止脏数据/旧版数据导致各场景 TypeError 崩溃
+      if (!data.heroes || !Array.isArray(data.heroes)) data.heroes = []
+      if (!data.inventory) {
+        data.inventory = { soulStones: [], equipment: [], gems: [], gold: 0 }
+      } else {
+        if (!Array.isArray(data.inventory.soulStones)) data.inventory.soulStones = []
+        if (!Array.isArray(data.inventory.equipment)) data.inventory.equipment = []
+        if (!Array.isArray(data.inventory.gems)) data.inventory.gems = []
+        if (typeof data.inventory.gold !== 'number') data.inventory.gold = 0
+      }
+      if (!data.levelProgress || !Array.isArray(data.levelProgress)) data.levelProgress = []
+      if (!data.chapterProgress || !Array.isArray(data.chapterProgress)) data.chapterProgress = []
 
       this.currentSlot = slotId
       this.currentSave = data
@@ -292,17 +310,20 @@ export class SaveManager {
     }
 
     // 用存档数据覆盖
-    for (const savedHero of this.currentSave.heroes) {
-      const defaultHero = defaultHeroes.get(savedHero.id)
-      if (defaultHero) {
-        loadedHeroes.set(savedHero.id, {
-          ...defaultHero,
-          level: savedHero.level,
-          star: savedHero.star,
-          experience: savedHero.experience,
-          isUnlocked: savedHero.isUnlocked,
-          equipment: savedHero.equipment
-        })
+    if (this.currentSave && Array.isArray(this.currentSave.heroes)) {
+      for (const savedHero of this.currentSave.heroes) {
+        if (!savedHero) continue
+        const defaultHero = defaultHeroes.get(savedHero.id)
+        if (defaultHero) {
+          loadedHeroes.set(savedHero.id, {
+            ...defaultHero,
+            level: savedHero.level ?? defaultHero.level,
+            star: savedHero.star ?? defaultHero.star,
+            experience: savedHero.experience ?? defaultHero.experience,
+            isUnlocked: savedHero.isUnlocked ?? defaultHero.isUnlocked,
+            equipment: savedHero.equipment ?? defaultHero.equipment
+          })
+        }
       }
     }
 
@@ -328,10 +349,10 @@ export class SaveManager {
 
     return {
       slotName: slotId === 0 ? '自动存档' : `存档 ${slotId}`,
-      timestamp: new Date(saveData.timestamp).toLocaleString(),
-      heroCount: saveData.heroes.filter(h => h.isUnlocked).length,
-      gold: saveData.inventory.gold,
-      completedLevels: saveData.levelProgress.filter(l => l.isCompleted).length
+      timestamp: new Date(saveData.timestamp || Date.now()).toLocaleString(),
+      heroCount: Array.isArray(saveData.heroes) ? saveData.heroes.filter(h => h && h.isUnlocked).length : 0,
+      gold: saveData.inventory?.gold ?? 0,
+      completedLevels: Array.isArray(saveData.levelProgress) ? saveData.levelProgress.filter(l => l && l.isCompleted).length : 0
     }
   }
 }

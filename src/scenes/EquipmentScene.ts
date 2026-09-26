@@ -1,8 +1,9 @@
 import Phaser from 'phaser'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
-import { getGemName } from '@/data/equipment/gems'
+import { getGemName, gemNames } from '@/data/equipment/gems'
 import { RarityNames, Rarity, Gem, WuXing } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
+import { GemIconRenderer, GEM_RARITY_LABELS, GEM_LORE_MAP } from '@/rendering/GemIconRenderer'
 import {
   InkColor,
   InkText,
@@ -40,7 +41,7 @@ export default class EquipmentScene extends Phaser.Scene {
   private static readonly EQUIP_GAP = 12
   private static readonly GEM_COLS = 4
   private static readonly GEM_W = 78
-  private static readonly GEM_H = 64
+  private static readonly GEM_H = 76
   private static readonly GEM_GAP = 8
   private static readonly PANEL_X = 400
   private static readonly PANEL_Y = 80
@@ -63,12 +64,15 @@ export default class EquipmentScene extends Phaser.Scene {
 
   constructor() {
     super({ key: 'EquipmentScene' })
-    this.equipmentManager = new EquipmentManager()
+    this.equipmentManager = EquipmentManager.getInstance()
   }
 
   create(): void {
     drawPaperBackground(this)
     renderPageHeader(this, '装备', '· 军械')
+
+    // 初始化25款五行宝石高保真程序化图标
+    GemIconRenderer.init(this)
 
     // 左栏：分类标签 + 装备与宝石列表 + 滚轮滚动
     this.renderLeftColumn()
@@ -78,8 +82,16 @@ export default class EquipmentScene extends Phaser.Scene {
 
     // 返回按钮（自动存档）
     createPageBackButton(this, () => {
-      this.autoSave()
-      this.scene.start('TitleScene')
+      try {
+        this.autoSave()
+      } catch (e) {
+        console.warn('Equipment autoSave failed:', e)
+      }
+      try {
+        this.scene.start('TitleScene')
+      } catch (err) {
+        console.error('Failed to start TitleScene:', err)
+      }
     })
 
     // 优先默认选中三国神器（如赤兔马）或第一件装备
@@ -386,7 +398,7 @@ export default class EquipmentScene extends Phaser.Scene {
   }
 
   /**
-   * 创建宝石卡片
+   * 创建宝石卡片（包含五行高保真图标与典雅布局）
    */
   private createGemCard(gem: Gem, x: number, y: number): Phaser.GameObjects.Container {
     const card = this.add.container(x, y)
@@ -394,32 +406,49 @@ export default class EquipmentScene extends Phaser.Scene {
     const H = EquipmentScene.GEM_H
     const style = INK_WUXING[gem.wuXing]
 
-    // 背景：五行底色 + 五行描边
-    const bg = this.add.rectangle(0, 0, W, H, style.fill, 0.9)
+    // 背景：五行底色 + 五行描边（作为 card.getAt(0)，供 selectGem 高亮使用）
+    const bg = this.add.rectangle(0, 0, W, H, style.fill, 0.85)
     bg.setStrokeStyle(2, style.border)
     card.add(bg)
 
-    // 五行字
-    card.add(inkText(this, 0, -18, style.label, {
-      size: 16,
+    // 左上角：五行属性单字印记
+    card.add(inkText(this, -W / 2 + 11, -H / 2 + 10, style.label, {
+      size: 10,
       color: style.text,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     }))
 
-    // 宝石名称
-    card.add(inkText(this, 0, 2, getGemName(gem), {
-      size: 10,
-      color: InkText.strong,
-      originX: 0.5
-    }))
+    // 右上角：等级角标胶囊小框
+    const badgeW = 24
+    const badgeH = 13
+    const badgeBg = this.add.rectangle(W / 2 - badgeW / 2 - 3, -H / 2 + badgeH / 2 + 3, badgeW, badgeH, InkColor.paperDeep, 0.85)
+    badgeBg.setStrokeStyle(1, style.border, 0.5)
+    card.add(badgeBg)
 
-    // 等级
-    card.add(inkText(this, 0, 19, `Lv.${gem.level}`, {
-      size: 11,
+    card.add(inkText(this, W / 2 - badgeW / 2 - 3, -H / 2 + badgeH / 2 + 3, `L${gem.level}`, {
+      size: 9,
       color: InkText.gold,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
+    }))
+
+    // 中间：高保真宝石专属矢量图标 (48x48)
+    const iconKey = `gem_icon_${gem.wuXing}_${gem.level}`
+    if (this.textures.exists(iconKey)) {
+      const icon = this.add.image(0, -6, iconKey)
+      card.add(icon)
+    }
+
+    // 底部：宝石全名（如“庚金璞石”）
+    card.add(inkText(this, 0, H / 2 - 12, getGemName(gem), {
+      size: 10,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
     }))
 
     // 点击交互
@@ -429,7 +458,7 @@ export default class EquipmentScene extends Phaser.Scene {
       card.setScale(1.05)
     })
     bg.on('pointerout', () => {
-      bg.setFillStyle(style.fill, 0.9)
+      bg.setFillStyle(style.fill, 0.85)
       card.setScale(1)
     })
     bg.on('pointerdown', () => {
@@ -564,13 +593,21 @@ export default class EquipmentScene extends Phaser.Scene {
         gemBg.setStrokeStyle(canSynthesize ? 2 : 1, canSynthesize ? InkColor.cinnabar : style.border)
         panel.add(gemBg)
 
-        panel.add(inkText(this, x, rowY - 11, `Lv.${level}`, {
-          size: InkFontSize.xs,
+        // 宝石图标
+        const iconKey = `gem_icon_${wuXing}_${level}`
+        if (this.textures.exists(iconKey)) {
+          const icon = this.add.image(x - 15, rowY, iconKey).setScale(0.55)
+          if (count === 0) icon.setAlpha(0.35)
+          panel.add(icon)
+        }
+
+        panel.add(inkText(this, x + 15, rowY - 8, `L${level}`, {
+          size: 9,
           color: InkText.faint,
           originX: 0.5
         }))
 
-        panel.add(inkText(this, x, rowY + 8, `${count}`, {
+        panel.add(inkText(this, x + 15, rowY + 8, `${count}`, {
           size: InkFontSize.md,
           color: count > 0 ? InkText.strong : InkText.faint,
           bold: true,
@@ -762,7 +799,7 @@ export default class EquipmentScene extends Phaser.Scene {
     if (equip.type === 'artifact') {
       const artifact = detail as any
       y += 12
-      y += sectionHeader(this, this.detailPanel, PAD, y, '宝石槽', EquipmentScene.CONTENT_W)
+      y += sectionHeader(this, this.detailPanel, PAD, y, '宝石槽与攻击特效', EquipmentScene.CONTENT_W)
 
       const required = artifact.gemSocket?.requiredWuXing as WuXing | undefined
       if (required) {
@@ -773,19 +810,85 @@ export default class EquipmentScene extends Phaser.Scene {
       }
       y += 26
 
+      let curGem: Gem | undefined = undefined
       if (artifact.gemSocket?.currentGem) {
-        this.detailPanel.add(inkText(this, PAD, y + 10, '已镶嵌', {
+        if (typeof artifact.gemSocket.currentGem === 'string') {
+          curGem = this.equipmentManager.getGem(artifact.gemSocket.currentGem)
+        } else {
+          curGem = artifact.gemSocket.currentGem as Gem
+        }
+      }
+
+      if (curGem) {
+        const iconKey = `gem_icon_${curGem.wuXing}_${curGem.level}`
+        if (this.textures.exists(iconKey)) {
+          const icon = this.add.image(PAD + 16, y + 18, iconKey).setScale(0.65)
+          this.detailPanel.add(icon)
+        }
+        this.detailPanel.add(inkText(this, PAD + 38, y + 10, `已镶嵌: ${getGemName(curGem)} (Lv.${curGem.level})`, {
           size: InkFontSize.md,
-          color: InkText.green,
+          color: curGem.level === 5 ? InkText.cinnabar : InkText.green,
           bold: true
         }))
+        y += 26
+
+        // 5级神石终极攻击特效展示
+        if (curGem.level === 5) {
+          const fxSummary: Record<WuXing, string> = {
+            metal: '【破甲】普攻撕裂防御50%，受击伤害加深+35%',
+            wood: '【剧毒】每秒扣除最大生命3%，最高叠加3层',
+            water: '【冰冻】定身冰冻2秒，解冻后附带40%减速',
+            fire: '【灼烧】烈焰持续真伤，阵亡触发红莲殉爆',
+            earth: '【眩晕】强行打断行动，原地硬控眩晕2秒'
+          }
+          this.detailPanel.add(inkText(this, PAD + 38, y + 4, `★ ${fxSummary[curGem.wuXing]}`, {
+            size: 11,
+            color: InkText.cinnabar,
+            bold: true
+          }))
+          y += 20
+        }
+
+        // 更换宝石 与 卸下 按钮
+        const changeBtn = createInkButton(this, PAD + 50, y + 14, 88, 26, '更换宝石', {
+          fill: InkColor.paperDeep,
+          hoverFill: InkColor.paper,
+          textColor: InkText.ink,
+          fontSize: 12,
+          onClick: () => this.showGemSocketDialog(equip)
+        })
+        const unmountBtn = createInkButton(this, PAD + 146, y + 14, 88, 26, '卸下宝石', {
+          fill: InkColor.paperDeep,
+          hoverFill: InkColor.paper,
+          textColor: InkText.wash,
+          fontSize: 12,
+          onClick: () => {
+            this.equipmentManager.unsocketGemFromArtifact(equip.instanceId)
+            this.showMessage('已卸下宝石')
+            this.updateDetailPanel(equip)
+          }
+        })
+        this.detailPanel.add(changeBtn)
+        this.detailPanel.add(unmountBtn)
+        y += 32
       } else {
-        this.detailPanel.add(inkText(this, PAD, y + 10, '空槽', {
+        this.detailPanel.add(inkText(this, PAD, y + 10, '空槽 (未镶嵌)', {
           size: InkFontSize.md,
           color: InkText.faint
         }))
+        y += 24
+
+        const mountBtn = createInkButton(this, PAD + 50, y + 10, 88, 26, '镶嵌宝石', {
+          fill: InkColor.paperDeep,
+          hoverFill: InkColor.paper,
+          textColor: InkText.cinnabar,
+          stroke: InkColor.cinnabar,
+          fontSize: 12,
+          onClick: () => this.showGemSocketDialog(equip)
+        })
+        this.detailPanel.add(mountBtn)
+        y += 26
       }
-      y += 26
     }
 
     // 状态
@@ -824,48 +927,289 @@ export default class EquipmentScene extends Phaser.Scene {
     const style = INK_WUXING[gem.wuXing]
     let y = EquipmentScene.PAD
 
-    // 宝石名称
-    this.detailPanel.add(inkText(this, PAD, y + 12, getGemName(gem), {
-      size: InkFontSize.lg,
+    // 1. 顶部大图腾展示区：左侧 96x96 大图标，右侧名称、境界品阶、神兽印记
+    const iconBoxSize = 96
+    const iconBg = this.add.rectangle(PAD + iconBoxSize / 2, y + iconBoxSize / 2, iconBoxSize, iconBoxSize, style.fill, 0.7)
+    iconBg.setStrokeStyle(2, style.border)
+    this.detailPanel.add(iconBg)
+
+    const largeKey = `gem_large_${gem.wuXing}_${gem.level}`
+    if (this.textures.exists(largeKey)) {
+      const largeIcon = this.add.image(PAD + iconBoxSize / 2, y + iconBoxSize / 2, largeKey)
+      this.detailPanel.add(largeIcon)
+    }
+
+    const textX = PAD + iconBoxSize + 20
+
+    // 宝石全名
+    this.detailPanel.add(inkText(this, textX, y + 14, getGemName(gem), {
+      size: 22,
       color: InkText.strong,
       bold: true
     }))
-    y += 32
 
-    // 五行·等级
-    this.detailPanel.add(inkText(this, PAD, y + 8, `${style.label} · 等级 ${gem.level}`, {
+    // 五行与品阶境界
+    const rarityLabel = GEM_RARITY_LABELS[gem.level] || '灵玉'
+    this.detailPanel.add(inkText(this, textX, y + 44, `【${style.label}系 · ${rarityLabel}】 等级 Lv.${gem.level}`, {
       size: 14,
       color: style.text,
       bold: true
     }))
-    y += 30
 
-    // 宝石效果
-    y += sectionHeader(this, this.detailPanel, PAD, y, '宝石效果', EquipmentScene.CONTENT_W)
+    // 神兽印记
+    const beastMap: Record<WuXing, string> = {
+      metal: '西方白虎 · 杀伐锐金',
+      wood: '东方青龙 · 生生不息',
+      water: '北方玄武 · 渊深镇海',
+      fire: '南方朱雀 · 离火涅槃',
+      earth: '中土麒麟 · 德载八荒'
+    }
+    this.detailPanel.add(inkText(this, textX, y + 70, `神祇守护: ${beastMap[gem.wuXing]}`, {
+      size: 13,
+      color: InkText.wash
+    }))
+
+    y += iconBoxSize + 20
+
+    // 2. 灵宝意象与图腾典故
+    const loreInfo = GEM_LORE_MAP[gem.wuXing]?.[gem.level]
+    if (loreInfo) {
+      y += sectionHeader(this, this.detailPanel, PAD, y, '灵宝意象与图腾', EquipmentScene.CONTENT_W)
+      this.detailPanel.add(inkText(this, PAD, y + 8, `【图案造型】${loreInfo.visual}`, {
+        size: 13,
+        color: InkText.ink,
+        bold: true
+      }))
+      y += 24
+      this.detailPanel.add(inkText(this, PAD, y + 8, `【天道典故】${loreInfo.lore}`, {
+        size: 13,
+        color: InkText.wash
+      }))
+      y += 30
+    }
+
+    // 3. 宝石效果与专属攻击特效
+    y += sectionHeader(this, this.detailPanel, PAD, y, '宝石效果与攻击特效', EquipmentScene.CONTENT_W)
     const effectTexts: Record<string, string> = {
-      metal: `攻击力 +${gem.level * 5}%`,
-      wood: `暴击率 +${gem.level * 2}%`,
-      water: `攻击速度 +${gem.level * 3}%`,
-      fire: `伤害 +${gem.level * 4}%`,
-      earth: `防御 +${gem.level * 6}%`
+      metal: `基础属性: 攻击力 +${gem.level * 5}%`,
+      wood: `基础属性: 暴击率 +${gem.level * 2}%`,
+      water: `基础属性: 攻击速度 +${gem.level * 3}%`,
+      fire: `基础属性: 伤害 +${gem.level * 4}%`,
+      earth: `基础属性: 防御 +${gem.level * 6}%`
     }
     this.detailPanel.add(inkText(this, PAD, y + 10, effectTexts[gem.wuXing] || '未知效果', {
       size: InkFontSize.md,
-      color: InkText.gold
+      color: InkText.gold,
+      bold: true
     }))
-    y += 34
+    y += 30
 
-    // 用途
-    y += sectionHeader(this, this.detailPanel, PAD, y, '用途', EquipmentScene.CONTENT_W)
-    this.detailPanel.add(inkText(this, PAD, y + 10, '镶嵌到对应五行神器', {
+    // 5级神石独有攻击特效说明
+    if (gem.level === 5) {
+      const lv5EffectDesc: Record<WuXing, { title: string; desc: string; color: string }> = {
+        metal: {
+          title: '【终极专属攻击特效 · 破甲】',
+          desc: '普攻撕裂敌方护甲，削弱 50% 防御，使目标受击伤害加深 +35%，持续 5 秒！',
+          color: '#ffd54f'
+        },
+        wood: {
+          title: '【终极专属攻击特效 · 剧毒】',
+          desc: '普攻注入青龙剧毒，每秒扣除最大生命 3%（最高叠至 3 层），持续 5 秒！',
+          color: '#4caf50'
+        },
+        water: {
+          title: '【终极专属攻击特效 · 冰冻】',
+          desc: '普攻唤起玄冰封冻，使敌人绝对定身冻结 2 秒，解冻后附带 40% 减速持续 3 秒！',
+          color: '#40c4ff'
+        },
+        fire: {
+          title: '【终极专属攻击特效 · 灼烧与红莲殉爆】',
+          desc: '普攻附带烈火真伤；若目标在灼烧中死亡，引爆【红莲殉爆】大范围溅射并传染烈火！',
+          color: '#ff5252'
+        },
+        earth: {
+          title: '【终极专属攻击特效 · 眩晕】',
+          desc: '普攻以万岳玄黄重力猛击，强行打断蓄力与行动，使敌人原地昏迷瘫痪 2 秒！',
+          color: '#d4a359'
+        }
+      }
+
+      const eff = lv5EffectDesc[gem.wuXing]
+      if (eff) {
+        this.detailPanel.add(inkText(this, PAD, y + 6, eff.title, {
+          size: 14,
+          color: eff.color,
+          bold: true
+        }))
+        y += 24
+        this.detailPanel.add(inkText(this, PAD, y + 6, eff.desc, {
+          size: 12,
+          color: InkText.strong
+        }))
+        y += 28
+      }
+    }
+
+    // 4. 用途与神器相生
+    y += sectionHeader(this, this.detailPanel, PAD, y, '神器相生与用途', EquipmentScene.CONTENT_W)
+    this.detailPanel.add(inkText(this, PAD, y + 10, `镶嵌至对应【${style.label}】属性神器宝石槽`, {
       size: InkFontSize.md,
       color: InkText.ink
     }))
     y += 26
-    this.detailPanel.add(inkText(this, PAD, y + 10, '可激活神器隐藏效果', {
+    this.detailPanel.add(inkText(this, PAD, y + 10, '五行相生：可激活神器的隐藏专属增益特质与羁绊效果', {
       size: InkFontSize.md,
       color: InkText.green
     }))
+    y += 34
+
+    // 5. 三合一升阶路线
+    y += sectionHeader(this, this.detailPanel, PAD, y, '升阶合成路线', EquipmentScene.CONTENT_W)
+    if (gem.level < 5) {
+      const nextGemName = gemNames[gem.wuXing]?.[gem.level + 1] || '更高阶宝石'
+      const curCount = this.equipmentManager.getGemCountByWuXingAndLevel(gem.wuXing, gem.level)
+      this.detailPanel.add(inkText(this, PAD, y + 10, `合成规则: 3 颗 [${getGemName(gem)}] ➔ 1 颗 [${nextGemName}]`, {
+        size: InkFontSize.md,
+        color: InkText.ink
+      }))
+      y += 26
+      const countColor = curCount >= 3 ? InkText.green : InkText.cinnabar
+      this.detailPanel.add(inkText(this, PAD, y + 10, `当前持有: ${curCount} / 3 颗${curCount >= 3 ? ' (可直接合成)' : ' (材料不足)'}`, {
+        size: InkFontSize.md,
+        color: countColor,
+        bold: true
+      }))
+      y += 36
+
+      if (curCount >= 3) {
+        const synthBtn = createInkButton(this, PAD + 70, y + 18, 140, 32, '立刻升阶合成', {
+          fill: InkColor.paperDeep,
+          hoverFill: InkColor.paper,
+          textColor: InkText.cinnabar,
+          fontSize: InkFontSize.sm,
+          stroke: InkColor.cinnabar,
+          onClick: () => {
+            const result = this.equipmentManager.synthesizeGems(gem.wuXing, gem.level)
+            if (result) {
+              this.showMessage(`合成成功！获得 ${getGemName(result)}`)
+              this.refreshGemList()
+              this.updateGemDetailPanel(result)
+            }
+          }
+        })
+        this.detailPanel.add(synthBtn)
+      }
+    } else {
+      this.detailPanel.add(inkText(this, PAD, y + 10, '此宝已达至尊神品境界，蕴含天地四象之极道造化，不可再合成。', {
+        size: InkFontSize.md,
+        color: InkText.gold,
+        bold: true
+      }))
+    }
+  }
+
+  /**
+   * 弹出宝石镶嵌弹窗
+   */
+  private showGemSocketDialog(equip: EquipmentInstance): void {
+    const detail = this.equipmentManager.getEquipmentDetail(equip.instanceId) as any
+    if (!detail || !detail.gemSocket) return
+
+    const reqWuXing = detail.gemSocket.requiredWuXing as WuXing
+    const reqStyle = INK_WUXING[reqWuXing]
+    const matchingGems = this.equipmentManager.getOwnedGems().filter(g => g.wuXing === reqWuXing)
+
+    if (matchingGems.length === 0) {
+      this.showMessage(`行囊中暂无【${reqStyle.label}】属性宝石`)
+      return
+    }
+
+    const dialogW = 460
+    const dialogH = 360
+    const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
+      stroke: InkColor.ink,
+      strokeWidth: 2
+    })
+
+    const closeAll = () => {
+      overlay.destroy()
+      panel.destroy()
+    }
+
+    panel.add(inkText(this, dialogW / 2, 28, `镶嵌宝石 · ${detail.name}`, {
+      size: 20,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    }))
+
+    panel.add(inkText(this, dialogW / 2, 54, `请选择一颗【${reqStyle.label}】属性宝石进行镶嵌：`, {
+      size: 13,
+      color: reqStyle.text,
+      originX: 0.5
+    }))
+
+    // 列表显示匹配的宝石（按等级从高到低排序）
+    matchingGems.sort((a, b) => b.level - a.level)
+
+    const startY = 82
+    const itemH = 46
+    const maxVisible = 4
+
+    matchingGems.slice(0, maxVisible).forEach((g, idx) => {
+      const itemY = startY + idx * (itemH + 8)
+      const isL5 = g.level === 5
+      const itemBg = this.add.rectangle(dialogW / 2, itemY, dialogW - 48, itemH, isL5 ? InkColor.paperDeep : reqStyle.fill, 0.85)
+      itemBg.setStrokeStyle(isL5 ? 2 : 1, isL5 ? InkColor.cinnabar : reqStyle.border)
+      panel.add(itemBg)
+
+      // 图标
+      const iconKey = `gem_icon_${g.wuXing}_${g.level}`
+      if (this.textures.exists(iconKey)) {
+        const icon = this.add.image(42, itemY, iconKey).setScale(0.7)
+        panel.add(icon)
+      }
+
+      // 名字与等级
+      panel.add(inkText(this, 72, itemY - 9, `${getGemName(g)} (Lv.${g.level})`, {
+        size: 14,
+        color: isL5 ? InkText.cinnabar : InkText.strong,
+        bold: true
+      }))
+
+      // 5级特殊标签
+      const subText = isL5 ? '★ 5级神品 · 附带终极攻击特效 ★' : `五行加成效果 Lv.${g.level}`
+      panel.add(inkText(this, 72, itemY + 9, subText, {
+        size: 11,
+        color: isL5 ? InkText.cinnabar : InkText.wash
+      }))
+
+      // 镶嵌按钮
+      const socketBtn = createInkButton(this, dialogW - 74, itemY, 68, 28, '镶嵌', {
+        fill: InkColor.paperDeep,
+        hoverFill: InkColor.paper,
+        textColor: InkText.ink,
+        fontSize: 12,
+        stroke: reqStyle.border,
+        onClick: () => {
+          this.equipmentManager.socketGemToArtifact(equip.instanceId, g.id)
+          closeAll()
+          this.showMessage(`镶嵌成功！已为 ${detail.name} 镶嵌 ${getGemName(g)}`)
+          this.updateDetailPanel(equip)
+        }
+      })
+      panel.add(socketBtn)
+    })
+
+    // 关闭按钮
+    const closeBtn = createInkButton(this, dialogW / 2, dialogH - 26, 80, 26, '取消', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.wash,
+      fontSize: 12,
+      onClick: closeAll
+    })
+    panel.add(closeBtn)
   }
 
   /**
@@ -889,7 +1233,7 @@ export default class EquipmentScene extends Phaser.Scene {
     const saveManager = SaveManager.getInstance()
     const saveData = saveManager.getCurrentSave()
 
-    if (!saveData) return
+    if (!saveData || !saveData.inventory) return
 
     // 更新装备数据到存档
     saveData.inventory.equipment = this.equipmentManager.getOwnedEquipment()

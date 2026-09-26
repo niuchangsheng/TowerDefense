@@ -1,6 +1,7 @@
 import { LevelConfig } from '@/types'
 import { level1Config, level2Config, level3Config } from './chapter1'
 import { getAllChapters, getChapter, chapters } from './chapters'
+import { EndlessModeManager } from '@/core/level/EndlessModeManager'
 
 // 导出章节相关
 export { getAllChapters, getChapter, chapters }
@@ -10,11 +11,19 @@ export { getAllChapters, getChapter, chapters }
  * 所有关卡配置的集合
  */
 
+// 无尽模式配置生成
+export const endlessLevelConfig = EndlessModeManager.createEndlessLevelConfig(
+  level1Config.map.path,
+  level1Config.map.spawnPoint,
+  level1Config.map.exitPoint
+)
+
 // 关卡配置映射
 const levelConfigs: Map<string, LevelConfig> = new Map([
   ['chapter1_level1', level1Config],
   ['chapter1_level2', level2Config],
-  ['chapter1_level3', level3Config]
+  ['chapter1_level3', level3Config],
+  ['level_endless_tower', endlessLevelConfig]
 ])
 
 /**
@@ -53,7 +62,11 @@ export function getChapterLevels(chapterId: string): LevelConfig[] {
  * @param levelId 关卡ID
  * @param completedLevels 已通关关卡列表
  */
-export function isLevelUnlocked(levelId: string, completedLevels: string[]): boolean {
+export function isLevelUnlocked(levelId: string, completedLevels: string[] = []): boolean {
+  if (levelId === 'level_endless_tower') {
+    return true
+  }
+
   // 第一关始终解锁
   if (levelId.endsWith('_level1')) {
     return true
@@ -67,7 +80,8 @@ export function isLevelUnlocked(levelId: string, completedLevels: string[]): boo
   if (levelNum <= 1) return true
   const prevLevelId = `${chapterPrefix}_level${levelNum - 1}`
 
-  return completedLevels.includes(prevLevelId)
+  const safeList = Array.isArray(completedLevels) ? completedLevels : []
+  return safeList.includes(prevLevelId)
 }
 
 /**
@@ -75,7 +89,7 @@ export function isLevelUnlocked(levelId: string, completedLevels: string[]): boo
  * @param chapterId 章节ID
  * @param completedLevels 已通关关卡列表
  */
-export function isChapterUnlocked(chapterId: string, completedLevels: string[]): boolean {
+export function isChapterUnlocked(chapterId: string, completedLevels: string[] = []): boolean {
   // 第一章始终解锁
   if (chapterId === 'chapter1') {
     return true
@@ -89,7 +103,8 @@ export function isChapterUnlocked(chapterId: string, completedLevels: string[]):
   const prevChapterId = `chapter${chapterNum - 1}`
   const prevChapterLastLevel = `${prevChapterId}_level3`
 
-  return completedLevels.includes(prevChapterLastLevel)
+  const safeList = Array.isArray(completedLevels) ? completedLevels : []
+  return safeList.includes(prevChapterLastLevel)
 }
 
 export { levelConfigs }

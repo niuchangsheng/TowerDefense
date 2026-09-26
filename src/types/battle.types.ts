@@ -71,3 +71,14 @@ export type PlaceTroopResult = PlaceHeroResult
 
 // 撤退兵种结果
 export type RetreatTroopResult = RetreatHeroResult
+
+// 5级宝石专属攻击特效类型
+export type GemAttackEffectType = 'armor_break' | 'poison' | 'freeze' | 'burn' | 'stun'
+
+// 5级宝石特效生效配置
+export interface GemAttackEffectConfig {
+  type: GemAttackEffectType
+  duration: number
+  value?: number
+  attackerHeroId?: string
+}

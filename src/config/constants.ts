@@ -5,7 +5,7 @@ export const GAME_WIDTH = 1280
 export const GAME_HEIGHT = 720
 
 // ===== 战场格子系统 =====
-// 整个战场按 40px 格子规划：路径逐格行进，部署按格占位（兵占1格、将占2×2田字4格）
+// 整个战场按 40px 格子规划：路径逐格行进，部署按格占位（兵种与武将均占 1 格 40×40）
 export const GRID = {
   cellSize: 40,               // 格子边长（调小为 40px）
   cols: 32,                   // 列数（1280 / 40）
@@ -54,6 +54,7 @@ export const ASSETS_PATH = '/assets/'
 // 费用系统
 export const COST_CONFIG = {
   startCost: 20,              // 初始费用
+  maxCost: 9999,              // 军费存储上限（默认 9999，支持长期积累大军）
   normalEnemyReward: 1,       // 普通敌人奖励
   eliteEnemyReward: 3,        // 精英敌人奖励
   bossEnemyReward: 10,        // Boss奖励

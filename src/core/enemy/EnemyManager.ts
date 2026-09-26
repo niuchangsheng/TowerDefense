@@ -117,9 +117,12 @@ export class EnemyManager {
       const enemyData = enemyEntity.getEnemyData()
       if (!enemyData.isActive) continue
 
-      // 计算移动进度
-      // progress增量 = (speed * deltaTime) / totalLength
-      const progressIncrease = (enemyData.speed * deltaTime) / (this.pathFinder.getTotalLength() * 1000)
+      // 计算有效移动速度（支持冰冻、眩晕定身与减速）
+      const effectiveSpeed = enemyEntity.getEffectiveSpeed()
+      if (effectiveSpeed <= 0) continue
+
+      // progress增量 = (effectiveSpeed * deltaTime) / totalLength
+      const progressIncrease = (effectiveSpeed * deltaTime) / (this.pathFinder.getTotalLength() * 1000)
       enemyData.pathProgress += progressIncrease
 
       // 更新位置

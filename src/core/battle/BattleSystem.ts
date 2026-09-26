@@ -29,6 +29,9 @@ import { getEnemyConfig } from '@/data/enemies'
 import { getTroopConfig } from '@/data/troops'
 import { SaveManager } from '@/core/save/SaveManager'
 import { calculateLevelFromExp } from '@/data/heroes/levelConfig'
+import { AugmentManager } from '@/core/augment/AugmentManager'
+import { ElementalReactionManager } from '@/core/elemental/ElementalReactionManager'
+import { WuXing } from '@/types/wuxing.types'
 
 /**
  * 战斗主控制器
@@ -57,6 +60,8 @@ export class BattleSystem {
   // 战斗状态
   private battleState: BattleState
   private playerHealth: number
+  private maxPlayerHealth: number
+  private augmentManager: AugmentManager
   private elapsedTime: number
   private isRunning: boolean
   private isPaused: boolean
@@ -79,8 +84,9 @@ export class BattleSystem {
     this.levelConfig = levelConfig
     this.heroConfigs = heroConfigs
 
-    // 初始化费用管理
-    this.costManager = new CostManager(levelConfig.playerStartCost)
+    // 初始化费用管理（支持高波次大军蓄粮，默认上限 9999）
+    const maxCost = levelConfig.playerMaxCost ?? COST_CONFIG.maxCost
+    this.costManager = new CostManager(levelConfig.playerStartCost, maxCost)
 
     // 初始化波次管理
     this.waveManager = new WaveManager(levelConfig.waves)
@@ -93,8 +99,20 @@ export class BattleSystem {
       levelConfig.map.exitPoint
     )
 
+    // 初始化肉鸽锦囊管理器
+    this.augmentManager = new AugmentManager({
+      onHealBase: (amount) => {
+        this.playerHealth = Math.min(this.playerHealth + amount, this.maxPlayerHealth)
+      },
+      onAddMaxHealthBase: (amount) => {
+        this.maxPlayerHealth += amount
+        this.playerHealth += amount
+      }
+    })
+
     // 初始化英雄战斗管理
     this.heroBattleManager = new HeroBattleManager(scene, this.enemyManager)
+    this.heroBattleManager.setAugmentManager(this.augmentManager)
 
     // 初始化兵种战斗管理
     this.troopBattleManager = new TroopBattleManager(scene, this.enemyManager)
@@ -111,6 +129,7 @@ export class BattleSystem {
 
     // 初始化战斗状态
     this.playerHealth = levelConfig.playerStartHealth
+    this.maxPlayerHealth = levelConfig.playerStartHealth
     this.elapsedTime = 0
     this.isRunning = false
     this.isPaused = false
@@ -143,9 +162,9 @@ export class BattleSystem {
   }
 
   /**
-   * 放置英雄（横向占 1×2 两格）
+   * 放置英雄（占 1 格）
    * @param heroId 英雄ID
-   * @param cell 锚点格（英雄占该格 + 右邻格，右邻不可用则试左邻）
+   * @param cell 部署格子
    */
   placeHero(heroId: string, cell: GridCell): PlaceHeroResult {
     // 检查英雄是否存在且已解锁
@@ -181,7 +200,7 @@ export class BattleSystem {
       }
     }
 
-    // 计算 1×2 脚印并校验（必须在部署区内且未被占用）
+    // 计算 1 格脚印并校验（必须在部署区内且未被占用）
     const footprint = this.deployGrid.heroFootprint(cell)
     if (!footprint) {
       const isOnPath = this.deployGrid.isPathCell(cell)
@@ -194,7 +213,7 @@ export class BattleSystem {
     // 消耗费用
     this.costManager.consumeCost(heroConfig.deploymentCost)
 
-    // 部署位置 = 两格脚印中心
+    // 部署位置 = 格心
     const position = this.footprintCenter(footprint)
 
     // 创建已部署英雄数据
@@ -240,7 +259,7 @@ export class BattleSystem {
   }
 
   /**
-   * 脚印中心点（两格取中点，单格取格心）
+   * 脚印中心点（多格取平均中点，单格取格心）
    */
   private footprintCenter(footprint: GridCell[]): Point {
     const centers = footprint.map(cellCenter)
@@ -492,6 +511,9 @@ export class BattleSystem {
     const currentWave = this.waveManager.getCurrentWave()
     if (currentWave > this.lastNotifiedWave) {
       this.lastNotifiedWave = currentWave
+      // 每波开始时校准所有武将与兵种至部署基准网格位置与缩放，杜绝极限波次下可能累积的微小动画误差
+      this.heroBattleManager.resetAllHeroTransforms()
+      this.troopBattleManager.resetAllTroopTransforms()
       if (this.onWaveStartCallback) {
         this.onWaveStartCallback(currentWave)
       }
@@ -516,8 +538,16 @@ export class BattleSystem {
   private handleEnemyKilled(enemy: EnemyEntity): void {
     const enemyData = enemy.getEnemyData()
 
-    // 添加费用奖励
-    this.costManager.addCost(enemyData.rewardCost)
+    // 锦囊金币获取加成
+    const costMultiplier = this.augmentManager.getCostGainMultiplier()
+    const finalReward = Math.floor(enemyData.rewardCost * costMultiplier)
+    this.costManager.addCost(finalReward)
+
+    // 军师锦囊充能
+    this.augmentManager.onEnemyKilled(enemyData.type)
+
+    // 移除元素管理器中的状态
+    ElementalReactionManager.getInstance().removeEnemy(enemyData.id)
 
     // 移除敌人
     this.enemyManager.removeEnemy(enemyData.instanceId)
@@ -536,6 +566,9 @@ export class BattleSystem {
 
     // 减少玩家生命
     this.playerHealth -= 1
+
+    // 移除元素管理器中的状态
+    ElementalReactionManager.getInstance().removeEnemy(enemyData.id)
 
     // 移除敌人
     this.enemyManager.removeEnemy(enemyData.instanceId)
@@ -758,7 +791,7 @@ export class BattleSystem {
   }
 
   /**
-   * 拖拽单位落到目标格：英雄按 2×2 田字脚印、兵种按单格校验；
+   * 拖拽单位落到目标格：英雄与兵种均按单格校验；
    * 成功则占用新格并把实体移到脚印中心。
    */
   dropUnitOnCell(instanceId: string, cell: GridCell, originalFootprint: GridCell[]): MoveUnitResult {
@@ -847,6 +880,10 @@ export class BattleSystem {
     this.isPaused = false
   }
 
+  setPaused(paused: boolean): void {
+    this.isPaused = paused
+  }
+
   togglePause(): boolean {
     this.isPaused = !this.isPaused
     return this.isPaused
@@ -924,5 +961,21 @@ export class BattleSystem {
       activeEnemies: [],
       elapsedTime: 0
     }
+  }
+
+  public getAugmentManager(): AugmentManager {
+    return this.augmentManager
+  }
+
+  public getMaxPlayerHealth(): number {
+    return this.maxPlayerHealth
+  }
+
+  public getDeployedHeroIds(): string[] {
+    return Array.from(this.deployedHeroEntities.values()).map(h => h.getHeroData().id)
+  }
+
+  public getDeployedWuXing(): WuXing[] {
+    return Array.from(this.deployedHeroEntities.values()).map(h => h.getHeroData().wuXing)
   }
 }

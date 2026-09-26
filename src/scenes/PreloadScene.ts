@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { GAME_TITLE } from '@/config/constants'
+import { GemIconRenderer } from '@/rendering/GemIconRenderer'
 import {
   InkColor,
   InkText,
@@ -130,10 +131,6 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('baoji_zhugeliang', 'assets/images/heroes/San11/baoji/诸葛亮.jpg')
     this.load.image('baoji_diaochan', 'assets/images/heroes/San11/baoji/貂蝉.jpg')
 
-    // 加载武将全身模型（部署后显示）
-    this.load.image('fullbody_zhaoyun_stand', 'assets/images/heroes/fullbody/zhaoyun/赵云站立.png')
-    this.load.image('fullbody_zhaoyun_attack', 'assets/images/heroes/fullbody/zhaoyun/赵云攻击.png')
-
     // 加载神器/兵器素材
     this.load.image('artifact_chitu', 'assets/images/weapons/赤兔马.png')
     this.load.image('artifact_fangtian', 'assets/images/weapons/方天画戟.png')
@@ -180,6 +177,9 @@ export default class PreloadScene extends Phaser.Scene {
   create(): void {
     // 创建占位纹理（备用）
     this.createPlaceholderTextures()
+
+    // 预初始化全套 25 款五行宝石矢量纹理
+    GemIconRenderer.init(this)
 
     // 隐藏加载UI
     this.loadingBar.destroy()

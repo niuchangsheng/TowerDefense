@@ -401,7 +401,7 @@ export function createInkButton(
     fontSize = InkFontSize.md,
     stroke,
     onClick,
-    debounceMs = 400
+    debounceMs = 250
   } = options
 
   const btn = scene.add.container(x, y)
@@ -421,21 +421,12 @@ export function createInkButton(
 
   btn.add([bg, text])
 
-  let isPointerDown = false
   let lastClickTime = 0
 
   bg.on('pointerover', () => bg.setFillStyle(hoverFill))
-  bg.on('pointerout', () => {
-    isPointerDown = false
-    bg.setFillStyle(fill)
-  })
-  bg.on('pointerdown', () => {
-    isPointerDown = true
-    bg.setFillStyle(hoverFill)
-  })
+  bg.on('pointerout', () => bg.setFillStyle(fill))
+  bg.on('pointerdown', () => bg.setFillStyle(hoverFill))
   bg.on('pointerup', () => {
-    if (!isPointerDown) return
-    isPointerDown = false
     bg.setFillStyle(hoverFill)
 
     const now = Date.now()

@@ -12,6 +12,9 @@ export class TroopEntity extends Phaser.GameObjects.Container {
   private troopData: TroopConfig
   private deployedData: DeployedTroop
   private warriorSprite: Phaser.GameObjects.Image
+  private readonly baseSpriteX: number = 0
+  private readonly baseSpriteY: number = -2
+  private readonly baseSpriteScale: number = 0.50
   private rangeIndicator: Phaser.GameObjects.Graphics
 
   constructor(scene: Phaser.Scene, troop: TroopConfig, deployed: DeployedTroop) {
@@ -28,8 +31,8 @@ export class TroopEntity extends Phaser.GameObjects.Container {
 
     // 2. 兵人剪影（紧凑适配 40px 格子）
     const textureKey = this.getTroopTextureKey(troop.type)
-    this.warriorSprite = scene.add.image(0, -2, textureKey)
-    this.warriorSprite.setScale(0.50)
+    this.warriorSprite = scene.add.image(this.baseSpriteX, this.baseSpriteY, textureKey)
+    this.warriorSprite.setScale(this.baseSpriteScale)
     this.add(this.warriorSprite)
 
     // 3. 兵种微型名签（紧凑置于底部 y = 14，完全收敛在 40px 格子内）
@@ -95,47 +98,86 @@ export class TroopEntity extends Phaser.GameObjects.Container {
 
   /**
    * 真实冷兵器动作攻击动画：枪尖突刺 / 挽弓回弹 / 铁骑前突 / 弧刀挥砍
+   * 必须在播放前中断旧动画并复位基准坐标，防止极端攻速下位移和形变累积
    */
   playAttackAnimation(): void {
     const style = this.troopData.attackStyle
+
+    this.scene.tweens.killTweensOf(this.warriorSprite)
+    this.warriorSprite.setPosition(this.baseSpriteX, this.baseSpriteY)
+    this.warriorSprite.setScale(this.baseSpriteScale)
+    this.warriorSprite.setAngle(0)
 
     if (style === 'thrust') {
       // 枪尖向前猛力刺出后迅速收回
       this.scene.tweens.add({
         targets: this.warriorSprite,
-        x: 10,
-        duration: 75,
+        x: this.baseSpriteX + 8,
+        duration: 65,
         yoyo: true,
-        ease: 'Quad.easeOut'
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          if (this.warriorSprite && this.warriorSprite.active) {
+            this.warriorSprite.setPosition(this.baseSpriteX, this.baseSpriteY)
+          }
+        }
       })
     } else if (style === 'bow') {
       // 弓手放箭后座力后退再复位
       this.scene.tweens.add({
         targets: this.warriorSprite,
-        x: -4,
-        duration: 60,
+        x: this.baseSpriteX - 4,
+        duration: 55,
         yoyo: true,
-        ease: 'Quad.easeIn'
+        ease: 'Quad.easeIn',
+        onComplete: () => {
+          if (this.warriorSprite && this.warriorSprite.active) {
+            this.warriorSprite.setPosition(this.baseSpriteX, this.baseSpriteY)
+          }
+        }
       })
     } else if (style === 'slash') {
       // 刀兵向前弧线斩击
       this.scene.tweens.add({
         targets: this.warriorSprite,
         angle: 12,
-        x: 6,
-        duration: 75,
+        x: this.baseSpriteX + 5,
+        duration: 65,
         yoyo: true,
-        ease: 'Power2.easeOut'
+        ease: 'Power2.easeOut',
+        onComplete: () => {
+          if (this.warriorSprite && this.warriorSprite.active) {
+            this.warriorSprite.setPosition(this.baseSpriteX, this.baseSpriteY)
+            this.warriorSprite.setAngle(0)
+          }
+        }
       })
     } else {
       this.scene.tweens.add({
         targets: this.warriorSprite,
-        scaleX: 0.78,
-        scaleY: 0.78,
-        duration: 80,
-        yoyo: true
+        scaleX: this.baseSpriteScale * 1.1,
+        scaleY: this.baseSpriteScale * 1.1,
+        duration: 70,
+        yoyo: true,
+        onComplete: () => {
+          if (this.warriorSprite && this.warriorSprite.active) {
+            this.warriorSprite.setScale(this.baseSpriteScale)
+          }
+        }
       })
     }
+  }
+
+  /**
+   * 重置兵种至基准变换（波次开始/状态恢复保险机制）
+   */
+  resetToBaseTransform(): void {
+    this.scene.tweens.killTweensOf(this)
+    this.scene.tweens.killTweensOf(this.warriorSprite)
+    this.setPosition(this.deployedData.position.x, this.deployedData.position.y)
+    this.warriorSprite.setPosition(this.baseSpriteX, this.baseSpriteY)
+    this.warriorSprite.setScale(this.baseSpriteScale)
+    this.warriorSprite.setAngle(0)
   }
 
   /**

@@ -16,13 +16,18 @@ export class DamageCalculator {
   static calculateDamage(
     attackerStats: HeroStats,
     attackerWuXing: WuXing,
-    targetWuXing: WuXing
+    targetWuXing: WuXing,
+    additionalCounterBonus: number = 0,
+    attackPercentBonus: number = 0
   ): number {
-    // 基础伤害 = 攻击力
-    const baseDamage = attackerStats.attack
+    // 基础伤害 = 攻击力 × (1 + 锦囊百分比加成)
+    const baseDamage = attackerStats.attack * (1 + attackPercentBonus)
 
     // 克制倍率
-    const multiplier = getCounterMultiplier(attackerWuXing, targetWuXing)
+    let multiplier = getCounterMultiplier(attackerWuXing, targetWuXing)
+    if (multiplier > 1.05) {
+      multiplier += additionalCounterBonus
+    }
 
     // 最终伤害 = 基础伤害 × 克制倍率
     return Math.floor(baseDamage * multiplier)

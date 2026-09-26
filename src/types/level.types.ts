@@ -49,6 +49,7 @@ export interface LevelConfig {
   rewards: LevelRewardConfig
   playerStartHealth: number  // 玩家初始生命
   playerStartCost: number    // 玩家初始部署费用
+  playerMaxCost?: number     // 玩家最大军费上限（可选，默认采用 COST_CONFIG.maxCost）
 }
 
 // 章节配置

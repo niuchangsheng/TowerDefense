@@ -50,9 +50,32 @@ export class CharacterAttackFX {
 
   /* ------------------------------------------------------------------ *
    * 1. 英雄本体前冲（近战攻击起手式）
-   *    让英雄的"字"朝目标方向猛地一探，再弹回原位。
+   *    让英雄的"字"/立像朝目标方向猛地一探，再弹回原位。
+   *    高攻速下频繁触发时必须先 kill 既有补间并归位到基准坐标，杜绝位移叠加漂移
    * ------------------------------------------------------------------ */
   lunge(obj: LungeTarget, toward: Point, distance = 16): void {
+    // 获取不可变的基准坐标：优先取 deployedData.position，其次取缓存的 homeX/homeY，兜底取当前 obj.x/y
+    let baseX = (obj as any).deployedData?.position?.x
+    let baseY = (obj as any).deployedData?.position?.y
+
+    if (baseX === undefined || baseY === undefined) {
+      if (obj.getData && obj.getData('homeX') !== undefined) {
+        baseX = obj.getData('homeX')
+        baseY = obj.getData('homeY')
+      } else {
+        baseX = obj.x
+        baseY = obj.y
+        if (obj.setData) {
+          obj.setData('homeX', baseX)
+          obj.setData('homeY', baseY)
+        }
+      }
+    }
+
+    // 终止可能仍在执行的旧位移补间，并瞬间强制归位到基准坐标
+    this.scene.tweens.killTweensOf(obj)
+    obj.setPosition(baseX, baseY)
+
     // 对象可能在容器内（局部坐标），先换算成世界坐标再算朝向
     const world = CharacterAttackFX.getWorldXY(obj)
     const angle = Phaser.Math.Angle.Between(world.x, world.y, toward.x, toward.y)
@@ -61,11 +84,16 @@ export class CharacterAttackFX {
 
     this.scene.tweens.add({
       targets: obj,
-      x: obj.x + dx,
-      y: obj.y + dy,
-      duration: 90,
+      x: baseX + dx,
+      y: baseY + dy,
+      duration: 75,
       yoyo: true,
-      ease: 'Quad.easeOut'
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        if (obj && obj.active) {
+          obj.setPosition(baseX, baseY)
+        }
+      }
     })
   }
 

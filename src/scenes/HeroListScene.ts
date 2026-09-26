@@ -56,7 +56,7 @@ export default class HeroListScene extends Phaser.Scene {
 
   constructor() {
     super({ key: 'HeroListScene' })
-    this.equipmentManager = new EquipmentManager()
+    this.equipmentManager = EquipmentManager.getInstance()
   }
 
   init(): void {
@@ -96,9 +96,16 @@ export default class HeroListScene extends Phaser.Scene {
    */
   private createBackButton(): void {
     createPageBackButton(this, () => {
-      // 自动存档
-      this.autoSave()
-      this.scene.start('TitleScene')
+      try {
+        this.autoSave()
+      } catch (e) {
+        console.warn('HeroList autoSave failed:', e)
+      }
+      try {
+        this.scene.start('TitleScene')
+      } catch (err) {
+        console.error('Failed to start TitleScene:', err)
+      }
     })
   }
 
@@ -870,9 +877,9 @@ export default class HeroListScene extends Phaser.Scene {
     const saveManager = SaveManager.getInstance()
     const saveData = saveManager.getCurrentSave()
 
-    if (!saveData) return 0
+    if (!saveData?.inventory?.soulStones || !Array.isArray(saveData.inventory.soulStones)) return 0
 
-    const stoneData = saveData.inventory.soulStones.find(s => s.heroId === heroId)
+    const stoneData = saveData.inventory.soulStones.find(s => s && s.heroId === heroId)
     return stoneData?.amount || 0
   }
 
@@ -968,21 +975,23 @@ export default class HeroListScene extends Phaser.Scene {
     const saveManager = SaveManager.getInstance()
     const saveData = saveManager.getCurrentSave()
 
-    if (!saveData) return
+    if (!saveData || !saveData.inventory || !Array.isArray(saveData.inventory.soulStones)) return
 
     // 消耗碎片
-    const stoneData = saveData.inventory.soulStones.find(s => s.heroId === heroId)
+    const stoneData = saveData.inventory.soulStones.find(s => s && s.heroId === heroId)
     if (stoneData) {
       stoneData.amount -= cost
       if (stoneData.amount <= 0) {
-        saveData.inventory.soulStones = saveData.inventory.soulStones.filter(s => s.heroId !== heroId)
+        saveData.inventory.soulStones = saveData.inventory.soulStones.filter(s => s && s.heroId !== heroId)
       }
     }
 
     // 升星
-    const heroData = saveData.heroes.find(h => h.id === heroId)
-    if (heroData && heroData.star < 5) {
-      heroData.star += 1
+    if (Array.isArray(saveData.heroes)) {
+      const heroData = saveData.heroes.find(h => h && h.id === heroId)
+      if (heroData && heroData.star < 5) {
+        heroData.star += 1
+      }
     }
 
     // 更新本地武将数据
@@ -1007,7 +1016,7 @@ export default class HeroListScene extends Phaser.Scene {
     const saveManager = SaveManager.getInstance()
     const saveData = saveManager.getCurrentSave()
 
-    if (!saveData) return
+    if (!saveData || !saveData.inventory || !Array.isArray(saveData.heroes)) return
 
     // 更新武将数据
     for (const [heroId, hero] of this.heroes) {

@@ -40,7 +40,11 @@ export default class SaveScene extends Phaser.Scene {
 
     // 返回主菜单按钮（右上角）
     createPageBackButton(this, () => {
-      this.scene.start('TitleScene')
+      try {
+        this.scene.start('TitleScene')
+      } catch (err) {
+        console.error('Failed to start TitleScene:', err)
+      }
     })
 
     const currentSlot = this.saveManager.getCurrentSlot()
