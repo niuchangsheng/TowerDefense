@@ -186,11 +186,11 @@ export default class AugmentCompendiumScene extends Phaser.Scene {
     this.listContainer = this.add.container(listX, listY)
     this.listContainer.setMask(mask)
 
-    // 滚轮交互区域
-    const hitZone = this.add.zone(listX + listW / 2, listY + listH / 2, listW, listH)
-    hitZone.setInteractive()
-    hitZone.on('wheel', (_pointer: Phaser.Input.Pointer, _dx: number, dy: number) => {
+    // 滚轮交互：使用场景级监听 + 手动边界检测，避免 Zone 遮挡卡片点击
+    this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
       if (this.maxScrollLimit <= 0) return
+      const px = _pointer.x, py = _pointer.y
+      if (px < listX || px > listX + listW || py < listY || py > listY + listH) return
       this.listScrollY = Phaser.Math.Clamp(this.listScrollY - dy * 0.7, -this.maxScrollLimit, 0)
       this.tweens.killTweensOf(this.listContainer)
       this.tweens.add({
