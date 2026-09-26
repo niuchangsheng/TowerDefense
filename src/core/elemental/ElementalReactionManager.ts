@@ -176,6 +176,9 @@ export class ElementalReactionManager {
     // 反应发生后消耗掉原状态
     this.statusMap.delete(enemyId)
 
+    // 触发五行生克连锁命中，破除敌人【铁壁】护盾
+    target.breakIroncladShield?.()
+
     const fx = this.scene ? new CharacterAttackFX(this.scene) : null
     let result: ElementalReactionResult
 
@@ -370,6 +373,22 @@ export class ElementalReactionManager {
    */
   public removeEnemy(enemyId: string): void {
     this.statusMap.delete(enemyId)
+  }
+
+  /**
+   * 查询敌人是否处于某种五行元素状态
+   */
+  public hasStatus(enemyId: string, statusType?: ElementalStatusType): boolean {
+    const s = this.statusMap.get(enemyId)
+    if (!s) return false
+    return statusType ? s.type === statusType : true
+  }
+
+  /**
+   * 获取敌人当前附着的五行状态
+   */
+  public getStatus(enemyId: string): ActiveElementalStatus | undefined {
+    return this.statusMap.get(enemyId)
   }
 
   /**

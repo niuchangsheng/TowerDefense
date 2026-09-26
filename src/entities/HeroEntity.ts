@@ -161,7 +161,9 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     const silhouetteMap: Record<string, string> = {
       'hero_guanyu': 'ink_hero_guanyu',
       'hero_zhangfei': 'ink_hero_zhangfei',
-      'hero_zhaoyun': 'ink_hero_zhaoyun'
+      'hero_zhaoyun': 'ink_hero_zhaoyun',
+      'hero_huangzhong': 'ink_hero_huangzhong',
+      'hero_machao': 'ink_hero_machao'
     }
 
     const key = silhouetteMap[heroId]
@@ -328,12 +330,12 @@ export class HeroEntity extends Phaser.GameObjects.Container {
 
     // 应用被动技能buff
     const passiveSkillId = this.heroData.passiveSkillId
-    if (passiveSkillId === 'skill_passive_zhangfei') {
-      // 猛将：攻击力+10%
-      attack = Math.floor(attack * 1.1)
-    } else if (passiveSkillId === 'skill_passive_zhaoyun') {
-      // 龙胆：攻速+20%
-      attackSpeed = attackSpeed * 1.2
+    if (passiveSkillId === 'skill_passive_zhaoyun') {
+      // 龙胆：攻速+15%
+      attackSpeed = attackSpeed * 1.15
+    } else if (passiveSkillId === 'skill_passive_machao') {
+      // 西凉骠骑：攻速+15%
+      attackSpeed = attackSpeed * 1.15
     }
 
     return {

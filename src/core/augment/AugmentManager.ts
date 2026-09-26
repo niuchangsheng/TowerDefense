@@ -110,15 +110,9 @@ export class AugmentManager {
   ): Augment[] {
     const activeIds = new Set(this.activeAugments.filter(a => !a.repeatable).map(a => a.id))
 
-    // 过滤掉不可重复且已选择的锦囊
-    let candidates = AUGMENT_POOL.filter(aug => !activeIds.has(aug.id))
-
-    // 如果未选取的唯一锦囊不足所抽数量，以可重复精进锦囊补足（保证永不枯竭）
-    if (candidates.length < count) {
-      const needed = count - candidates.length
-      const shuffledRepeatables = [...REPEATABLE_AUGMENTS].sort(() => Math.random() - 0.5)
-      candidates = [...candidates, ...shuffledRepeatables.slice(0, needed)]
-    }
+    // 过滤掉不可重复且已选择的锦囊，并无缝混入可重复精进锦囊（保证后期与长线随时可选取精进词条）
+    const unpickedUnique = AUGMENT_POOL.filter(aug => !activeIds.has(aug.id))
+    const candidates = [...unpickedUnique, ...REPEATABLE_AUGMENTS]
 
     if (candidates.length <= count) {
       return [...candidates]
@@ -190,6 +184,13 @@ export class AugmentManager {
     if (this.rerollCount <= 0) return null
     this.rerollCount--
     return this.drawOptions(deployedHeroIds, deployedWuXing, 3)
+  }
+
+  /**
+   * 增加重整军策（刷新令）次数
+   */
+  public grantRerolls(count: number = 1): void {
+    this.rerollCount += count
   }
 
   /**

@@ -29,6 +29,7 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   private burnTimer?: Phaser.Time.TimerEvent
   private onBurnDeathCallback?: (enemy: EnemyEntity) => void
   private activeStatusMarks: Map<string, Phaser.GameObjects.Text> = new Map()
+  private vampiricTimer?: Phaser.Time.TimerEvent
 
   constructor(scene: Phaser.Scene, enemy: Enemy) {
     super(scene, enemy.position.x, enemy.position.y)
@@ -94,6 +95,28 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     this.add(this.healthBar)
     this.updateHealthBar()
 
+    // 5. 渲染水墨词缀印记并初始化词缀被动（高波次精英/首领）
+    if (enemy.affixes && enemy.affixes.length > 0) {
+      enemy.affixes.forEach(affix => {
+        this.setStatusMark(`affix_${affix.id}`, affix.label, `#${affix.color.toString(16).padStart(6, '0')}`)
+      })
+
+      // 吸元词缀：每 3 秒汲取地气自愈 5% 最大生命
+      if (enemy.affixes.some(a => a.id === 'vampiric')) {
+        this.vampiricTimer = scene.time.addEvent({
+          delay: 3000,
+          loop: true,
+          callback: () => {
+            if (this.enemyData.isActive && !this.isBurning && this.enemyData.currentHealth > 0) {
+              const heal = Math.floor(this.enemyData.maxHealth * 0.05)
+              this.enemyData.currentHealth = Math.min(this.enemyData.maxHealth, this.enemyData.currentHealth + heal)
+              this.updateHealthBar()
+            }
+          }
+        })
+      }
+    }
+
     // 设置深度
     this.setDepth(10)
 
@@ -150,9 +173,28 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
 
   /**
    * 受到伤害
+   * @param damage 传入基础伤害
+   * @param isElementalReaction 是否为五行相生连锁反应触发的伤害
    */
-  takeDamage(damage: number): number {
+  takeDamage(damage: number, isElementalReaction: boolean = false): number {
     let finalDamage = damage
+
+    // 铁壁词缀处理：五行护盾减免 50%，破碎状态受到 150% 伤害
+    const hasIronclad = this.enemyData.affixes?.some(a => a.id === 'ironclad')
+    if (hasIronclad) {
+      const now = this.scene.time.now
+      const isBroken = this.enemyData.shieldBrokenUntil && now < this.enemyData.shieldBrokenUntil
+      if (isBroken) {
+        finalDamage = Math.floor(finalDamage * 1.5)
+      } else {
+        if (isElementalReaction) {
+          this.breakIroncladShield()
+        } else {
+          finalDamage = Math.floor(finalDamage * 0.5)
+        }
+      }
+    }
+
     // 破甲易伤加成 35%
     if (this.armorBroken) {
       finalDamage = Math.floor(finalDamage * 1.35)
@@ -161,6 +203,19 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     const actualDamage = Math.min(finalDamage, this.enemyData.currentHealth)
     this.enemyData.currentHealth -= actualDamage
     this.updateHealthBar()
+
+    // 雷怒词缀：生命值低于 35% 时进入雷怒暴走，大幅提速且免控
+    const hasBerserk = this.enemyData.affixes?.some(a => a.id === 'berserk')
+    if (hasBerserk && !this.enemyData.isBerserk && this.enemyData.currentHealth <= this.enemyData.maxHealth * 0.35) {
+      this.enemyData.isBerserk = true
+      this.enemyData.speed *= 1.4
+      this.isFrozenState = false
+      this.isStunnedState = false
+      this.removeStatusMark('freeze')
+      this.removeStatusMark('stun')
+      const fx = new CharacterAttackFX(this.scene)
+      fx.damageText({ x: this.x, y: this.y - 20 }, '【雷怒暴走】', { color: '#ff1744' })
+    }
 
     // 受伤受击白闪
     this.scene.tweens.add({
@@ -171,6 +226,17 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     })
 
     return actualDamage
+  }
+
+  /**
+   * 击碎铁壁护盾（由五行相生连锁命中时触发）
+   */
+  breakIroncladShield(): void {
+    if (!this.enemyData.affixes?.some(a => a.id === 'ironclad')) return
+    this.enemyData.shieldBrokenUntil = this.scene.time.now + 6000
+    this.hitShake(6)
+    const fx = new CharacterAttackFX(this.scene)
+    fx.damageText({ x: this.x, y: this.y - 20 }, '【铁壁破碎】', { color: '#ffd54f' })
   }
 
   /**
@@ -199,6 +265,12 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
   die(): void {
     if (!this.enemyData.isActive) return
     this.enemyData.isActive = false
+
+    // 死疫词缀处理：死亡时向周围扩散墨毒
+    if (this.enemyData.affixes?.some(a => a.id === 'plague')) {
+      const fx = new CharacterAttackFX(this.scene)
+      fx.damageText({ x: this.x, y: this.y - 20 }, '【死疫扩散】', { color: '#ba68c8' })
+    }
 
     // 如果处于灼烧状态，触发红莲殉爆回调
     if (this.isBurning && this.onBurnDeathCallback) {
@@ -483,11 +555,19 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
    * 计算当前有效移速（考虑冰冻、眩晕与减速）
    */
   getEffectiveSpeed(): number {
-    if (this.isStunnedOrFrozen()) return 0
+    if (this.isStunnedOrFrozen()) {
+      // 雷怒狂暴状态下免疫硬控
+      if (this.enemyData.isBerserk) return this.enemyData.speed
+      return 0
+    }
     return Math.max(0, this.enemyData.speed * (1 - this.slowPercent))
   }
 
   private clearAllTimers(): void {
+    if (this.vampiricTimer) {
+      this.vampiricTimer.destroy()
+      this.vampiricTimer = undefined
+    }
     if (this.poisonTimer) {
       this.poisonTimer.destroy()
       this.poisonTimer = undefined

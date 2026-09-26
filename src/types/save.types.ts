@@ -37,6 +37,13 @@ export interface SaveData {
     chapterId: string
     isCompleted: boolean
   }[]
+
+  // 百战无尽试炼最佳战绩
+  endlessRecord?: {
+    highestWave: number
+    totalKills: number
+    bestDate: number
+  }
 }
 
 // 存档版本号（用于存档兼容性检查）

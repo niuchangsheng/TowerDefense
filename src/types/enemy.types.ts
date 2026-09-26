@@ -1,4 +1,5 @@
 import { WuXing } from './wuxing.types'
+import { EnemyAffix } from './affix'
 
 // 敌人类型
 export type EnemyType = 'normal' | 'elite' | 'boss' | 'flying' | 'fast' | 'highDefense' | 'selfDestruct'
@@ -35,6 +36,9 @@ export interface Enemy extends EnemyConfig {
   position: { x: number; y: number }
   pathProgress: number      // 路径进度 (0-1)
   isActive: boolean         // 是否活跃
+  affixes?: EnemyAffix[]    // 专属词缀（无尽模式高波次精英/首领）
+  shieldBrokenUntil?: number // 铁壁护盾破碎时间戳（毫秒）
+  isBerserk?: boolean       // 是否进入雷怒暴走状态
 }
 
 // 掉落物品

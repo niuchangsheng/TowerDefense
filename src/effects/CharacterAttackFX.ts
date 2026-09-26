@@ -264,30 +264,32 @@ export class CharacterAttackFX {
    * 5. 伤害飘字（支持五行克制/微弱/暴击风格）
    *    墨色描边的数字向上飘起并淡出，克制金色微爆、微弱淡灰收敛。
    * ------------------------------------------------------------------ */
-  damageText(at: Point, damage: number, opts: DamageTextOptions = {}): void {
+  damageText(at: Point, damage: number | string, opts: DamageTextOptions = {}): void {
     const { crit = false, counter = false, resisted = false, color, offsetX } = opts
     const jitterX = offsetX ?? Phaser.Math.Between(-8, 8)
 
-    let displayStr = `-${damage}`
+    let displayStr = typeof damage === 'number' ? `-${damage}` : damage
     let textColor = color ?? '#f5f0e6'
-    let fontSize = '20px'
+    let fontSize = typeof damage === 'string' ? '18px' : '20px'
     let scaleTo = 1.0
 
-    if (counter) {
-      displayStr = `【克制】 -${damage}`
-      textColor = '#d97706' // 金墨色
-      fontSize = '22px'
-      scaleTo = 1.25
-    } else if (resisted) {
-      displayStr = `【微弱】 -${damage}`
-      textColor = '#8a8577' // 淡墨色
-      fontSize = '18px'
-      scaleTo = 0.95
-    } else if (crit) {
-      displayStr = `【暴击】 -${damage}`
-      textColor = '#ffd24a'
-      fontSize = '25px'
-      scaleTo = 1.35
+    if (typeof damage === 'number') {
+      if (counter) {
+        displayStr = `【克制】 -${damage}`
+        textColor = '#d97706' // 金墨色
+        fontSize = '22px'
+        scaleTo = 1.25
+      } else if (resisted) {
+        displayStr = `【微弱】 -${damage}`
+        textColor = '#8a8577' // 淡墨色
+        fontSize = '18px'
+        scaleTo = 0.95
+      } else if (crit) {
+        displayStr = `【暴击】 -${damage}`
+        textColor = '#ffd24a'
+        fontSize = '25px'
+        scaleTo = 1.35
+      }
     }
 
     const text = this.scene.add

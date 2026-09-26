@@ -13,6 +13,7 @@ export class WaveManager {
   private isWaitingForNextWave: boolean
   private waitingTimer: number           // 等待下一波的计时器
   private spawnedEnemyCount: Map<string, number>  // 每种敌人已生成数量
+  private waveGenerator?: (waveNumber: number) => WaveConfig // 动态波次生成器（无尽模式专用）
 
   constructor(waves: WaveConfig[]) {
     this.waves = waves
@@ -26,9 +27,21 @@ export class WaveManager {
   }
 
   /**
+   * 注册动态波次生成器（支持真正无止境无限波次）
+   */
+  setWaveGenerator(generator: (waveNumber: number) => WaveConfig): void {
+    this.waveGenerator = generator
+  }
+
+  /**
    * 开始下一波
    */
   startNextWave(): void {
+    // 如果达到了预置波次上限，但存在动态生成器，则实时按需生成下一波
+    if (this.currentWave >= this.waves.length && this.waveGenerator) {
+      this.waves.push(this.waveGenerator(this.currentWave + 1))
+    }
+
     if (this.currentWave >= this.waves.length) {
       return  // 所有波次已完成
     }
@@ -61,14 +74,19 @@ export class WaveManager {
 
       // 检查是否是最后一波（所有波次已开始）
       if (this.currentWave >= this.waves.length) {
-        // 最后一波等待结束后，标记为完成
-        this.isWaitingForNextWave = false
-        return enemiesToSpawn
+        if (this.waveGenerator) {
+          // 存在动态生成器，按需即时追加下一波
+          this.waves.push(this.waveGenerator(this.currentWave + 1))
+        } else {
+          // 最后一波等待结束后，标记为完成
+          this.isWaitingForNextWave = false
+          return enemiesToSpawn
+        }
       }
 
       // 非最后一波，等待时间结束后开始下一波
       const nextWave = this.waves[this.currentWave]
-      if (this.waitingTimer >= nextWave.delayBeforeWave) {
+      if (nextWave && this.waitingTimer >= nextWave.delayBeforeWave) {
         this.startNextWave()
       }
 
@@ -127,13 +145,16 @@ export class WaveManager {
    * 获取总波次数
    */
   getTotalWaves(): number {
-    return this.waves.length
+    return this.waveGenerator ? Math.max(this.currentWave, 999) : this.waves.length
   }
 
   /**
    * 是否所有波次完成
    */
   isAllWavesComplete(): boolean {
+    if (this.waveGenerator) {
+      return false // 动态生成无尽模式，永远无波次终点，直到基地被攻陷
+    }
     return this.currentWave >= this.waves.length && !this.isWaveActive && !this.isWaitingForNextWave
   }
 

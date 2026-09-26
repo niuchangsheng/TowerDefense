@@ -1,5 +1,6 @@
 import { DeployedHero } from './hero.types'
 import { Enemy } from './enemy.types'
+import { MilitarySituation, MilitaryTactic } from './militarySituation'
 
 // 战斗状态
 export type BattleStatus = 'preparing' | 'running' | 'paused' | 'victory' | 'defeat'
@@ -15,6 +16,8 @@ export interface BattleState {
   deployedHeroes: DeployedHero[]
   activeEnemies: Enemy[]
   elapsedTime: number        // 已用时间（毫秒）
+  activeSituation?: MilitarySituation
+  activeTactic?: MilitaryTactic
 }
 
 // 战斗结果
@@ -31,6 +34,14 @@ export interface BattleResult {
     gems: string[]
     gold: number
     experience: number
+  }
+  stats?: {
+    totalKills: number
+    eliteKills: number
+    bossKills: number
+    highestWave: number
+    isEndless: boolean
+    isNewRecord?: boolean
   }
 }
 

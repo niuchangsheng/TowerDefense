@@ -1,5 +1,5 @@
 import { EnemyConfig, Point, Enemy } from '@/types'
-import { EnemyFactory } from './EnemyFactory'
+import { EnemyFactory, EnemySpawnOptions } from './EnemyFactory'
 import { EnemyEntity } from '@/entities/EnemyEntity'
 import Phaser from 'phaser'
 
@@ -97,8 +97,8 @@ export class EnemyManager {
   /**
    * 生成敌人
    */
-  spawnEnemy(config: EnemyConfig): EnemyEntity {
-    const enemyData = EnemyFactory.createEnemy(config)
+  spawnEnemy(config: EnemyConfig, options?: EnemySpawnOptions): EnemyEntity {
+    const enemyData = EnemyFactory.createEnemy(config, options)
     enemyData.position = { ...this.spawnPoint }
 
     const enemyEntity = new EnemyEntity(this.scene, enemyData)

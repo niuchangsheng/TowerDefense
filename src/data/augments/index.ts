@@ -147,6 +147,36 @@ export const AUGMENT_POOL: Augment[] = [
       specialId: 'aug_zhaoyun_dragon'
     }
   },
+  {
+    id: 'aug_huangzhong_bow',
+    name: '定军扬威',
+    subtitle: '黄忠本命蜕变',
+    description: '老将神威：黄忠攻击范围提升 50 步，普攻必定附带【火·灼烧】；对处于【木·寄生】的敌军伤害提升 60% 并必定触发烈焰爆破！',
+    rarity: 'epic',
+    category: 'hero',
+    heroRequirement: 'hero_huangzhong',
+    tags: ['黄忠', '射程', '火攻'],
+    effects: {
+      attackRangeBonus: 50,
+      attackPercentBonus: 0.25,
+      specialId: 'aug_huangzhong_bow'
+    }
+  },
+  {
+    id: 'aug_machao_cavalry',
+    name: '神威天将',
+    subtitle: '马超本命蜕变',
+    description: '神威破军：马超攻击速度提升 30%，且攻击对处于【土·破衡】的敌人必定触发【土生金·淬刃】散射飞刃！',
+    rarity: 'epic',
+    category: 'hero',
+    heroRequirement: 'hero_machao',
+    tags: ['马超', '攻速', '穿透'],
+    effects: {
+      attackSpeedBonus: 0.3,
+      reactionDamageMultiplier: 0.4,
+      specialId: 'aug_machao_cavalry'
+    }
+  },
 
   // ==================== 战场军策 / 经济 / 基地类 ====================
   {
@@ -248,6 +278,66 @@ export const AUGMENT_POOL: Augment[] = [
       reactionDamageMultiplier: 1.0,
       attackPercentBonus: 0.25,
       specialId: 'aug_bagua_miracle'
+    }
+  },
+
+  // ==================== 无尽专属高阶绝策 ====================
+  {
+    id: 'aug_endless_wuxing_harmony',
+    name: '五行圆融',
+    subtitle: '混元极意 · 极',
+    description: '阴阳合德，五行归一：全队英雄攻击力提升 30%，且五行相生相克连锁反应伤害额外提升 75%，克制倍率提升 50%。',
+    rarity: 'legendary',
+    category: 'elemental',
+    tags: ['五行', '混元', '传说'],
+    effects: {
+      attackPercentBonus: 0.3,
+      reactionDamageMultiplier: 0.75,
+      counterMultiplierBonus: 0.5,
+      specialId: 'aug_endless_wuxing_harmony'
+    }
+  },
+  {
+    id: 'aug_endless_ink_rain',
+    name: '墨染山河',
+    subtitle: '天工神策 · 奇',
+    description: '天降墨雨：全队攻击速度提升 30%，全军射程额外提升 40 像素。',
+    rarity: 'epic',
+    category: 'general',
+    tags: ['射程', '攻速', '史诗'],
+    effects: {
+      attackSpeedBonus: 0.3,
+      attackRangeBonus: 40,
+      specialId: 'aug_endless_ink_rain'
+    }
+  },
+  {
+    id: 'aug_endless_sword_burst',
+    name: '万剑归宗',
+    subtitle: '剑荡八荒 · 绝',
+    description: '千锋破甲：全体英雄攻击力提升 35%，对受克制敌人的克制倍率额外提升 60%。',
+    rarity: 'legendary',
+    category: 'general',
+    tags: ['克制', '攻击力', '传说'],
+    effects: {
+      attackPercentBonus: 0.35,
+      counterMultiplierBonus: 0.6,
+      specialId: 'aug_endless_sword_burst'
+    }
+  },
+  {
+    id: 'aug_endless_iron_fortress',
+    name: '百战玄甲',
+    subtitle: '不动如山 · 固',
+    description: '金石为开：帅营最大生命提升 15 点，立即恢复 15 点生命，击杀敌人获得的灵石额外提升 50%。',
+    rarity: 'epic',
+    category: 'general',
+    tags: ['生命', '经济', '史诗'],
+    effects: {
+      baseMaxHealthBonus: 15,
+      baseHealthHeal: 15,
+      costGainBonus: 0.5,
+      specialId: 'aug_endless_iron_fortress'
     }
   }
 ]

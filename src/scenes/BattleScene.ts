@@ -25,6 +25,9 @@ import {
 import { InkSilhouetteRenderer } from '@/rendering/InkSilhouetteRenderer'
 import { EnergyGaugeBar } from '@/ui/EnergyGaugeBar'
 import { AugmentSelectModal } from '@/ui/AugmentSelectModal'
+import { WeatherAmbientFX } from '@/effects/WeatherAmbientFX'
+import { MilitarySituationModal } from '@/ui/MilitarySituationModal'
+import { MilitarySituation } from '@/types/militarySituation'
 
 type RangeUnit = HeroEntity | TroopEntity
 
@@ -81,6 +84,9 @@ export default class BattleScene extends Phaser.Scene {
   private earlyWaveBtn!: Phaser.GameObjects.Container
   private energyGaugeBar!: EnergyGaugeBar
   private augmentModal: AugmentSelectModal | null = null
+  private militaryModal: MilitarySituationModal | null = null
+  private militaryBadgeContainer?: Phaser.GameObjects.Container
+  private weatherFX!: WeatherAmbientFX
   private pauseOverlay: Phaser.GameObjects.Container | null = null
   private deployDock!: Phaser.GameObjects.Container
   private dockHeight = 96
@@ -128,6 +134,7 @@ export default class BattleScene extends Phaser.Scene {
     this.rangeUnit = null
     this.unitDrag = null
     this.unitInfoContainer = null
+    this.militaryModal = null
     this.dockHeroItems.clear()
     this.dockTroopItems.clear()
 
@@ -137,6 +144,12 @@ export default class BattleScene extends Phaser.Scene {
     // 0.5 宣纸底（纸色 + 淡墨晕染），地形在其上以水墨程序绘制
     drawPaperBackground(this)
     InkSilhouetteRenderer.init(this)
+
+    // 初始化水墨天候环境特效
+    this.weatherFX = new WeatherAmbientFX(this)
+    this.events.once('shutdown', () => {
+      this.weatherFX?.destroy()
+    })
 
     // 1. 创建地形系统
     this.createTerrainSystem()
@@ -163,6 +176,9 @@ export default class BattleScene extends Phaser.Scene {
 
     // 8. 注册拖拽部署与点击射程
     this.registerDeploymentInteraction()
+
+    // 8.5 注册键盘快捷施法 (1, 2, 3 键强令施法)
+    this.registerSkillShortcuts()
 
     // 9. 启动战斗
     this.battleSystem.startBattle()
@@ -232,6 +248,33 @@ export default class BattleScene extends Phaser.Scene {
       this.hideRange()
       this.hideUnitInfo()
     })
+  }
+
+  /**
+   * 注册键盘快捷施法监听 (1, 2, 3 键分别触发第 1, 2, 3 位已上阵名将的大招)
+   */
+  private registerSkillShortcuts(): void {
+    if (!this.input.keyboard) return
+
+    this.input.keyboard.on('keydown-ONE', () => this.tryManualCastSkill(0))
+    this.input.keyboard.on('keydown-TWO', () => this.tryManualCastSkill(1))
+    this.input.keyboard.on('keydown-THREE', () => this.tryManualCastSkill(2))
+    this.input.keyboard.on('keydown-FOUR', () => this.tryManualCastSkill(3))
+    this.input.keyboard.on('keydown-FIVE', () => this.tryManualCastSkill(4))
+  }
+
+  /**
+   * 快捷键或点击触发武将主动绝技
+   */
+  private tryManualCastSkill(heroIdentifier: string | number): void {
+    const heroBattleManager = this.battleSystem.getHeroBattleManager()
+    if (!heroBattleManager) return
+
+    const success = heroBattleManager.manualCastSkill(heroIdentifier)
+    if (success) {
+      SoundFX.bowSnap(0.25)
+      inkToast(this, '军师强令 · 绝技破阵！', 100)
+    }
   }
 
   /**
@@ -493,9 +536,12 @@ export default class BattleScene extends Phaser.Scene {
     drag.unit.setDepth(drag.originalDepth)
     drag.unit.setAlpha(1)
 
-    // 未越过拖拽阈值：视为按住查看，恢复占用即可
+    // 未越过拖拽阈值：视为按住查看，恢复占用即可；若为武将且大招就绪，触发强令施法！
     if (!drag.dragging) {
       this.battleSystem.cancelUnitDrag(drag.instanceId, drag.originalFootprint)
+      if (drag.kind === 'hero') {
+        this.tryManualCastSkill(drag.instanceId)
+      }
       return
     }
 
@@ -738,6 +784,9 @@ export default class BattleScene extends Phaser.Scene {
       originY: 0.5
     })
     bar.add(sealChar)
+
+    // 4.5 军机令印（无尽天候策论）
+    this.createMilitaryBadge(bar, width)
 
     // 5. 右区：波次模块
     this.createBadgeInBar(bar, width - 325, 26, '阵', InkColor.paperDeep, InkColor.ink)
@@ -1075,7 +1124,9 @@ export default class BattleScene extends Phaser.Scene {
     const silhouetteMap: Record<string, string> = {
       'hero_guanyu': 'ink_hero_guanyu',
       'hero_zhangfei': 'ink_hero_zhangfei',
-      'hero_zhaoyun': 'ink_hero_zhaoyun'
+      'hero_zhaoyun': 'ink_hero_zhaoyun',
+      'hero_huangzhong': 'ink_hero_huangzhong',
+      'hero_machao': 'ink_hero_machao'
     }
 
     const key = silhouetteMap[heroId]
@@ -1129,6 +1180,78 @@ export default class BattleScene extends Phaser.Scene {
         inkToast(this, `【天命锦囊已就绪 ×${count}】按空格或点击开启`, 120)
       }
     })
+
+    // 监听天时军情急报事件
+    this.battleSystem.onMilitarySituation((situation) => {
+      this.openMilitarySituationModal(situation)
+    })
+  }
+
+  /**
+   * 打开军机密信水墨文书弹窗
+   */
+  private openMilitarySituationModal(situation: MilitarySituation): void {
+    if (this.militaryModal) {
+      this.militaryModal.destroy()
+      this.militaryModal = null
+    }
+
+    this.militaryModal = new MilitarySituationModal(this, situation, (type) => {
+      this.battleSystem.applyMilitaryTactic(type)
+      const tactic = this.battleSystem.getMilitarySituationManager().getActiveTactic()
+      if (tactic) {
+        inkToast(this, `【军机决断 · ${tactic.name}】已启奏全军`, 120)
+        this.weatherFX.setWeather(situation.weather)
+        this.updateMilitaryBadge()
+      }
+      this.militaryModal = null
+    })
+  }
+
+  /**
+   * 创建顶部令台右侧军机令印徽章（width - 435）
+   */
+  private createMilitaryBadge(bar: Phaser.GameObjects.Container, width: number): void {
+    this.militaryBadgeContainer = this.add.container(width - 435, 26)
+    this.militaryBadgeContainer.setVisible(false)
+    bar.add(this.militaryBadgeContainer)
+  }
+
+  /**
+   * 刷新军机令印显示
+   */
+  private updateMilitaryBadge(): void {
+    if (!this.militaryBadgeContainer) return
+    const mgr = this.battleSystem.getMilitarySituationManager()
+    const tactic = mgr.getActiveTactic()
+    const situation = mgr.getActiveSituation()
+
+    if (!tactic || !situation) {
+      this.militaryBadgeContainer.setVisible(false)
+      return
+    }
+
+    this.militaryBadgeContainer.removeAll(true)
+    this.militaryBadgeContainer.setVisible(true)
+
+    const isUpper = tactic.type === 'upper'
+    const sealBg = this.add.rectangle(0, 0, 105, 26, isUpper ? InkColor.cinnabar : 0x2e5c8a)
+    sealBg.setStrokeStyle(1.2, InkColor.ink)
+    sealBg.setInteractive({ useHandCursor: true })
+
+    const label = inkText(this, 0, 0, `军机·${tactic.name}`, {
+      size: 11,
+      color: '#ffffff',
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+
+    sealBg.on('pointerdown', () => {
+      inkToast(this, `【${situation.name} · ${tactic.name}】${tactic.description}`, 120)
+    })
+
+    this.militaryBadgeContainer.add([sealBg, label])
   }
 
   /**
@@ -1152,6 +1275,7 @@ export default class BattleScene extends Phaser.Scene {
     this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
     this.energyGaugeBar?.updateProgress()
     this.updateDockState()
+    this.updateMilitaryBadge()
 
     // 动态更新击鼓迎敌按钮状态
     const canEarly = this.battleSystem.canCallNextWaveEarly()

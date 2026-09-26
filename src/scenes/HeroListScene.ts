@@ -38,8 +38,8 @@ export default class HeroListScene extends Phaser.Scene {
   private static readonly ROSTER_X = 32
   private static readonly ROSTER_WIDTH = 336
   private static readonly CARD_WIDTH = 336
-  private static readonly CARD_HEIGHT = 128
-  private static readonly CARD_GAP = 16
+  private static readonly CARD_HEIGHT = 104
+  private static readonly CARD_GAP = 12
   private static readonly CARD_FIRST_TOP = 120
   private static readonly PANEL_X = 400
   private static readonly PANEL_Y = 80
@@ -151,22 +151,22 @@ export default class HeroListScene extends Phaser.Scene {
     stripe.setVisible(false)
     card.add(stripe)
 
-    // 武将头像（96×96，正方形原图无变形）
+    // 武将头像（76×76，正方形原图无变形）
     const imageKey = this.getHeroImageKey(hero.id)
     if (this.textures.exists(imageKey)) {
-      const avatar = this.add.image(16 + 48, 16 + 48, imageKey)
-      avatar.setDisplaySize(96, 96)
+      const avatar = this.add.image(14 + 38, 14 + 38, imageKey)
+      avatar.setDisplaySize(76, 76)
       card.add(avatar)
     }
 
-    // 名称（20px 粗）
-    card.add(inkText(this, 128, 32, hero.name, { size: InkFontSize.lg, color: InkText.strong, bold: true }))
+    // 名称
+    card.add(inkText(this, 104, 20, hero.name, { size: InkFontSize.md, color: InkText.strong, bold: true }))
     // 等级（右对齐）
-    card.add(inkText(this, 320, 32, `Lv.${hero.level}`, { size: InkFontSize.xs, color: InkText.faint, originX: 1 }))
+    card.add(inkText(this, 320, 20, `Lv.${hero.level}`, { size: InkFontSize.xs, color: InkText.faint, originX: 1 }))
     // 稀有度
-    card.add(inkText(this, 128, 60, RarityNames[hero.rarity], { size: InkFontSize.sm, color: INK_RARITY[hero.rarity].text }))
+    card.add(inkText(this, 104, 44, RarityNames[hero.rarity], { size: InkFontSize.xs, color: INK_RARITY[hero.rarity].text }))
     // 五行徽章
-    this.createWuXingBadge(card, 128, 82, hero.wuXing, 24)
+    this.createWuXingBadge(card, 104, 66, hero.wuXing, 22)
 
     // 点击交互
     bg.setInteractive({ useHandCursor: true })
@@ -1048,7 +1048,9 @@ export default class HeroListScene extends Phaser.Scene {
     const imageKeyMap: Record<string, string> = {
       'hero_guanyu': 'hero_guanyu',
       'hero_zhangfei': 'hero_zhangfei',
-      'hero_zhaoyun': 'hero_zhaoyun'
+      'hero_zhaoyun': 'hero_zhaoyun',
+      'hero_huangzhong': 'hero_huangzhong',
+      'hero_machao': 'hero_machao'
     }
     return imageKeyMap[heroId] || 'hero_placeholder'
   }

@@ -51,6 +51,68 @@ export default class SettlementScene extends Phaser.Scene {
    * 计算奖励
    */
   private calculateRewards(): SettlementReward {
+    const isEndless = Boolean(this.battleResult.stats?.isEndless || this.battleResult.levelId.includes('endless'))
+
+    if (isEndless) {
+      const waves = this.battleResult.wavesCompleted || 0
+      const gold = waves * 60 + Math.floor(waves * waves * 1.5)
+      const experience = waves * 35 + Math.floor(waves * waves)
+
+      const endlessRewards: SettlementReward = {
+        gold,
+        experience,
+        equipment: [],
+        gems: [],
+        soulStones: []
+      }
+
+      // 每 5 波获 1 件装备（高波次掉落高阶）
+      const equipCount = Math.floor(waves / 5)
+      for (let i = 0; i < equipCount; i++) {
+        let rarity: Rarity = 'common'
+        const roll = Math.random() + (waves * 0.01)
+        if (roll > 1.3) rarity = 'legendary'
+        else if (roll > 1.0) rarity = 'epic'
+        else if (roll > 0.6) rarity = 'rare'
+        const pool = this.getEquipmentPool(rarity)
+        if (pool.length > 0) {
+          const eq = pool[Math.floor(Math.random() * pool.length)]
+          endlessRewards.equipment.push(eq)
+        }
+      }
+
+      // 每 4 波获 1 颗宝石
+      const gemCount = Math.floor(waves / 4)
+      const wuXings = ['metal', 'wood', 'water', 'fire', 'earth']
+      for (let i = 0; i < gemCount; i++) {
+        const gemWuXing = wuXings[Math.floor(Math.random() * wuXings.length)]
+        let maxLvl = 1
+        if (waves >= 25) maxLvl = 3
+        else if (waves >= 12) maxLvl = 2
+        const gemLevel = Math.min(3, Math.ceil(Math.random() * maxLvl))
+        endlessRewards.gems.push({ wuXing: gemWuXing, level: gemLevel })
+      }
+
+      // 每 10 波获指定武将将魂
+      const heroStoneCount = Math.floor(waves / 10)
+      if (heroStoneCount > 0) {
+        const heroes = ['hero_guanyu', 'hero_zhangfei', 'hero_zhaoyun']
+        for (let i = 0; i < heroStoneCount; i++) {
+          const heroId = heroes[i % heroes.length]
+          const heroConfig = getHeroConfig(heroId)
+          if (heroConfig) {
+            endlessRewards.soulStones.push({
+              heroId,
+              heroName: heroConfig.name,
+              amount: 3 + Math.floor(waves / 10) * 2
+            })
+          }
+        }
+      }
+
+      return endlessRewards
+    }
+
     const baseRewards = this.battleResult.rewards
 
     // 基础奖励
@@ -197,6 +259,14 @@ export default class SettlementScene extends Phaser.Scene {
 
     drawPaperBackground(this)
 
+    // 检查是否是无尽模式
+    const isEndless = Boolean(this.battleResult.stats?.isEndless || this.battleResult.levelId.includes('endless'))
+    if (isEndless) {
+      this.createEndlessSettlement()
+      this.createButtons()
+      return
+    }
+
     // 结果标题：胜利 = 印章红（大捷），失败 = 浓墨（折戟）
     const titleText = this.battleResult.isVictory ? '大捷 · 战役凯旋' : '折戟 · 战局失利'
     const title = inkText(this, width / 2, 48, titleText, {
@@ -234,6 +304,106 @@ export default class SettlementScene extends Phaser.Scene {
 
     // 操作按钮
     this.createButtons()
+  }
+
+  /**
+   * 创建无尽模式专用水墨结算界面
+   */
+  private createEndlessSettlement(): void {
+    const width = this.cameras.main.width
+    const stats = this.battleResult.stats
+    const waves = this.battleResult.wavesCompleted || 0
+
+    // 标题：百战无尽 · 试炼结算
+    inkText(this, width / 2, 48, '百战无尽 · 试炼结算', {
+      size: 40,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5
+    })
+
+    // 新纪录印章
+    if (stats?.isNewRecord) {
+      const sealW = 96
+      const sealH = 26
+      const sealX = width / 2 + 220
+      const sealY = 48
+      const seal = this.add.rectangle(sealX, sealY, sealW, sealH, InkColor.cinnabar)
+      seal.setStrokeStyle(1.5, 0x6e1b15)
+      inkText(this, sealX, sealY, '【百战新篇】', {
+        size: 13,
+        color: '#ffffff',
+        bold: true,
+        originX: 0.5,
+        originY: 0.5
+      })
+    }
+
+    // 副标题
+    inkText(this, width / 2, 90, `沙盘论道 · 止步于第 ${waves} 阵`, {
+      size: InkFontSize.md,
+      color: InkText.faint,
+      originX: 0.5
+    })
+
+    // 左栏：无尽试炼考绩 (140, 126, 460, 145) + 诸将历练 (140, 285, 460, 295)
+    this.createEndlessStatsPanel(140, 126, 460, 145)
+    this.createHeroExperiencePanel(140, 285, 460, 295)
+
+    // 右栏：试炼无尽丰赏 (630, 126, 510, 454)
+    this.createRewardsPanel(630, 126, 510, 454)
+
+    // 保存奖励到存档
+    this.saveRewards()
+  }
+
+  /**
+   * 创建无尽模式试炼考绩面板
+   */
+  private createEndlessStatsPanel(x: number, y: number, w: number, h: number): void {
+    const panel = createPanel(this, x, y, w, h)
+    const stats = this.battleResult.stats
+    const record = this.saveManager.getEndlessRecord()
+
+    panel.add(inkText(this, 20, 22, '◈ 试炼考绩', {
+      size: 15,
+      color: InkText.wash,
+      bold: true
+    }))
+
+    // 第一行：止步阵数与斩敌总数
+    const waveReached = stats?.highestWave ?? this.battleResult.wavesCompleted
+    panel.add(inkText(this, 24, 52, `止步阵数: 第 ${waveReached} 阵`, {
+      size: 13,
+      color: InkText.cinnabar,
+      bold: true
+    }))
+    panel.add(inkText(this, 240, 52, `斩敌总数: ⚔️ ${stats?.totalKills ?? 0} 众`, {
+      size: 13,
+      color: InkText.ink
+    }))
+
+    // 第二行：斩杀精英与降服魔首
+    panel.add(inkText(this, 24, 82, `斩杀精英: 🔱 ${stats?.eliteKills ?? 0} 名`, {
+      size: 13,
+      color: InkText.ink
+    }))
+    panel.add(inkText(this, 240, 82, `降服魔首: 👑 ${stats?.bossKills ?? 0} 尊`, {
+      size: 13,
+      color: InkText.ink
+    }))
+
+    // 第三行：历战耗时与历史最佳
+    const timeStr = this.formatTime(this.battleResult.elapsedTime)
+    panel.add(inkText(this, 24, 112, `历战耗时: ${timeStr}`, {
+      size: 13,
+      color: InkText.faint
+    }))
+    panel.add(inkText(this, 240, 112, `历史之最: 第 ${record?.highestWave ?? 0} 阵`, {
+      size: 13,
+      color: InkText.gold,
+      bold: true
+    }))
   }
 
   /**
@@ -563,6 +733,31 @@ export default class SettlementScene extends Phaser.Scene {
     const width = this.cameras.main.width
     const height = this.cameras.main.height
     const buttonY = height - 72
+
+    const isEndless = Boolean(this.battleResult.stats?.isEndless || this.battleResult.levelId.includes('endless'))
+    if (isEndless) {
+      createInkButton(this, width / 2 - 90, buttonY, 140, 44, '再次挑战', {
+        fill: InkColor.inkStrong,
+        hoverFill: InkColor.ink,
+        textColor: InkText.paper,
+        fontSize: 17,
+        onClick: () => {
+          this.scene.start('BattleScene', { levelId: 'level_endless_tower' })
+        }
+      })
+
+      createInkButton(this, width / 2 + 90, buttonY, 140, 44, '返回主页', {
+        fill: InkColor.paperPanel,
+        hoverFill: InkColor.paperDeep,
+        textColor: InkText.ink,
+        fontSize: 17,
+        stroke: InkColor.ink,
+        onClick: () => {
+          this.scene.start('TitleScene')
+        }
+      })
+      return
+    }
 
     const nextLevelId = this.getNextLevelId()
     const showNext = this.battleResult.isVictory && !!nextLevelId

@@ -7,7 +7,7 @@ export * from './levelConfig'
 import { getExpRequiredForLevel } from './levelConfig'
 
 /**
- * 关羽配置
+ * 关羽配置（五行：木）
  */
 export const guanyuConfig: HeroConfig = {
   id: 'hero_guanyu',
@@ -27,12 +27,12 @@ export const guanyuConfig: HeroConfig = {
 }
 
 /**
- * 张飞配置
+ * 张飞配置（五行：土）
  */
 export const zhangfeiConfig: HeroConfig = {
   id: 'hero_zhangfei',
   name: '张飞',
-  wuXing: 'fire',
+  wuXing: 'earth',
   rarity: 'legendary',
   baseStats: {
     attack: 80,
@@ -47,7 +47,7 @@ export const zhangfeiConfig: HeroConfig = {
 }
 
 /**
- * 赵云配置
+ * 赵云配置（五行：水）
  */
 export const zhaoyunConfig: HeroConfig = {
   id: 'hero_zhaoyun',
@@ -67,17 +67,57 @@ export const zhaoyunConfig: HeroConfig = {
 }
 
 /**
- * 创建默认英雄实例（已解锁）
+ * 黄忠配置（五行：火）
+ */
+export const huangzhongConfig: HeroConfig = {
+  id: 'hero_huangzhong',
+  name: '黄忠',
+  wuXing: 'fire',
+  rarity: 'epic',
+  baseStats: {
+    attack: 75,
+    attackSpeed: 0.9,
+    attackRange: 280
+  },
+  deploymentCost: 14,
+  passiveSkillId: 'skill_passive_huangzhong',
+  activeSkillId: 'skill_active_huangzhong',
+  unlockSoulStoneCount: 15,
+  starUpgradeRequirements: [20, 35, 60, 100]
+}
+
+/**
+ * 马超配置（五行：金）
+ */
+export const machaoConfig: HeroConfig = {
+  id: 'hero_machao',
+  name: '马超',
+  wuXing: 'metal',
+  rarity: 'legendary',
+  baseStats: {
+    attack: 85,
+    attackSpeed: 1.1,
+    attackRange: 160
+  },
+  deploymentCost: 15,
+  passiveSkillId: 'skill_passive_machao',
+  activeSkillId: 'skill_active_machao',
+  unlockSoulStoneCount: 20,
+  starUpgradeRequirements: [30, 50, 80, 120]
+}
+
+/**
+ * 创建默认英雄实例（五虎上将全员就绪）
  */
 export function createDefaultHeroes(): Map<string, Hero> {
   const heroes = new Map<string, Hero>()
 
-  // 关羽（已解锁，等级5，1星）
+  // 1. 关羽（木，等级5，1星）
   heroes.set('hero_guanyu', {
     ...guanyuConfig,
     level: 5,
     star: 1,
-    experience: getExpRequiredForLevel(5), // 设置为等级5所需的经验（500）
+    experience: getExpRequiredForLevel(5),
     equipment: {
       weapon: null,
       artifact: null
@@ -85,12 +125,12 @@ export function createDefaultHeroes(): Map<string, Hero> {
     isUnlocked: true
   })
 
-  // 张飞（已解锁，等级3，1星）
+  // 2. 张飞（土，等级3，1星）
   heroes.set('hero_zhangfei', {
     ...zhangfeiConfig,
     level: 3,
     star: 1,
-    experience: getExpRequiredForLevel(3), // 设置为等级3所需的经验（200）
+    experience: getExpRequiredForLevel(3),
     equipment: {
       weapon: null,
       artifact: null
@@ -98,12 +138,38 @@ export function createDefaultHeroes(): Map<string, Hero> {
     isUnlocked: true
   })
 
-  // 赵云（已解锁，等级1，1星）
+  // 3. 赵云（水，等级1，1星）
   heroes.set('hero_zhaoyun', {
     ...zhaoyunConfig,
     level: 1,
     star: 1,
-    experience: getExpRequiredForLevel(1), // 设置为等级1所需的经验（0）
+    experience: getExpRequiredForLevel(1),
+    equipment: {
+      weapon: null,
+      artifact: null
+    },
+    isUnlocked: true
+  })
+
+  // 4. 黄忠（火，等级1，1星）
+  heroes.set('hero_huangzhong', {
+    ...huangzhongConfig,
+    level: 1,
+    star: 1,
+    experience: getExpRequiredForLevel(1),
+    equipment: {
+      weapon: null,
+      artifact: null
+    },
+    isUnlocked: true
+  })
+
+  // 5. 马超（金，等级1，1星）
+  heroes.set('hero_machao', {
+    ...machaoConfig,
+    level: 1,
+    star: 1,
+    experience: getExpRequiredForLevel(1),
     equipment: {
       weapon: null,
       artifact: null
@@ -120,7 +186,9 @@ export function createDefaultHeroes(): Map<string, Hero> {
 export const heroConfigs: Map<string, HeroConfig> = new Map([
   ['hero_guanyu', guanyuConfig],
   ['hero_zhangfei', zhangfeiConfig],
-  ['hero_zhaoyun', zhaoyunConfig]
+  ['hero_zhaoyun', zhaoyunConfig],
+  ['hero_huangzhong', huangzhongConfig],
+  ['hero_machao', machaoConfig]
 ])
 
 /**

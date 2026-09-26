@@ -32,6 +32,10 @@ import { calculateLevelFromExp } from '@/data/heroes/levelConfig'
 import { AugmentManager } from '@/core/augment/AugmentManager'
 import { ElementalReactionManager } from '@/core/elemental/ElementalReactionManager'
 import { WuXing } from '@/types/wuxing.types'
+import { EndlessModeManager } from '@/core/level/EndlessModeManager'
+import { EnemySpawnOptions } from '@/core/enemy/EnemyFactory'
+import { MilitarySituationManager } from '../military/MilitarySituationManager'
+import { MilitarySituation, MilitaryTactic, MilitaryTacticType } from '@/types/militarySituation'
 
 /**
  * 战斗主控制器
@@ -62,6 +66,7 @@ export class BattleSystem {
   private playerHealth: number
   private maxPlayerHealth: number
   private augmentManager: AugmentManager
+  private militarySituationManager: MilitarySituationManager
   private elapsedTime: number
   private isRunning: boolean
   private isPaused: boolean
@@ -78,6 +83,12 @@ export class BattleSystem {
   private onBattleEndCallback?: (result: BattleResult) => void
   private onHeroPlacedCallback?: (hero: HeroEntity) => void
   private onTroopPlacedCallback?: (troop: TroopEntity) => void
+  private onMilitarySituationCallback?: (situation: MilitarySituation) => void
+
+  // 战斗统计（用于无尽军报与战勋结算）
+  private totalKills: number = 0
+  private eliteKills: number = 0
+  private bossKills: number = 0
 
   constructor(scene: Phaser.Scene, levelConfig: LevelConfig, heroConfigs: Map<string, Hero>) {
     this.scene = scene
@@ -90,6 +101,9 @@ export class BattleSystem {
 
     // 初始化波次管理
     this.waveManager = new WaveManager(levelConfig.waves)
+    if (this.isEndlessMode()) {
+      this.waveManager.setWaveGenerator((waveNum) => EndlessModeManager.generateWave(waveNum))
+    }
 
     // 初始化敌人管理
     this.enemyManager = new EnemyManager(
@@ -110,12 +124,23 @@ export class BattleSystem {
       }
     })
 
+    // 初始化战场天时军情管理器
+    this.militarySituationManager = new MilitarySituationManager({
+      onSituationTriggered: (situation) => {
+        if (this.onMilitarySituationCallback) {
+          this.onMilitarySituationCallback(situation)
+        }
+      }
+    })
+
     // 初始化英雄战斗管理
     this.heroBattleManager = new HeroBattleManager(scene, this.enemyManager)
     this.heroBattleManager.setAugmentManager(this.augmentManager)
+    this.heroBattleManager.setMilitarySituationManager(this.militarySituationManager)
 
     // 初始化兵种战斗管理
     this.troopBattleManager = new TroopBattleManager(scene, this.enemyManager)
+    this.troopBattleManager.setMilitarySituationManager(this.militarySituationManager)
 
     // 初始化部署格占位表（兵占1格、将占2格，行军路线不可布防）
     this.deployGrid = new DeployGrid(levelConfig.map.deployableAreas, levelConfig.map.path)
@@ -514,6 +539,16 @@ export class BattleSystem {
       // 每波开始时校准所有武将与兵种至部署基准网格位置与缩放，杜绝极限波次下可能累积的微小动画误差
       this.heroBattleManager.resetAllHeroTransforms()
       this.troopBattleManager.resetAllTroopTransforms()
+
+      // 无尽试炼模式：每 10 波整休，奖励 1 次军师刷新令并触发军机天时
+      if (this.isEndlessMode() && currentWave > 1 && currentWave % 10 === 0) {
+        this.augmentManager.grantRerolls(1)
+        const situation = this.militarySituationManager.checkWave(currentWave)
+        if (situation) {
+          this.pauseBattle()
+        }
+      }
+
       if (this.onWaveStartCallback) {
         this.onWaveStartCallback(currentWave)
       }
@@ -527,7 +562,21 @@ export class BattleSystem {
     const config = getEnemyConfig(enemyId)
 
     if (config) {
-      const enemyEntity = this.enemyManager.spawnEnemy(config)
+      let spawnOptions: EnemySpawnOptions | undefined = undefined
+
+      if (this.isEndlessMode()) {
+        const currentWave = this.waveManager.getCurrentWave()
+        const mult = EndlessModeManager.getStatMultiplier(currentWave)
+        const affixes = EndlessModeManager.getAffixesForWave(currentWave, config.type)
+
+        spawnOptions = {
+          healthMultiplier: mult.healthMultiplier,
+          speedMultiplier: mult.speedMultiplier,
+          affixes
+        }
+      }
+
+      const enemyEntity = this.enemyManager.spawnEnemy(config, spawnOptions)
       console.log(`生成敌人: ${config.name}`)
     }
   }
@@ -538,8 +587,29 @@ export class BattleSystem {
   private handleEnemyKilled(enemy: EnemyEntity): void {
     const enemyData = enemy.getEnemyData()
 
-    // 锦囊金币获取加成
-    const costMultiplier = this.augmentManager.getCostGainMultiplier()
+    // 统计斩敌
+    this.totalKills++
+    if (enemyData.type === 'elite') this.eliteKills++
+    if (enemyData.type === 'boss') this.bossKills++
+
+    // 检查击杀敌人对帅营生命修复（如严阵筑垒）
+    const healBase = this.militarySituationManager.onEnemyKilled()
+    if (healBase > 0) {
+      this.playerHealth = Math.min(this.playerHealth + healBase, this.maxPlayerHealth)
+    }
+
+    // 锦囊与军情金币获取加成
+    let costMultiplier = this.augmentManager.getCostGainMultiplier()
+    costMultiplier *= this.militarySituationManager.getCostAndEnergyMultiplier()
+
+    // 军情【诱敌深入】：若敌人在帅营 200 像素内被消灭，军费奖励翻倍
+    const enemyPos = { x: enemy.x, y: enemy.y }
+    const exitPos = this.levelConfig.map.exitPoint
+    const distToBase = Phaser.Math.Distance.Between(enemyPos.x, enemyPos.y, exitPos.x, exitPos.y)
+    if (distToBase <= 200) {
+      costMultiplier *= this.militarySituationManager.getNearBaseRewardMultiplier()
+    }
+
     const finalReward = Math.floor(enemyData.rewardCost * costMultiplier)
     this.costManager.addCost(finalReward)
 
@@ -588,6 +658,8 @@ export class BattleSystem {
     this.battleState.playerHealth = this.playerHealth
     this.battleState.elapsedTime = this.elapsedTime
     this.battleState.activeEnemies = this.enemyManager.getActiveEnemies().map(e => e.getEnemyData())
+    this.battleState.activeSituation = this.militarySituationManager.getActiveSituation() || undefined
+    this.battleState.activeTactic = this.militarySituationManager.getActiveTactic() || undefined
   }
 
   /**
@@ -716,6 +788,13 @@ export class BattleSystem {
   }
 
   /**
+   * 是否处于无尽试炼模式
+   */
+  isEndlessMode(): boolean {
+    return this.levelConfig.chapterId === 'endless' || this.levelConfig.id === 'level_endless_tower'
+  }
+
+  /**
    * 结束战斗
    */
   endBattle(): BattleResult {
@@ -723,12 +802,21 @@ export class BattleSystem {
     const deployedHeroIds = Array.from(this.deployedHeroEntities.values())
       .map(entity => entity.getHeroData().id)
 
+    const isEndless = this.isEndlessMode()
+    const highestWave = this.waveManager.getCurrentWave()
+    let isNewRecord = false
+
+    if (isEndless) {
+      const saveManager = SaveManager.getInstance()
+      isNewRecord = saveManager.updateEndlessRecord(highestWave, this.totalKills)
+    }
+
     return {
       levelId: this.levelConfig.id,
       isVictory: this.battleState.status === 'victory',
       elapsedTime: this.elapsedTime,
       remainingHealth: this.playerHealth,
-      wavesCompleted: this.waveManager.getCurrentWave(),
+      wavesCompleted: highestWave,
       deployedHeroIds,
       rewards: {
         soulStones: [],
@@ -736,6 +824,14 @@ export class BattleSystem {
         gems: [],
         gold: this.levelConfig.rewards.gold || 0,
         experience: this.levelConfig.rewards.experience || 0
+      },
+      stats: {
+        totalKills: this.totalKills,
+        eliteKills: this.eliteKills,
+        bossKills: this.bossKills,
+        highestWave,
+        isEndless,
+        isNewRecord
       }
     }
   }
@@ -950,6 +1046,8 @@ export class BattleSystem {
     this.lastNotifiedWave = 0
     this.deployCooldownRemaining = 0
 
+    this.militarySituationManager.reset()
+
     this.battleState = {
       status: 'preparing',
       levelId: this.levelConfig.id,
@@ -961,6 +1059,42 @@ export class BattleSystem {
       activeEnemies: [],
       elapsedTime: 0
     }
+  }
+
+  public pauseBattle(): void {
+    this.isPaused = true
+    this.battleState.status = 'paused'
+  }
+
+  public resumeBattle(): void {
+    this.isPaused = false
+    this.battleState.status = 'running'
+  }
+
+  public getMilitarySituationManager(): MilitarySituationManager {
+    return this.militarySituationManager
+  }
+
+  public onMilitarySituation(callback: (situation: MilitarySituation) => void): void {
+    this.onMilitarySituationCallback = callback
+  }
+
+  public applyMilitaryTactic(type: MilitaryTacticType): void {
+    const tactic = this.militarySituationManager.selectTactic(type)
+    if (tactic) {
+      if (tactic.costDeduction && tactic.costDeduction > 0) {
+        this.costManager.consumeCost(tactic.costDeduction)
+      }
+      if (tactic.grantRerolls && tactic.grantRerolls > 0) {
+        this.augmentManager.grantRerolls(tactic.grantRerolls)
+      }
+      if (tactic.modifiers.reactionDamageMultiplier) {
+        ElementalReactionManager.getInstance().setReactionDamageMultiplier(
+          tactic.modifiers.reactionDamageMultiplier
+        )
+      }
+    }
+    this.resumeBattle()
   }
 
   public getAugmentManager(): AugmentManager {
@@ -977,5 +1111,9 @@ export class BattleSystem {
 
   public getDeployedWuXing(): WuXing[] {
     return Array.from(this.deployedHeroEntities.values()).map(h => h.getHeroData().wuXing)
+  }
+
+  public getHeroBattleManager(): HeroBattleManager {
+    return this.heroBattleManager
   }
 }

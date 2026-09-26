@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { GAME_WIDTH, GAME_HEIGHT, GAME_TITLE } from './constants'
 
 // 场景导入
-import { BootScene, PreloadScene, TitleScene, BattleScene, HeroListScene, EquipmentScene, SaveScene, LevelSelectScene, SettlementScene, TextAttackDemoScene, WeaponDemoScene, TroopDemoScene } from '@/scenes'
+import { BootScene, PreloadScene, TitleScene, BattleScene, HeroListScene, EquipmentScene, SaveScene, LevelSelectScene, SettlementScene, AugmentCompendiumScene, TextAttackDemoScene, WeaponDemoScene, TroopDemoScene } from '@/scenes'
 
 // Phaser游戏配置
 export const gameConfig: Phaser.Types.Core.GameConfig = {
@@ -37,6 +37,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     SaveScene,
     LevelSelectScene,
     SettlementScene,
+    AugmentCompendiumScene,
     BattleScene,
     TextAttackDemoScene,
     WeaponDemoScene,

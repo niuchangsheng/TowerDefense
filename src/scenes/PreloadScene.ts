@@ -120,6 +120,8 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('hero_guanyu', 'assets/images/heroes/San11/face/0002_关羽_1.jpg')
     this.load.image('hero_zhangfei', 'assets/images/heroes/San11/face/0001_张飞_1.jpg')
     this.load.image('hero_zhaoyun', 'assets/images/heroes/San11/face/0009_赵云_1.jpg')
+    this.load.image('hero_huangzhong', 'assets/images/heroes/San11/face/1023_黄忠_1.jpg')
+    this.load.image('hero_machao', 'assets/images/heroes/San11/face/0004_马超_1.jpg')
 
     // 加载武将暴击图（技能释放时展示）
     this.load.image('baoji_guanyu', 'assets/images/heroes/San11/baoji/关羽.jpg')

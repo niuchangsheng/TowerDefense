@@ -355,4 +355,40 @@ export class SaveManager {
       completedLevels: Array.isArray(saveData.levelProgress) ? saveData.levelProgress.filter(l => l && l.isCompleted).length : 0
     }
   }
+
+  /**
+   * 获取百战无尽最佳战绩
+   */
+  getEndlessRecord(): { highestWave: number; totalKills: number; bestDate: number } {
+    const save = this.currentSave || this.loadFromSlot(1) || this.loadFromSlot(0)
+    return save?.endlessRecord || { highestWave: 0, totalKills: 0, bestDate: 0 }
+  }
+
+  /**
+   * 更新百战无尽战绩记录
+   * @param wave 本局突破波次
+   * @param kills 本局击杀总数
+   * @returns 是否打破历史纪录
+   */
+  updateEndlessRecord(wave: number, kills: number): boolean {
+    let save = this.currentSave || this.loadFromSlot(1)
+    if (!save) {
+      save = this.createNewSave(1)
+    }
+    if (!save.endlessRecord) {
+      save.endlessRecord = { highestWave: 0, totalKills: 0, bestDate: 0 }
+    }
+
+    let isNewRecord = false
+    if (wave > save.endlessRecord.highestWave) {
+      save.endlessRecord.highestWave = wave
+      save.endlessRecord.totalKills = Math.max(save.endlessRecord.totalKills, kills)
+      save.endlessRecord.bestDate = Date.now()
+      isNewRecord = true
+    }
+
+    this.currentSave = save
+    this.saveCurrent()
+    return isNewRecord
+  }
 }

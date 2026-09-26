@@ -2,6 +2,9 @@ import { SkillConfig } from '@/types'
 import { passiveSkills, getPassiveSkill } from './passiveSkills'
 import { activeSkills, getActiveSkill } from './activeSkills'
 
+export * from './passiveSkills'
+export * from './activeSkills'
+
 /**
  * 技能索引
  * 提供技能查询和加载功能

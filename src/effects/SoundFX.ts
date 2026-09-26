@@ -138,4 +138,97 @@ export class SoundFX {
     osc.start(t0)
     osc.stop(t0 + 0.15)
   }
+
+  /**
+   * 战锣鸣金 —— 悠扬低沉的铜锣声（用于军机急报、大将出阵）
+   */
+  static gong(volume = 0.5): void {
+    const ctx = SoundFX.ensureCtx()
+    if (!ctx) return
+    const t0 = ctx.currentTime
+
+    const freqs = [220, 330, 440, 660]
+    for (let i = 0; i < freqs.length; i++) {
+      const osc = ctx.createOscillator()
+      osc.type = i % 2 === 0 ? 'sine' : 'triangle'
+      osc.frequency.setValueAtTime(freqs[i], t0)
+      osc.frequency.exponentialRampToValueAtTime(freqs[i] * 0.95, t0 + 1.2)
+
+      const gain = ctx.createGain()
+      const partVol = (volume / freqs.length) * (1 - i * 0.18)
+      gain.gain.setValueAtTime(partVol, t0)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2)
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(t0)
+      osc.stop(t0 + 1.25)
+    }
+  }
+
+  /**
+   * 朱砂落印 —— 沉稳清脆的印章盖下声（用于军令决断、敕令确认）
+   */
+  static stamp(volume = 0.45): void {
+    const ctx = SoundFX.ensureCtx()
+    if (!ctx) return
+    const t0 = ctx.currentTime
+
+    // 瞬态印木撞击
+    const noise = ctx.createBufferSource()
+    noise.buffer = SoundFX.noiseBuffer(ctx, 0.04)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 1400
+    const nGain = ctx.createGain()
+    nGain.gain.setValueAtTime(volume * 0.8, t0)
+    nGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.04)
+    noise.connect(bp)
+    bp.connect(nGain)
+    nGain.connect(ctx.destination)
+    noise.start(t0)
+    noise.stop(t0 + 0.05)
+
+    // 案台厚重木音
+    const osc = ctx.createOscillator()
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(180, t0)
+    osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.12)
+    const oGain = ctx.createGain()
+    oGain.gain.setValueAtTime(volume, t0)
+    oGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14)
+    osc.connect(oGain)
+    oGain.connect(ctx.destination)
+    osc.start(t0)
+    osc.stop(t0 + 0.15)
+  }
+
+  /**
+   * 水墨气浪呼啸 —— 刀剑出鞘、疾风掠过的破空声
+   */
+  static whoosh(volume = 0.35): void {
+    const ctx = SoundFX.ensureCtx()
+    if (!ctx) return
+    const t0 = ctx.currentTime
+
+    const noise = ctx.createBufferSource()
+    noise.buffer = SoundFX.noiseBuffer(ctx, 0.18)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.setValueAtTime(600, t0)
+    bp.frequency.exponentialRampToValueAtTime(1400, t0 + 0.08)
+    bp.frequency.exponentialRampToValueAtTime(300, t0 + 0.18)
+    bp.Q.value = 1.2
+
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.0001, t0)
+    gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.06)
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18)
+
+    noise.connect(bp)
+    bp.connect(gain)
+    gain.connect(ctx.destination)
+    noise.start(t0)
+    noise.stop(t0 + 0.2)
+  }
 }

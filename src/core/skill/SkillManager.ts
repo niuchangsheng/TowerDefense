@@ -60,6 +60,19 @@ export class SkillManager {
   }
 
   /**
+   * 立即缩减技能冷却时间（用于机制返还）
+   */
+  reduceCooldown(skillId: string, amountMs: number): void {
+    const state = this.skillStates.get(skillId)
+    if (state && state.currentCooldown > 0) {
+      state.currentCooldown = Math.max(0, state.currentCooldown - amountMs)
+      if (state.currentCooldown === 0) {
+        state.isReady = true
+      }
+    }
+  }
+
+  /**
    * 检查技能是否可以使用
    */
   canUseSkill(skillId: string): boolean {

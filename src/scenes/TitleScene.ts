@@ -12,6 +12,7 @@ import {
   createInkButton
 } from '@/ui/InkTheme'
 import { SoundFX } from '@/effects/SoundFX'
+import { SaveManager } from '@/core/save/SaveManager'
 
 /**
  * 标题场景（水墨宣纸风）
@@ -215,26 +216,33 @@ export default class TitleScene extends Phaser.Scene {
    */
   private createMenuButtons(width: number, height: number): void {
     const buttonX = width / 2
-    const buttonY = height / 2 + 115
-    const buttonSpacing = 48
+    const buttonY = height / 2 + 104
+    const buttonSpacing = 46
 
-    // 武将按钮
+    // 1. 武将按钮
     this.createMenuButton(buttonX, buttonY, '武将', () => {
       this.transitionTo('HeroListScene')
     })
 
-    // 装备按钮
+    // 2. 装备按钮
     this.createMenuButton(buttonX, buttonY + buttonSpacing, '装备', () => {
       this.transitionTo('EquipmentScene')
     })
 
-    // 无尽试炼按钮
-    this.createMenuButton(buttonX, buttonY + buttonSpacing * 2, '百战无尽', () => {
+    // 3. 锦囊图鉴按钮
+    this.createMenuButton(buttonX, buttonY + buttonSpacing * 2, '锦囊图鉴', () => {
+      this.transitionTo('AugmentCompendiumScene')
+    })
+
+    // 4. 无尽试炼按钮
+    const record = SaveManager.getInstance().getEndlessRecord()
+    const endlessLabel = record && record.highestWave > 0 ? `百战无尽 · 第${record.highestWave}阵` : '百战无尽'
+    this.createMenuButton(buttonX, buttonY + buttonSpacing * 3, endlessLabel, () => {
       this.transitionToBattle('level_endless_tower')
     })
 
-    // 存档按钮
-    this.createMenuButton(buttonX, buttonY + buttonSpacing * 3, '存档', () => {
+    // 5. 存档按钮
+    this.createMenuButton(buttonX, buttonY + buttonSpacing * 4, '存档', () => {
       this.transitionTo('SaveScene')
     })
   }
@@ -253,8 +261,8 @@ export default class TitleScene extends Phaser.Scene {
   /**
    * 创建单个菜单按钮（宣纸底 + 墨线描边）
    */
-  private createMenuButton(x: number, y: number, text: string, callback: () => void): void {
-    const btn = createInkButton(this, x, y, 200, 42, text, {
+  private createMenuButton(x: number, y: number, text: string, callback: () => void, width: number = 220): void {
+    const btn = createInkButton(this, x, y, width, 40, text, {
       fill: InkColor.paperPanel,
       hoverFill: InkColor.paperDeep,
       textColor: InkText.ink,

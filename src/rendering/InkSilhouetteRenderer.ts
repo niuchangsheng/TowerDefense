@@ -30,6 +30,8 @@ export class InkSilhouetteRenderer {
     this.createTexture(scene, 'ink_hero_zhaoyun', 72, 72, (ctx, w, h) => this.drawHeroZhaoYun(ctx, w, h))
     this.createTexture(scene, 'ink_hero_guanyu', 72, 72, (ctx, w, h) => this.drawHeroGuanYu(ctx, w, h))
     this.createTexture(scene, 'ink_hero_zhangfei', 72, 72, (ctx, w, h) => this.drawHeroZhangFei(ctx, w, h))
+    this.createTexture(scene, 'ink_hero_huangzhong', 72, 72, (ctx, w, h) => this.drawHeroHuangZhong(ctx, w, h))
+    this.createTexture(scene, 'ink_hero_machao', 72, 72, (ctx, w, h) => this.drawHeroMaChao(ctx, w, h))
     this.createTexture(scene, 'ink_hero_generic', 72, 72, (ctx, w, h) => this.drawHeroGeneric(ctx, w, h))
 
     // 4. 注册五行微芒灵魄 (32x32)
@@ -860,6 +862,168 @@ export class InkSilhouetteRenderer {
     ctx.lineTo(cx + 29, cy - 27)
     ctx.lineTo(cx + 27, cy - 29)
     ctx.lineTo(cx + 32, cy - 33)
+    ctx.stroke()
+  }
+
+  /**
+   * 黄忠：烈火老将，白须皓首，沉稳马步挽雕弓如满月，金矢烈焰蓄势待发
+   */
+  private static drawHeroHuangZhong(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const cx = w / 2 - 2
+    const cy = h / 2 + 2
+
+    // 烈火赤霞披风（深红水墨）
+    ctx.fillStyle = '#7f1d1d'
+    ctx.beginPath()
+    ctx.moveTo(cx - 10, cy - 12)
+    ctx.quadraticCurveTo(cx - 22, cy + 6, cx - 18, cy + 24)
+    ctx.lineTo(cx - 6, cy + 18)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#b91c1c'
+    ctx.beginPath()
+    ctx.moveTo(cx - 9, cy - 12)
+    ctx.quadraticCurveTo(cx - 18, cy + 4, cx - 15, cy + 22)
+    ctx.lineTo(cx - 6, cy + 17)
+    ctx.closePath()
+    ctx.fill()
+
+    // 双腿（稳健开弓侧立步）
+    ctx.strokeStyle = '#1c1917'
+    ctx.lineWidth = 4.5
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(cx - 6, cy + 8)
+    ctx.lineTo(cx - 14, cy + 24)
+    ctx.moveTo(cx + 3, cy + 8)
+    ctx.lineTo(cx + 12, cy + 24)
+    ctx.stroke()
+
+    // 胴甲与玄铁胸甲
+    ctx.fillStyle = '#292524'
+    ctx.fillRect(cx - 11, cy - 10, 22, 19)
+    ctx.fillStyle = '#b45309'
+    ctx.beginPath()
+    ctx.arc(cx - 1, cy - 1, 5, 0, Math.PI * 2)
+    ctx.fill()
+
+    // 头部重盔与白须老将
+    ctx.fillStyle = '#1c1917'
+    ctx.beginPath()
+    ctx.arc(cx - 1, cy - 18, 7.5, 0, Math.PI * 2)
+    ctx.fill()
+    // 老将皓首白须（飘逸长长白胡须）
+    ctx.strokeStyle = '#f1f5f9'
+    ctx.lineWidth = 2.8
+    ctx.beginPath()
+    ctx.moveTo(cx - 1, cy - 13)
+    ctx.quadraticCurveTo(cx - 3, cy - 3, cx - 5, cy + 8)
+    ctx.moveTo(cx + 2, cy - 13)
+    ctx.quadraticCurveTo(cx + 1, cy - 4, cx - 2, cy + 7)
+    ctx.stroke()
+
+    // 雕弓弓臂（紫铜曲木）
+    ctx.strokeStyle = '#78350f'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(cx + 18, cy - 28)
+    ctx.quadraticCurveTo(cx + 26, cy, cx + 18, cy + 28)
+    ctx.stroke()
+
+    // 金丝弓弦（拉满至腮侧）
+    ctx.strokeStyle = '#fde047'
+    ctx.lineWidth = 1.2
+    ctx.beginPath()
+    ctx.moveTo(cx + 18, cy - 28)
+    ctx.lineTo(cx + 3, cy - 2)
+    ctx.lineTo(cx + 18, cy + 28)
+    ctx.stroke()
+
+    // 烈焰金羽箭（搭在弓弦上向右前方瞄准）
+    ctx.strokeStyle = '#f59e0b'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(cx + 2, cy - 2)
+    ctx.lineTo(cx + 28, cy - 2)
+    ctx.stroke()
+    // 箭簇与火芒
+    ctx.fillStyle = '#ef4444'
+    ctx.beginPath()
+    ctx.moveTo(cx + 28, cy - 4)
+    ctx.lineTo(cx + 33, cy - 2)
+    ctx.lineTo(cx + 28, cy)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  /**
+   * 马超：锦马超西凉骑将，白袍银甲金束带，狮蛮银盔，紧握虎头湛金枪
+   */
+  private static drawHeroMaChao(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const cx = w / 2 - 2
+    const cy = h / 2 + 2
+
+    // 西凉白袍（金黄滚边）
+    ctx.fillStyle = '#f8fafc'
+    ctx.beginPath()
+    ctx.moveTo(cx - 10, cy - 12)
+    ctx.lineTo(cx + 10, cy - 12)
+    ctx.lineTo(cx + 16, cy + 24)
+    ctx.lineTo(cx - 16, cy + 24)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#d97706'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    // 亮银铠甲与兽面吞头护胸
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(cx - 10, cy - 10, 20, 18)
+    ctx.fillStyle = '#e2e8f0'
+    ctx.fillRect(cx - 7, cy - 8, 14, 14)
+    // 黄金兽面吞头
+    ctx.fillStyle = '#f59e0b'
+    ctx.beginPath()
+    ctx.arc(cx, cy - 1, 5, 0, Math.PI * 2)
+    ctx.fill()
+
+    // 锦面狮蛮银盔
+    ctx.fillStyle = '#334155'
+    ctx.beginPath()
+    ctx.arc(cx, cy - 18, 8, 0, Math.PI * 2)
+    ctx.fill()
+    // 飘扬的西凉白羽长缨
+    ctx.strokeStyle = '#f1f5f9'
+    ctx.lineWidth = 3.5
+    ctx.beginPath()
+    ctx.moveTo(cx, cy - 25)
+    ctx.quadraticCurveTo(cx - 10, cy - 32, cx - 18, cy - 26)
+    ctx.stroke()
+
+    // 虎头湛金枪（斜横冲阵之势）
+    ctx.strokeStyle = '#78350f'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(cx - 24, cy + 25)
+    ctx.lineTo(cx + 26, cy - 25)
+    ctx.stroke()
+
+    // 虎头吞口与金锐枪尖
+    ctx.fillStyle = '#d97706'
+    ctx.beginPath()
+    ctx.arc(cx + 24, cy - 23, 4, 0, Math.PI * 2)
+    ctx.fill()
+    // 湛金枪尖（锋芒破甲）
+    ctx.fillStyle = '#fbbf24'
+    ctx.strokeStyle = '#78350f'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(cx + 25, cy - 24)
+    ctx.lineTo(cx + 33, cy - 32)
+    ctx.lineTo(cx + 31, cy - 34)
+    ctx.lineTo(cx + 23, cy - 27)
+    ctx.closePath()
+    ctx.fill()
     ctx.stroke()
   }
 

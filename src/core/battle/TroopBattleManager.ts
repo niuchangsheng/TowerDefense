@@ -4,6 +4,7 @@ import { TroopEntity } from '@/entities/TroopEntity'
 import { DamageCalculator } from './DamageCalculator'
 import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
 import { WeaponFX } from '@/effects/WeaponFX'
+import { MilitarySituationManager } from '../military/MilitarySituationManager'
 
 /**
  * 兵种战斗管理器
@@ -14,6 +15,7 @@ import { WeaponFX } from '@/effects/WeaponFX'
 export class TroopBattleManager {
   private deployedTroops: Map<string, TroopEntity>
   private enemyManager: any  // EnemyManager类型，避免循环依赖
+  private militarySituationManager?: MilitarySituationManager
 
   private scene: Phaser.Scene
   private attackFX: CharacterAttackFX
@@ -68,6 +70,10 @@ export class TroopBattleManager {
     return killedEnemies
   }
 
+  public setMilitarySituationManager(militarySituationManager: MilitarySituationManager): void {
+    this.militarySituationManager = militarySituationManager
+  }
+
   /**
    * 检查攻击条件并执行攻击
    */
@@ -75,14 +81,24 @@ export class TroopBattleManager {
     const troopData = troop.getTroopData()
     const deployedData = troop.getDeployedData()
 
+    let speed = troopData.attackSpeed
+    let range = troopData.attackRange
+    if (this.militarySituationManager) {
+      if (troopData.attackStyle === 'bow' || range > 150) {
+        range *= this.militarySituationManager.getRangedRangeMultiplier()
+      } else {
+        speed *= this.militarySituationManager.getMeleeAttackSpeedMultiplier()
+      }
+    }
+
     // 攻击间隔 = 1000 / 攻速(次每秒)
-    const attackInterval = DamageCalculator.calculateAttackInterval(troopData.attackSpeed)
+    const attackInterval = DamageCalculator.calculateAttackInterval(speed)
     if (currentTime - deployedData.lastAttackTime < attackInterval) {
       return null
     }
 
     // 射程内最近的敌人
-    const target = this.enemyManager.getNearestEnemy(deployedData.position, troopData.attackRange)
+    const target = this.enemyManager.getNearestEnemy(deployedData.position, range)
     if (!target) {
       return null
     }
@@ -100,7 +116,18 @@ export class TroopBattleManager {
     const troopData = troop.getTroopData()
     const targetData = target.getEnemyData()
 
-    const actualDamage = target.takeDamage(troopData.baseAttack)
+    let damage = troopData.baseAttack
+    if (this.militarySituationManager) {
+      if (troopData.attackStyle === 'bow' || troopData.attackRange > 150) {
+        const pen = this.militarySituationManager.getRangedDefensePenetration()
+        if (pen > 0) damage = Math.floor(damage * (1 + pen))
+      } else {
+        const critBonus = this.militarySituationManager.getMeleeCritChanceBonus()
+        if (critBonus > 0 && Math.random() < critBonus) damage = Math.floor(damage * 1.5)
+      }
+    }
+
+    const actualDamage = target.takeDamage(damage)
 
     troop.playAttackAnimation()
     this.playWeaponFX(troop, target, actualDamage)
