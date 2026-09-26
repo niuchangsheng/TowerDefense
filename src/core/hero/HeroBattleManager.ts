@@ -6,6 +6,7 @@ import { SkillManager, SkillExecutor } from '../skill'
 import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
 import { WeaponFX, WeaponType } from '@/effects/WeaponFX'
 import { GemAttackEffectManager } from '@/effects/GemAttackEffectManager'
+import { ArtifactResonanceEffectManager } from '@/effects/ArtifactResonanceEffectManager'
 import { EquipmentManager } from '../equipment/EquipmentManager'
 import { AugmentManager } from '../augment/AugmentManager'
 import { MilitarySituationManager } from '../military/MilitarySituationManager'
@@ -439,6 +440,9 @@ export class HeroBattleManager {
       }
     }
 
+    // 触发专属神兵器灵共鸣与五行相生隐藏机制
+    this.triggerArtifactResonanceEffects(hero, target)
+
     // 触发5级宝石终极特效（破甲、中毒、冰冻、灼烧与红莲殉爆、眩晕）
     this.triggerGemAttackEffects(hero, target)
 
@@ -471,6 +475,25 @@ export class HeroBattleManager {
     }
 
     return null
+  }
+
+  /**
+   * 触发专属神兵器灵共鸣与五行相生隐藏机制
+   */
+  private triggerArtifactResonanceEffects(hero: HeroEntity, target: EnemyEntity): void {
+    if (!target.active || target.getEnemyData().currentHealth <= 0) return
+
+    const heroData = hero.getHeroData()
+    const resonance = EquipmentManager.getInstance().getHeroResonance(heroData.id, heroData.name)
+    if (resonance.isExclusive && resonance.hasResonance) {
+      ArtifactResonanceEffectManager.getInstance(this.scene).triggerResonanceAttack(
+        hero,
+        target,
+        resonance,
+        this.enemyManager,
+        this.skillManager
+      )
+    }
   }
 
   /**

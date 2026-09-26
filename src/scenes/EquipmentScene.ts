@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
 import { getGemName, gemNames } from '@/data/equipment/gems'
-import { RarityNames, Rarity, Gem, WuXing } from '@/types'
+import { RarityNames, Rarity, Gem, WuXing, getAllowedGemWuXing, WuXingGeneratedBy, WuXingGenerate } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
 import { GemIconRenderer, GEM_RARITY_LABELS, GEM_LORE_MAP } from '@/rendering/GemIconRenderer'
 import {
@@ -803,12 +803,14 @@ export default class EquipmentScene extends Phaser.Scene {
 
       const required = artifact.gemSocket?.requiredWuXing as WuXing | undefined
       if (required) {
-        this.detailPanel.add(inkText(this, PAD, y + 10, `需求: ${INK_WUXING[required].label}属性宝石`, {
-          size: InkFontSize.md,
-          color: INK_WUXING[required].text
+        const genWuXing = WuXingGeneratedBy[required]
+        this.detailPanel.add(inkText(this, PAD, y + 10, `五行需求: ${INK_WUXING[required].label}属性 (同源: ${INK_WUXING[required].label} / 相生: ${INK_WUXING[genWuXing].label})`, {
+          size: 13,
+          color: INK_WUXING[required].text,
+          bold: true
         }))
       }
-      y += 26
+      y += 24
 
       let curGem: Gem | undefined = undefined
       if (artifact.gemSocket?.currentGem) {
@@ -825,8 +827,13 @@ export default class EquipmentScene extends Phaser.Scene {
           const icon = this.add.image(PAD + 16, y + 18, iconKey).setScale(0.65)
           this.detailPanel.add(icon)
         }
-        this.detailPanel.add(inkText(this, PAD + 38, y + 10, `已镶嵌: ${getGemName(curGem)} (Lv.${curGem.level})`, {
-          size: InkFontSize.md,
+
+        const isSame = required && curGem.wuXing === required
+        const isGen = required && WuXingGenerate[curGem.wuXing] === required
+        const matchTitle = isSame ? '【同源共鸣】' : (isGen ? '【相生滋养】' : '')
+
+        this.detailPanel.add(inkText(this, PAD + 38, y + 10, `已镶嵌: ${getGemName(curGem)} (Lv.${curGem.level}) ${matchTitle}`, {
+          size: 13,
           color: curGem.level === 5 ? InkText.cinnabar : InkText.green,
           bold: true
         }))
@@ -888,6 +895,61 @@ export default class EquipmentScene extends Phaser.Scene {
         })
         this.detailPanel.add(mountBtn)
         y += 26
+      }
+
+      // 器灵觉醒 · 隐藏绝技展示
+      if (artifact.exclusiveResonance) {
+        y += 8
+        y += sectionHeader(this, this.detailPanel, PAD, y, '器灵觉醒 · 隐藏绝技', EquipmentScene.CONTENT_W)
+        const res = artifact.exclusiveResonance
+        let isOwner = false
+        if (equip.isEquipped && equip.equippedHeroId) {
+          isOwner = this.equipmentManager.isExclusiveForHero(equip.instanceId, equip.equippedHeroId)
+        }
+
+        this.detailPanel.add(inkText(this, PAD, y + 8, `${res.hiddenSkillName} · 专属神将: ${res.heroName}`, {
+          size: 13,
+          color: isOwner ? InkText.cinnabar : InkText.faint,
+          bold: true
+        }))
+        y += 22
+
+        if (isOwner) {
+          this.detailPanel.add(inkText(this, PAD, y + 4, `★ 器灵认主状态：已激活（本命神将已穿戴）`, {
+            size: 11,
+            color: InkText.green,
+            bold: true
+          }))
+          y += 18
+        } else {
+          this.detailPanel.add(inkText(this, PAD, y + 4, `🔒 器灵沉睡中（由专属神将【${res.heroName}】穿戴方可觉醒隐藏效果）`, {
+            size: 11,
+            color: InkText.faint
+          }))
+          y += 18
+        }
+
+        this.detailPanel.add(inkText(this, PAD, y + 4, `• ${res.sameEffectDesc}`, {
+          size: 10,
+          color: InkText.ink,
+          wrapWidth: EquipmentScene.CONTENT_W - 24
+        }))
+        y += 18
+
+        this.detailPanel.add(inkText(this, PAD, y + 4, `• ${res.generatingEffectDesc}`, {
+          size: 10,
+          color: InkText.ink,
+          wrapWidth: EquipmentScene.CONTENT_W - 24
+        }))
+        y += 18
+
+        this.detailPanel.add(inkText(this, PAD, y + 4, `• ${res.ultimateDesc}`, {
+          size: 10,
+          color: InkText.cinnabar,
+          bold: true,
+          wrapWidth: EquipmentScene.CONTENT_W - 24
+        }))
+        y += 24
       }
     }
 
@@ -1116,15 +1178,16 @@ export default class EquipmentScene extends Phaser.Scene {
     if (!detail || !detail.gemSocket) return
 
     const reqWuXing = detail.gemSocket.requiredWuXing as WuXing
-    const reqStyle = INK_WUXING[reqWuXing]
-    const matchingGems = this.equipmentManager.getOwnedGems().filter(g => g.wuXing === reqWuXing)
+    const allowed = detail.gemSocket.allowedWuXings || (reqWuXing ? getAllowedGemWuXing(reqWuXing).all : [])
+    const matchingGems = this.equipmentManager.getOwnedGems().filter(g => allowed.includes(g.wuXing))
 
     if (matchingGems.length === 0) {
-      this.showMessage(`行囊中暂无【${reqStyle.label}】属性宝石`)
+      const genWuXing = WuXingGeneratedBy[reqWuXing]
+      this.showMessage(`行囊中暂无【${INK_WUXING[reqWuXing]?.label || ''}】或【${INK_WUXING[genWuXing]?.label || ''}】属性宝石`)
       return
     }
 
-    const dialogW = 460
+    const dialogW = 480
     const dialogH = 360
     const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
       stroke: InkColor.ink,
@@ -1143,9 +1206,10 @@ export default class EquipmentScene extends Phaser.Scene {
       originX: 0.5
     }))
 
-    panel.add(inkText(this, dialogW / 2, 54, `请选择一颗【${reqStyle.label}】属性宝石进行镶嵌：`, {
+    const genWuXing = WuXingGeneratedBy[reqWuXing]
+    panel.add(inkText(this, dialogW / 2, 54, `支持同源【${INK_WUXING[reqWuXing].label}】或相生【${INK_WUXING[genWuXing].label}】宝石：`, {
       size: 13,
-      color: reqStyle.text,
+      color: InkText.strong,
       originX: 0.5
     }))
 
@@ -1159,8 +1223,10 @@ export default class EquipmentScene extends Phaser.Scene {
     matchingGems.slice(0, maxVisible).forEach((g, idx) => {
       const itemY = startY + idx * (itemH + 8)
       const isL5 = g.level === 5
-      const itemBg = this.add.rectangle(dialogW / 2, itemY, dialogW - 48, itemH, isL5 ? InkColor.paperDeep : reqStyle.fill, 0.85)
-      itemBg.setStrokeStyle(isL5 ? 2 : 1, isL5 ? InkColor.cinnabar : reqStyle.border)
+      const isSame = g.wuXing === reqWuXing
+      const gemStyle = INK_WUXING[g.wuXing]
+      const itemBg = this.add.rectangle(dialogW / 2, itemY, dialogW - 48, itemH, isL5 ? InkColor.paperDeep : gemStyle.fill, 0.85)
+      itemBg.setStrokeStyle(isL5 ? 2 : 1, isL5 ? InkColor.cinnabar : gemStyle.border)
       panel.add(itemBg)
 
       // 图标
@@ -1170,15 +1236,18 @@ export default class EquipmentScene extends Phaser.Scene {
         panel.add(icon)
       }
 
-      // 名字与等级
-      panel.add(inkText(this, 72, itemY - 9, `${getGemName(g)} (Lv.${g.level})`, {
-        size: 14,
-        color: isL5 ? InkText.cinnabar : InkText.strong,
+      // 名字与共鸣类型
+      const matchTypeLabel = isSame ? '【同源】' : '【相生】'
+      panel.add(inkText(this, 72, itemY - 9, `${matchTypeLabel} ${getGemName(g)} (Lv.${g.level})`, {
+        size: 13,
+        color: isSame ? InkText.cinnabar : '#0277bd',
         bold: true
       }))
 
-      // 5级特殊标签
-      const subText = isL5 ? '★ 5级神品 · 附带终极攻击特效 ★' : `五行加成效果 Lv.${g.level}`
+      // 5级特殊标签或共鸣说明
+      const subText = isL5
+        ? '★ 5级神品 · 附带终极攻击特效与奥义 ★'
+        : (isSame ? '同源本命中规中矩 · 增强本系攻击与状态' : '五行相生 · 激活生生不息连锁机制')
       panel.add(inkText(this, 72, itemY + 9, subText, {
         size: 11,
         color: isL5 ? InkText.cinnabar : InkText.wash
@@ -1190,11 +1259,11 @@ export default class EquipmentScene extends Phaser.Scene {
         hoverFill: InkColor.paper,
         textColor: InkText.ink,
         fontSize: 12,
-        stroke: reqStyle.border,
+        stroke: gemStyle.border,
         onClick: () => {
           this.equipmentManager.socketGemToArtifact(equip.instanceId, g.id)
           closeAll()
-          this.showMessage(`镶嵌成功！已为 ${detail.name} 镶嵌 ${getGemName(g)}`)
+          this.showMessage(`镶嵌成功！${detail.name} 已注入 ${getGemName(g)}`)
           this.updateDetailPanel(equip)
         }
       })

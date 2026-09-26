@@ -4,6 +4,8 @@ import { activeSkills, getActiveSkill } from './activeSkills'
 
 export * from './passiveSkills'
 export * from './activeSkills'
+export * from './skillEvolution'
+export * from './statusInfo'
 
 /**
  * 技能索引

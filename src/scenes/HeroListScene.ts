@@ -1,5 +1,10 @@
 import Phaser from 'phaser'
-import { getSkill } from '@/data/skills'
+import {
+  getSkill,
+  getHeroSkillEvolution,
+  getCurrentEvolutionNode,
+  getHeroStatusDetails
+} from '@/data/skills'
 import { Hero, RarityNames, Rarity, WuXing } from '@/types'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
 import { getExpToNextLevel, getExpProgress, getExpRequiredForLevel } from '@/data/heroes/levelConfig'
@@ -54,6 +59,11 @@ export default class HeroListScene extends Phaser.Scene {
   private detailPanel: Phaser.GameObjects.Container | null = null
   private equipmentManager: EquipmentManager
 
+  // 绝学演武与详情交互状态
+  private detailTab: 'skills' | 'equipment' = 'skills'
+  private inspectedStage: number | null = null
+  private selectedStatusKey: string | null = null
+
   constructor() {
     super({ key: 'HeroListScene' })
     this.equipmentManager = EquipmentManager.getInstance()
@@ -65,6 +75,9 @@ export default class HeroListScene extends Phaser.Scene {
     this.selectedHeroId = null
     this.heroCards = []
     this.detailPanel = null
+    this.detailTab = 'skills'
+    this.inspectedStage = null
+    this.selectedStatusKey = null
   }
 
   create(): void {
@@ -224,6 +237,11 @@ export default class HeroListScene extends Phaser.Scene {
    * 选中武将
    */
   private selectHero(heroId: string): void {
+    if (this.selectedHeroId !== heroId) {
+      this.inspectedStage = null
+      this.selectedStatusKey = null
+    }
+
     // 更新选中状态
     this.selectedHeroId = heroId
 
@@ -285,13 +303,20 @@ export default class HeroListScene extends Phaser.Scene {
     // 游标式分节布局（y 为面板局部坐标）
     let y = HeroListScene.PANEL_PAD
     y = this.renderDetailHeader(panel, hero, y)
-    y = this.renderStats(panel, hero, y)
-    y += 16
-    y = this.renderStarUpgrade(panel, hero, y)
-    y += 16
-    y = this.renderEquipment(panel, hero, y)
-    y += 16
-    this.renderSkills(panel, hero, y)
+    y = this.renderDetailTabs(panel, hero, y)
+
+    if (this.detailTab === 'skills') {
+      const evoEndY = this.renderSkillEvolutionSection(panel, hero, y)
+      this.renderStatusBreakdownSection(panel, hero, evoEndY)
+    } else {
+      y = this.renderStats(panel, hero, y)
+      y += 14
+      y = this.renderStarUpgrade(panel, hero, y)
+      y += 14
+      y = this.renderEquipment(panel, hero, y)
+      y += 14
+      this.renderSkills(panel, hero, y)
+    }
   }
 
   /**
@@ -618,6 +643,28 @@ export default class HeroListScene extends Phaser.Scene {
           color: INK_RARITY[equipment.rarity as Rarity].text
         }))
 
+        // 神器器灵认主与共鸣状态标签
+        if (type === 'artifact') {
+          const hero = this.heroes.get(heroId)
+          const isExclusive = this.equipmentManager.isExclusiveForHero(equipment.instanceId, heroId, hero?.name)
+          const resonance = this.equipmentManager.getHeroResonance(heroId, hero?.name)
+          if (isExclusive) {
+            let resTag = '【专属·器灵已认主】'
+            if (resonance.resonanceType === 'same') resTag = '【专属·同源共鸣】'
+            else if (resonance.resonanceType === 'generating') resTag = '【专属·相生滋养】'
+            panel.add(inkText(this, 310, centerY, resTag, {
+              size: 13,
+              color: InkText.cinnabar,
+              bold: true
+            }))
+          } else {
+            panel.add(inkText(this, 310, centerY, '【通用装备·器灵沉睡】', {
+              size: 12,
+              color: InkText.faint
+            }))
+          }
+        }
+
         // 卸载按钮
         const unequipBtn = createInkButton(this, 780, centerY, 64, 26, '卸载', {
           fill: InkColor.paperDeep,
@@ -649,11 +696,24 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   /**
-   * 技能：被动 + 主动
+   * 技能：被动 + 主动（军备修持选项卡视图）
    */
   private renderSkills(panel: Phaser.GameObjects.Container, hero: Hero, y: number): void {
-    y += sectionHeader(this, panel, 24, y, '技能', HeroListScene.CONTENT_WIDTH)
+    y += sectionHeader(this, panel, 24, y, '技能概览', HeroListScene.CONTENT_WIDTH)
     let rowY = y + 12
+
+    // 快捷切换至全阶绝学演武路线按钮
+    const viewEvoBtn = createInkButton(this, 720, y + 2, 140, 24, '查看技能演武路线 ➔', {
+      fill: InkColor.paperDeep,
+      hoverFill: 0xc5b795,
+      textColor: InkText.cinnabar,
+      fontSize: InkFontSize.xs,
+      onClick: () => {
+        this.detailTab = 'skills'
+        this.updateDetailPanel(hero.id)
+      }
+    })
+    panel.add(viewEvoBtn)
 
     // 被动技能
     const passiveSkill = getSkill(hero.passiveSkillId)
@@ -688,6 +748,377 @@ export default class HeroListScene extends Phaser.Scene {
         wrapWidth: 800
       }))
     }
+  }
+
+  /**
+   * 详情面板选项卡：【绝学演武】与【军备修持】
+   */
+  private renderDetailTabs(panel: Phaser.GameObjects.Container, hero: Hero, y: number): number {
+    const tabY = y + 4
+    const isSkills = this.detailTab === 'skills'
+    const isEquip = this.detailTab === 'equipment'
+
+    // Tab 1: 【绝学演武】（包含技能演进路线、当前所处境界与五行状态解析）
+    const tab1Btn = createInkButton(this, 24 + 65, tabY + 14, 130, 28, '【绝学演武】', {
+      fill: isSkills ? InkColor.cinnabar : InkColor.paperDeep,
+      hoverFill: isSkills ? 0xb2362e : 0xc5b795,
+      textColor: isSkills ? InkText.paper : InkText.strong,
+      fontSize: 13,
+      onClick: () => {
+        if (this.detailTab !== 'skills') {
+          this.detailTab = 'skills'
+          this.updateDetailPanel(hero.id)
+        }
+      }
+    })
+    panel.add(tab1Btn)
+
+    // Tab 2: 【军备修持】（包含基础属性、星级升星与武器神器装备）
+    const tab2Btn = createInkButton(this, 166 + 65, tabY + 14, 130, 28, '【军备修持】', {
+      fill: isEquip ? InkColor.cinnabar : InkColor.paperDeep,
+      hoverFill: isEquip ? 0xb2362e : 0xc5b795,
+      textColor: isEquip ? InkText.paper : InkText.strong,
+      fontSize: 13,
+      onClick: () => {
+        if (this.detailTab !== 'equipment') {
+          this.detailTab = 'equipment'
+          this.updateDetailPanel(hero.id)
+        }
+      }
+    })
+    panel.add(tab2Btn)
+
+    // 水墨横线分割
+    inkRule(this, panel, 24, tabY + 34, HeroListScene.CONTENT_WIDTH, 0.25)
+
+    return tabY + 42
+  }
+
+  /**
+   * 渲染绝学演武路线（五阶境界与当前所处位置）
+   */
+  private renderSkillEvolutionSection(panel: Phaser.GameObjects.Container, hero: Hero, startY: number): number {
+    let y = startY
+    const config = getHeroSkillEvolution(hero.id)
+    const currentStage = Math.max(1, Math.min(5, hero.star))
+    const inspectedStage = this.inspectedStage ?? currentStage
+    const inspectedNode = config.nodes.find(n => n.stage === inspectedStage) || config.nodes[0]
+
+    // 区域标题
+    y += sectionHeader(this, panel, 24, y, '技能演化路线 · 五阶境界', HeroListScene.CONTENT_WIDTH)
+
+    // 演化路线横轴（5 个节点）
+    const nodeY = y + 36
+    const leftX = 76
+    const spanX = 648
+    const stepX = spanX / 4
+
+    // 1. 底层轴线（暗淡墨线）
+    const trackGraphics = this.add.graphics()
+    trackGraphics.lineStyle(2, InkColor.ink, 0.2)
+    trackGraphics.lineBetween(leftX, nodeY, leftX + spanX, nodeY)
+
+    // 2. 已解锁高亮轴线（朱砂金线）
+    if (hero.star > 1) {
+      const activeEndX = leftX + (Math.min(5, hero.star) - 1) * stepX
+      trackGraphics.lineStyle(3, InkColor.cinnabar, 0.9)
+      trackGraphics.lineBetween(leftX, nodeY, activeEndX, nodeY)
+    }
+    panel.add(trackGraphics)
+
+    // 3. 渲染 5 个节点
+    const romanNumerals = ['壹', '贰', '叁', '肆', '伍']
+    for (let i = 0; i < 5; i++) {
+      const node = config.nodes[i]
+      const stage = node.stage
+      const cx = leftX + i * stepX
+      const cy = nodeY
+      const isCurrent = hero.star === stage
+      const isUnlocked = hero.star >= stage
+      const isInspected = inspectedStage === stage
+
+      // 当前所处位置：高亮红印标签【当前境界】（上方）
+      if (isCurrent) {
+        const badgeW = 76
+        const badgeH = 18
+        const badgeY = cy - 27
+        const badgeG = this.add.graphics()
+        badgeG.fillStyle(InkColor.cinnabar, 1)
+        badgeG.fillRoundedRect(cx - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 4)
+        panel.add(badgeG)
+
+        // 倒三角小指针指向节点
+        const arrowG = this.add.graphics()
+        arrowG.fillStyle(InkColor.cinnabar, 1)
+        arrowG.beginPath()
+        arrowG.moveTo(cx - 4, badgeY + badgeH / 2)
+        arrowG.lineTo(cx + 4, badgeY + badgeH / 2)
+        arrowG.lineTo(cx, badgeY + badgeH / 2 + 4)
+        arrowG.closePath()
+        arrowG.fillPath()
+        panel.add(arrowG)
+
+        const curText = inkText(this, cx, badgeY, '【当前境界】', {
+          size: 10,
+          color: '#ffffff',
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
+        })
+        panel.add(curText)
+      }
+
+      // 查看选中的外光环
+      if (isInspected) {
+        const ringG = this.add.graphics()
+        ringG.lineStyle(2, isCurrent ? InkColor.cinnabar : 0xc5a059, 0.9)
+        ringG.strokeCircle(cx, cy, 20)
+        panel.add(ringG)
+      }
+
+      // 节点圆圈
+      const circleG = this.add.graphics()
+      if (isCurrent) {
+        circleG.fillStyle(InkColor.cinnabar, 1)
+        circleG.lineStyle(2, 0xffe082, 1)
+      } else if (isUnlocked) {
+        circleG.fillStyle(InkColor.paperDeep, 1)
+        circleG.lineStyle(1.5, InkColor.ink, 0.8)
+      } else {
+        circleG.fillStyle(InkColor.paperPanel, 0.6)
+        circleG.lineStyle(1, InkColor.ink, 0.25)
+      }
+      circleG.fillCircle(cx, cy, 15)
+      circleG.strokeCircle(cx, cy, 15)
+      panel.add(circleG)
+
+      // 节点中心文字（壹/贰/叁/肆/伍）
+      const numText = inkText(this, cx, cy, romanNumerals[i], {
+        size: 12,
+        color: isCurrent ? '#ffffff' : isUnlocked ? InkText.strong : InkText.faint,
+        bold: true,
+        originX: 0.5,
+        originY: 0.5
+      })
+      panel.add(numText)
+
+      // 节点下方文字：阶位名称
+      const nameColor = isCurrent ? InkText.cinnabar : isUnlocked ? InkText.strong : InkText.faint
+      const nameText = inkText(this, cx, cy + 22, node.stageName, {
+        size: 11,
+        color: nameColor,
+        bold: isCurrent,
+        originX: 0.5
+      })
+      panel.add(nameText)
+
+      // 突破节点角标（第3阶质变、第5阶极意）
+      if (node.isBreakthrough) {
+        const btTag = inkText(this, cx, cy + 36, stage === 5 ? '★终极觉醒' : '★机制突破', {
+          size: 10,
+          color: isUnlocked ? InkText.gold : InkText.faint,
+          bold: true,
+          originX: 0.5
+        })
+        panel.add(btTag)
+      }
+
+      // 节点交互（点击切换查看该阶详情）
+      const hitArea = this.add.circle(cx, cy, 22, 0x000000, 0.001)
+      hitArea.setInteractive({ useHandCursor: true })
+      hitArea.on('pointerdown', () => {
+        this.inspectedStage = stage
+        this.updateDetailPanel(hero.id)
+      })
+      panel.add(hitArea)
+    }
+
+    // 4. 当前查看境界的强化说明卡片
+    const boxY = nodeY + 50
+    const boxW = HeroListScene.CONTENT_WIDTH
+    const boxH = 82
+
+    const boxBg = this.add.graphics()
+    boxBg.fillStyle(InkColor.paperDeep, 0.6)
+    boxBg.fillRoundedRect(24, boxY, boxW, boxH, InkRadius.sm)
+    boxBg.lineStyle(1, InkColor.ink, 0.3)
+    boxBg.strokeRoundedRect(24, boxY, boxW, boxH, InkRadius.sm)
+    panel.add(boxBg)
+
+    // 左侧装饰条
+    const stripe = this.add.rectangle(26, boxY + boxH / 2, 4, boxH - 6, inspectedStage <= hero.star ? InkColor.cinnabar : 0x8d8376)
+    panel.add(stripe)
+
+    // 标题行：阶段名 + 称号 + 激活状态
+    const statusTag = inspectedStage <= hero.star
+      ? (inspectedStage === hero.star ? '【★ 当前已激活境界】' : '【✓ 已领悟·战力生效】')
+      : `【🔒 需达到 ${inspectedNode.starRequired}★ 解锁】`
+    const tagColor = inspectedStage <= hero.star ? (inspectedStage === hero.star ? InkText.cinnabar : InkText.green) : InkText.faint
+
+    panel.add(inkText(this, 38, boxY + 8, `${inspectedNode.stageName} · ${inspectedNode.title}`, {
+      size: 13,
+      color: InkText.strong,
+      bold: true
+    }))
+    panel.add(inkText(this, 780, boxY + 8, statusTag, {
+      size: 12,
+      color: tagColor,
+      bold: true,
+      originX: 1
+    }))
+
+    // 主动战法强化说明
+    panel.add(inkText(this, 38, boxY + 30, '【主动战法】', {
+      size: 12,
+      color: InkText.cinnabar,
+      bold: true
+    }))
+    panel.add(inkText(this, 114, boxY + 30, inspectedNode.activeUpgradeDesc, {
+      size: 12,
+      color: InkText.strong,
+      wrapWidth: 680
+    }))
+
+    // 心法被动强化说明
+    panel.add(inkText(this, 38, boxY + 54, '【心法被动】', {
+      size: 12,
+      color: '#795548',
+      bold: true
+    }))
+    panel.add(inkText(this, 114, boxY + 54, inspectedNode.passiveUpgradeDesc, {
+      size: 12,
+      color: InkText.strong,
+      wrapWidth: 680
+    }))
+
+    return boxY + boxH + 12
+  }
+
+  /**
+   * 渲染绝学携带的五行状态与触发奥义
+   */
+  private renderStatusBreakdownSection(panel: Phaser.GameObjects.Container, hero: Hero, startY: number): void {
+    let y = startY
+    const statusList = getHeroStatusDetails(hero.id)
+    if (!statusList || statusList.length === 0) return
+
+    // 校验选中状态 key
+    if (!this.selectedStatusKey || !statusList.some(s => s.statusKey === this.selectedStatusKey)) {
+      this.selectedStatusKey = statusList[0].statusKey
+    }
+    const activeStatus = statusList.find(s => s.statusKey === this.selectedStatusKey) || statusList[0]
+    const activeElement: WuXing = activeStatus.element || 'wood'
+
+    // 区域标题
+    y += sectionHeader(this, panel, 24, y, '技能附带状态与触发机制奥义', HeroListScene.CONTENT_WIDTH)
+
+    // 状态切换胶囊标签栏
+    const pillBarY = y + 6
+    panel.add(inkText(this, 24, pillBarY + 5, '涉及状态：', {
+      size: 12,
+      color: InkText.faint,
+      bold: true
+    }))
+
+    let pillX = 94
+    for (const status of statusList) {
+      const isSelected = status.statusKey === activeStatus.statusKey
+      const element: WuXing = status.element || 'wood'
+      const theme = INK_WUXING[element]
+      const btnW = 112
+      const btnH = 26
+
+      const btn = createInkButton(this, pillX + btnW / 2, pillBarY + btnH / 2, btnW, btnH, status.name, {
+        fill: isSelected ? theme.fill : InkColor.paperDeep,
+        hoverFill: theme.fill,
+        stroke: isSelected ? theme.border : InkColor.ink,
+        textColor: isSelected ? theme.text : InkText.strong,
+        fontSize: 12,
+        onClick: () => {
+          this.selectedStatusKey = status.statusKey
+          this.updateDetailPanel(hero.id)
+        }
+      })
+      panel.add(btn)
+      pillX += btnW + 10
+    }
+
+    // 状态详释卡片
+    const cardY = pillBarY + 34
+    const cardW = HeroListScene.CONTENT_WIDTH
+    const cardH = 116
+
+    const cardBg = this.add.graphics()
+    cardBg.fillStyle(InkColor.paperDeep, 0.5)
+    cardBg.fillRoundedRect(24, cardY, cardW, cardH, InkRadius.sm)
+    cardBg.lineStyle(1.5, INK_WUXING[activeElement].border, 0.8)
+    cardBg.strokeRoundedRect(24, cardY, cardW, cardH, InkRadius.sm)
+    panel.add(cardBg)
+
+    // 状态色条
+    const stripeColor = Phaser.Display.Color.HexStringToColor(activeStatus.badgeColor).color
+    const stripe = this.add.rectangle(26, cardY + cardH / 2, 4, cardH - 6, stripeColor)
+    panel.add(stripe)
+
+    // 头部：状态名称 + 五行类别
+    panel.add(inkText(this, 38, cardY + 8, activeStatus.name, {
+      size: 14,
+      color: InkText.strong,
+      bold: true
+    }))
+    panel.add(inkText(this, 160, cardY + 10, `【${INK_WUXING[activeElement].label}系核心印记】`, {
+      size: 11,
+      color: INK_WUXING[activeElement].text,
+      bold: true
+    }))
+
+    // 1. 基础效果
+    panel.add(inkText(this, 38, cardY + 30, '【基础威能】', {
+      size: 11,
+      color: '#3e2723',
+      bold: true
+    }))
+    panel.add(inkText(this, 114, cardY + 30, activeStatus.effectDescription, {
+      size: 11,
+      color: InkText.strong,
+      wrapWidth: 680
+    }))
+
+    // 2. 直接触发
+    panel.add(inkText(this, 38, cardY + 51, '【如何直接触发】', {
+      size: 11,
+      color: InkText.cinnabar,
+      bold: true
+    }))
+    panel.add(inkText(this, 134, cardY + 51, activeStatus.triggerDirect, {
+      size: 11,
+      color: InkText.strong,
+      wrapWidth: 660
+    }))
+
+    // 3. 相生反应
+    panel.add(inkText(this, 38, cardY + 72, '【五行相生连锁】', {
+      size: 11,
+      color: InkText.green,
+      bold: true
+    }))
+    panel.add(inkText(this, 134, cardY + 72, activeStatus.triggerReaction, {
+      size: 11,
+      color: InkText.strong,
+      wrapWidth: 660
+    }))
+
+    // 4. 质变引爆
+    panel.add(inkText(this, 38, cardY + 93, '【后续质变引爆】', {
+      size: 11,
+      color: '#b8860b',
+      bold: true
+    }))
+    panel.add(inkText(this, 134, cardY + 93, activeStatus.subsequentReaction, {
+      size: 11,
+      color: InkText.strong,
+      wrapWidth: 660
+    }))
   }
 
   // ==================== 弹窗 / 对话框 / 提示 ====================
@@ -750,28 +1181,38 @@ export default class HeroListScene extends Phaser.Scene {
       const detail = this.equipmentManager.getEquipmentDetail(equip.instanceId)
       if (!detail) continue
 
-      const canEquip = this.equipmentManager.canEquipToHero(equip.instanceId, heroId, hero?.name)
-      const isExclusive = Boolean(detail.exclusiveHeroes && detail.exclusiveHeroes.length > 0)
+      const isExclusive = this.equipmentManager.isExclusiveForHero(equip.instanceId, heroId, hero?.name)
+      const hasExclusiveConfig = Boolean(detail.exclusiveHeroes && detail.exclusiveHeroes.length > 0)
       const rowY = rowsTop + i * rowGap + 18
       const rarityStyle = INK_RARITY[equip.rarity as Rarity]
 
-      const btnBg = this.add.rectangle(panelW / 2, rowY, 352, 36, canEquip ? rarityStyle.tint : 0xe8e2d5, canEquip ? 0.9 : 0.45)
-      btnBg.setStrokeStyle(1, canEquip ? rarityStyle.border : 0xaaaaaa)
+      const btnBg = this.add.rectangle(panelW / 2, rowY, 352, 36, rarityStyle.tint, 0.9)
+      btnBg.setStrokeStyle(1, isExclusive ? InkColor.cinnabar : rarityStyle.border)
       btnBg.setInteractive({ useHandCursor: true })
       popup.add(btnBg)
 
-      popup.add(inkText(this, 36, rowY, detail.name, { size: 14, color: canEquip ? InkText.ink : InkText.faint }))
-      popup.add(inkText(this, 150, rowY, RarityNames[equip.rarity as Rarity], {
+      popup.add(inkText(this, 36, rowY, detail.name, { size: 14, color: InkText.ink }))
+      popup.add(inkText(this, 140, rowY, RarityNames[equip.rarity as Rarity], {
         size: InkFontSize.xs,
-        color: canEquip ? rarityStyle.text : InkText.faint
+        color: rarityStyle.text
       }))
 
-      // 专属标记
+      // 专属与器灵认主状态标记
       if (isExclusive) {
-        popup.add(inkText(this, 210, rowY, canEquip ? '【专属】' : '【专属限制】', {
+        popup.add(inkText(this, 195, rowY, '【专属·器灵觉醒】', {
           size: 11,
-          color: canEquip ? InkText.cinnabar : InkText.faint,
-          bold: canEquip
+          color: InkText.cinnabar,
+          bold: true
+        }))
+      } else if (hasExclusiveConfig) {
+        popup.add(inkText(this, 195, rowY, '【通用·器灵沉睡】', {
+          size: 11,
+          color: InkText.faint
+        }))
+      } else {
+        popup.add(inkText(this, 195, rowY, '【通用神兵】', {
+          size: 11,
+          color: InkText.ink
         }))
       }
 
@@ -782,27 +1223,26 @@ export default class HeroListScene extends Phaser.Scene {
       if (bonuses.attackSpeed) bonusText += ` 速+${bonuses.attackSpeed.toFixed(1)}`
       popup.add(inkText(this, panelW - 12, rowY, bonusText, {
         size: 11,
-        color: canEquip ? InkText.faint : '#999999',
+        color: InkText.faint,
         originX: 1
       }))
 
       btnBg.on('pointerover', () => {
-        if (canEquip) btnBg.setFillStyle(rarityStyle.tint, 1)
+        btnBg.setFillStyle(rarityStyle.tint, 1)
       })
       btnBg.on('pointerout', () => {
-        btnBg.setFillStyle(canEquip ? rarityStyle.tint : 0xe8e2d5, canEquip ? 0.9 : 0.45)
+        btnBg.setFillStyle(rarityStyle.tint, 0.9)
       })
       btnBg.on('pointerdown', () => {
-        if (!canEquip) {
-          const names = detail.exclusiveHeroes?.filter(h => !h.startsWith('hero_')).join('、') || ''
-          this.showMessage(`专属限制：此神器仅限【${names}】穿戴`)
-          return
-        }
         this.equipmentManager.equipToHero(equip.instanceId, heroId, hero?.name)
         overlay.destroy()
         popup.destroy()
         this.updateDetailPanel(heroId)
-        this.showMessage('装备成功')
+        if (isExclusive) {
+          this.showMessage(`器灵认主！武将装备本命神兵【${detail.name}】`)
+        } else {
+          this.showMessage(`装备成功（已获得基础攻防属性加成）`)
+        }
       })
     }
 

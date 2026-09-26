@@ -49,3 +49,33 @@ export interface SkillState {
   isReady: boolean         // 是否可用
   isAutoActive: boolean    // 主动技能是否自动释放
 }
+
+// 技能进化单节点配置
+export interface SkillEvolutionNode {
+  stage: number              // 境界阶数 (1-5)
+  starRequired: number       // 所需星级 (1-5★)
+  stageName: string          // 境界名（如 "一阶·入境"、"三阶·化境"、"五阶·大成"）
+  title: string              // 进化名号（如 "初窥门径"、"气动山河"、"机制质变"、"战法极意"、"天人合一"）
+  activeUpgradeDesc: string  // 主动战法提升/质变描述
+  passiveUpgradeDesc: string // 被动心法强化描述
+  isBreakthrough?: boolean   // 是否为关键机制质变阶段（如3星/5星）
+}
+
+// 武将技能进化路线配置
+export interface HeroSkillEvolutionConfig {
+  heroId: string
+  heroName: string
+  nodes: SkillEvolutionNode[]
+}
+
+// 技能携带状态详解条目
+export interface SkillStatusDetail {
+  statusKey: string          // 状态唯一标识（'parasite' | 'wet' | 'heavy' | 'burn' | 'bleed' | 'freeze' | 'stun'）
+  name: string               // 中文名称（如 "【木·寄生】"）
+  element?: WuXing           // 五行归属
+  badgeColor: string         // 标签主色
+  effectDescription: string  // 基础效果描述（每秒伤害/减速/易伤幅度）
+  triggerDirect: string      // 直接触发方式（哪项技能/何种动作触发）
+  triggerReaction: string    // 五行连锁触发方式（与哪些元素相生互动）
+  subsequentReaction: string // 后续质变引爆机制（被其他五行攻击引爆反应）
+}
