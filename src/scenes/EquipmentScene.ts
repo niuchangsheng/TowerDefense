@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
-import { getGemName, gemNames } from '@/data/equipment/gems'
+import { getGemName, gemNames, formatGemAffixText, rollGemAffixes } from '@/data/equipment/gems'
 import { RarityNames, Rarity, Gem, WuXing, getAllowedGemWuXing, WuXingGeneratedBy, WuXingGenerate } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
 import { GemIconRenderer, GEM_RARITY_LABELS, GEM_LORE_MAP } from '@/rendering/GemIconRenderer'
@@ -1050,93 +1050,57 @@ export default class EquipmentScene extends Phaser.Scene {
       y += 30
     }
 
-    // 3. 宝石效果与专属攻击特效
-    y += sectionHeader(this, this.detailPanel, PAD, y, '宝石效果与攻击特效', EquipmentScene.CONTENT_W)
-    const effectTexts: Record<string, string> = {
-      metal: `基础属性: 攻击力 +${gem.level * 5}%`,
-      wood: `基础属性: 暴击率 +${gem.level * 2}%`,
-      water: `基础属性: 攻击速度 +${gem.level * 3}%`,
-      fire: `基础属性: 伤害 +${gem.level * 4}%`,
-      earth: `基础属性: 防御 +${gem.level * 6}%`
+    // 3. 灵石双随机基础属性词条与 [Min ~ Max] 随机区间（严守局外总增益 <= +50% 铁律）
+    y += sectionHeader(this, this.detailPanel, PAD, y, '灵石双基础词条（[Min ~ Max] 区间透视）', EquipmentScene.CONTENT_W)
+    if (!gem.affixes || gem.affixes.length === 0) {
+      gem.affixes = rollGemAffixes(gem.level)
     }
-    this.detailPanel.add(inkText(this, PAD, y + 10, effectTexts[gem.wuXing] || '未知效果', {
-      size: InkFontSize.md,
-      color: InkText.gold,
-      bold: true
-    }))
-    y += 30
+    for (let i = 0; i < gem.affixes.length; i++) {
+      const affix = gem.affixes[i]
+      this.detailPanel.add(inkText(this, PAD, y + 8, `◆ 词条 ${i + 1}：${formatGemAffixText(affix)}`, {
+        size: InkFontSize.md,
+        color: InkText.gold,
+        bold: true
+      }))
+      y += 26
+    }
 
-    // 5级神石独有攻击特效说明
+    // 5级神石共鸣说明（双Lv.5神品可解锁神兵终极圣兽法相大招）
     if (gem.level === 5) {
-      const lv5EffectDesc: Record<WuXing, { title: string; desc: string; color: string }> = {
-        metal: {
-          title: '【终极专属攻击特效 · 破甲】',
-          desc: '普攻撕裂敌方护甲，削弱 50% 防御，使目标受击伤害加深 +35%，持续 5 秒！',
-          color: '#ffd54f'
-        },
-        wood: {
-          title: '【终极专属攻击特效 · 剧毒】',
-          desc: '普攻注入青龙剧毒，每秒扣除最大生命 3%（最高叠至 3 层），持续 5 秒！',
-          color: '#4caf50'
-        },
-        water: {
-          title: '【终极专属攻击特效 · 冰冻】',
-          desc: '普攻唤起玄冰封冻，使敌人绝对定身冻结 2 秒，解冻后附带 40% 减速持续 3 秒！',
-          color: '#40c4ff'
-        },
-        fire: {
-          title: '【终极专属攻击特效 · 灼烧与红莲殉爆】',
-          desc: '普攻附带烈火真伤；若目标在灼烧中死亡，引爆【红莲殉爆】大范围溅射并传染烈火！',
-          color: '#ff5252'
-        },
-        earth: {
-          title: '【终极专属攻击特效 · 眩晕】',
-          desc: '普攻以万岳玄黄重力猛击，强行打断蓄力与行动，使敌人原地昏迷瘫痪 2 秒！',
-          color: '#d4a359'
-        }
-      }
-
-      const eff = lv5EffectDesc[gem.wuXing]
-      if (eff) {
-        this.detailPanel.add(inkText(this, PAD, y + 6, eff.title, {
-          size: 14,
-          color: eff.color,
-          bold: true
-        }))
-        y += 24
-        this.detailPanel.add(inkText(this, PAD, y + 6, eff.desc, {
-          size: 12,
-          color: InkText.strong
-        }))
-        y += 28
-      }
+      this.detailPanel.add(inkText(this, PAD, y + 6, '★ 【神品极境】：同源槽(2★)与相生槽(4★)均镶嵌 Lv.5 灵石时，解锁神兵终极圣兽法相大招！', {
+        size: 13,
+        color: InkText.cinnabar,
+        bold: true,
+        wrapWidth: EquipmentScene.CONTENT_W - 24
+      }))
+      y += 32
     }
 
-    // 4. 用途与神器相生
-    y += sectionHeader(this, this.detailPanel, PAD, y, '神器相生与用途', EquipmentScene.CONTENT_W)
-    this.detailPanel.add(inkText(this, PAD, y + 10, `镶嵌至对应【${style.label}】属性神器宝石槽`, {
+    // 4. 用途与神器双槽共鸣
+    y += sectionHeader(this, this.detailPanel, PAD, y, '神器双槽（2★同源 / 4★相生）与用途', EquipmentScene.CONTENT_W)
+    this.detailPanel.add(inkText(this, PAD, y + 10, `镶嵌至对应【${style.label}】同源槽(2★)或相生槽(4★)专属神兵`, {
       size: InkFontSize.md,
       color: InkText.ink
     }))
     y += 26
-    this.detailPanel.add(inkText(this, PAD, y + 10, '五行相生：可激活神器的隐藏专属增益特质与羁绊效果', {
+    this.detailPanel.add(inkText(this, PAD, y + 10, '三才共鸣：激活神兵同源特效、相生增幅与双 Lv.5 终极大招', {
       size: InkFontSize.md,
       color: InkText.green
     }))
     y += 34
 
-    // 5. 三合一升阶路线
-    y += sectionHeader(this, this.detailPanel, PAD, y, '升阶合成路线', EquipmentScene.CONTENT_W)
+    // 5. 三合一升阶路线（指定主石 100% 继承词条类型）
+    y += sectionHeader(this, this.detailPanel, PAD, y, '三合一升阶路线（主石 100% 继承词条类型）', EquipmentScene.CONTENT_W)
     if (gem.level < 5) {
       const nextGemName = gemNames[gem.wuXing]?.[gem.level + 1] || '更高阶宝石'
       const curCount = this.equipmentManager.getGemCountByWuXingAndLevel(gem.wuXing, gem.level)
-      this.detailPanel.add(inkText(this, PAD, y + 10, `合成规则: 3 颗 [${getGemName(gem)}] ➔ 1 颗 [${nextGemName}]`, {
-        size: InkFontSize.md,
+      this.detailPanel.add(inkText(this, PAD, y + 10, `合成规则: 3 颗 [${getGemName(gem)}] ➔ 1 颗 [${nextGemName}]（当前选中灵石为主石，100%保留词条类型）`, {
+        size: 14,
         color: InkText.ink
       }))
       y += 26
       const countColor = curCount >= 3 ? InkText.green : InkText.cinnabar
-      this.detailPanel.add(inkText(this, PAD, y + 10, `当前持有: ${curCount} / 3 颗${curCount >= 3 ? ' (可直接合成)' : ' (材料不足)'}`, {
+      this.detailPanel.add(inkText(this, PAD, y + 10, `当前持有: ${curCount} / 3 颗${curCount >= 3 ? ' (可直接升阶)' : ' (材料不足)'}`, {
         size: InkFontSize.md,
         color: countColor,
         bold: true
@@ -1144,16 +1108,16 @@ export default class EquipmentScene extends Phaser.Scene {
       y += 36
 
       if (curCount >= 3) {
-        const synthBtn = createInkButton(this, PAD + 70, y + 18, 140, 32, '立刻升阶合成', {
+        const synthBtn = createInkButton(this, PAD + 85, y + 18, 170, 32, '以此为主石升阶合成', {
           fill: InkColor.paperDeep,
           hoverFill: InkColor.paper,
           textColor: InkText.cinnabar,
           fontSize: InkFontSize.sm,
           stroke: InkColor.cinnabar,
           onClick: () => {
-            const result = this.equipmentManager.synthesizeGems(gem.wuXing, gem.level)
+            const result = this.equipmentManager.synthesizeGems(gem.wuXing, gem.level, gem.id)
             if (result) {
-              this.showMessage(`合成成功！获得 ${getGemName(result)}`)
+              this.showMessage(`主石继承升阶成功！获得 ${getGemName(result)}`)
               this.refreshGemList()
               this.updateGemDetailPanel(result)
             }

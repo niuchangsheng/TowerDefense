@@ -1,7 +1,7 @@
 import { EnemyEntity } from '@/entities/EnemyEntity'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { DamageCalculator } from '../battle/DamageCalculator'
-import { ATTACK_CONFIG } from '@/config/constants'
+import { WeatherSystem } from '../battle/WeatherSystem'
 import { SkillManager, SkillExecutor } from '../skill'
 import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
 import { WeaponFX, WeaponType } from '@/effects/WeaponFX'
@@ -12,11 +12,16 @@ import { AugmentManager } from '../augment/AugmentManager'
 import { MilitarySituationManager } from '../military/MilitarySituationManager'
 import { ElementalReactionManager } from '../elemental/ElementalReactionManager'
 import { getActiveSkill } from '@/data/skills'
+import { getStarAttachmentRate, getStarAegisBreakBonus } from '@/data/heroes'
+import { WuXing, WuXingGenerate, LeylineConnection } from '@/types'
 import Phaser from 'phaser'
+
+/** 160px 五行相生阵脉连线最大距离 */
+export const LEYLINE_MAX_DISTANCE = 160
 
 /**
  * 英雄战斗管理器
- * 管理英雄的攻击逻辑和技能触发
+ * 管理英雄的攻击逻辑、四乘区伤害结算、160px 五行相生阵脉连线与技能触发
  */
 export class HeroBattleManager {
   private deployedHeroes: Map<string, HeroEntity>
@@ -25,8 +30,11 @@ export class HeroBattleManager {
   private skillExecutor: SkillExecutor
   private augmentManager?: AugmentManager
   private militarySituationManager?: MilitarySituationManager
+  private weatherSystem?: WeatherSystem
   private zhaoyunCombos: Map<string, number> = new Map() // 赵云连击计数: targetId -> 命中次数
   private machaoStacks: Map<string, number> = new Map() // 马超战意层数: instanceId -> 层数 (至多5层)
+  private guanyuAttackCounter: Map<string, number> = new Map() // 关羽3★特质每3刀必挂木毒计数
+  private zhangfeiAttackCounter: Map<string, number> = new Map() // 张飞3★特质每4击震波计数
 
   // 攻击特效（零素材水墨/武器特效 + 音效）
   private scene: Phaser.Scene
@@ -88,6 +96,95 @@ export class HeroBattleManager {
       return heroEntity
     }
     return null
+  }
+
+  /**
+   * 计算场上所有 160px 五行相生阵脉连线
+   * 当两名具有相生关系的武将部署距离 <= 160px 时，结成相生阵脉
+   */
+  public getLeylineConnections(): LeylineConnection[] {
+    const heroes = Array.from(this.deployedHeroes.values())
+    const connections: LeylineConnection[] = []
+
+    for (let i = 0; i < heroes.length; i++) {
+      for (let j = i + 1; j < heroes.length; j++) {
+        const h1 = heroes[i]
+        const h2 = heroes[j]
+        const d1 = h1.getDeployedData()
+        const d2 = h2.getDeployedData()
+        const wx1 = h1.getHeroData().wuXing
+        const wx2 = h2.getHeroData().wuXing
+
+        const isGenerating = WuXingGenerate[wx1] === wx2 || WuXingGenerate[wx2] === wx1
+        if (!isGenerating) continue
+
+        const dist = Phaser.Math.Distance.Between(
+          d1.position.x,
+          d1.position.y,
+          d2.position.x,
+          d2.position.y
+        )
+
+        if (dist <= LEYLINE_MAX_DISTANCE) {
+          connections.push({
+            sourceHeroId: d1.instanceId,
+            targetHeroId: d2.instanceId,
+            sourceWuXing: wx1,
+            targetWuXing: wx2,
+            distance: dist
+          })
+        }
+      }
+    }
+
+    return connections
+  }
+
+  /**
+   * 获取指定英雄最近的 160px 相生阵脉搭档
+   */
+  public getHeroLeylinePartner(instanceId: string): HeroEntity | null {
+    const hero = this.deployedHeroes.get(instanceId)
+    if (!hero) return null
+
+    const d1 = hero.getDeployedData()
+    const wx1 = hero.getHeroData().wuXing
+
+    let bestPartner: HeroEntity | null = null
+    let bestDist = Infinity
+
+    for (const [otherId, otherHero] of this.deployedHeroes.entries()) {
+      if (otherId === instanceId) continue
+      const wx2 = otherHero.getHeroData().wuXing
+      if (WuXingGenerate[wx1] !== wx2 && WuXingGenerate[wx2] !== wx1) continue
+
+      const d2 = otherHero.getDeployedData()
+      const dist = Phaser.Math.Distance.Between(d1.position.x, d1.position.y, d2.position.x, d2.position.y)
+      if (dist <= LEYLINE_MAX_DISTANCE && dist < bestDist) {
+        bestDist = dist
+        bestPartner = otherHero
+      }
+    }
+
+    return bestPartner
+  }
+
+  /**
+   * 判断敌军是否处于英雄与其 160px 相生阵脉搭档的双人射程交叠区内
+   */
+  public isEnemyInLeylineOverlap(hero: HeroEntity, partner: HeroEntity | null, target: EnemyEntity): boolean {
+    if (!partner) return false
+    const rangeBonus = this.augmentManager ? this.augmentManager.getAttackRangeBonus() : 0
+
+    const pos1 = hero.getDeployedData().position
+    const range1 = hero.getEffectiveStats().attackRange + rangeBonus
+    const dist1 = Phaser.Math.Distance.Between(pos1.x, pos1.y, target.x, target.y)
+    if (dist1 > range1) return false
+
+    const pos2 = partner.getDeployedData().position
+    const range2 = partner.getEffectiveStats().attackRange + rangeBonus
+    const dist2 = Phaser.Math.Distance.Between(pos2.x, pos2.y, target.x, target.y)
+    return dist2 <= range2
   }
 
   /**
@@ -206,6 +303,10 @@ export class HeroBattleManager {
     this.militarySituationManager = militarySituationManager
   }
 
+  public setWeatherSystem(weatherSystem: WeatherSystem): void {
+    this.weatherSystem = weatherSystem
+  }
+
   /**
    * 检查攻击条件并执行攻击
    */
@@ -258,180 +359,214 @@ export class HeroBattleManager {
   }
 
   /**
-   * 执行攻击
+   * 执行普攻（严格遵循四独立乘区公式 + 160px 相生阵脉连线 + 将星附着率）
    */
   private executeAttack(hero: HeroEntity, target: EnemyEntity): EnemyEntity | null {
     const heroData = hero.getHeroData()
     const stats = hero.getEffectiveStats()
     const targetData = target.getEnemyData()
     const deployedData = hero.getDeployedData()
+    const reactionMgr = ElementalReactionManager.getInstance(this.scene, this.enemyManager)
 
-    // 计算锦囊攻击力与相克加成
+    // 1. 攻击加成区 (Attack Bonus Bucket)
     const attackPercentBonus = this.augmentManager ? this.augmentManager.getAttackPercentBonus() : 0
-    const counterBonus = this.augmentManager ? this.augmentManager.getCounterMultiplierBonus() : 0
 
-    // 计算伤害与五行生克倍率
+    // 2. 增伤加成区 (Damage Increase Bucket: 天时加成 + 锦囊增伤 + 武将特质增伤)
+    const weatherBonus = this.weatherSystem ? this.weatherSystem.getDamageIncreaseBonus(heroData.wuXing) : 0
+    const augmentDmgIncrease = this.augmentManager ? this.augmentManager.getDamageIncreaseBonus() : 0
+    let damageIncreaseBonus = weatherBonus + augmentDmgIncrease
+
+    // 3. 易伤加成区 (Vulnerability Bucket: Boss破壁瘫痪易伤 + 锦囊易伤)
+    const enemyVulnerability = typeof target.isVulnerabilityBroken === 'function' && target.isVulnerabilityBroken() ? 0.50 : 0
+    const augmentVulnerability = this.augmentManager ? this.augmentManager.getVulnerabilityBonus() : 0
+    const vulnerabilityBonus = enemyVulnerability + augmentVulnerability
+
+    // 4. 暴击与暴伤加成 (Crit Bucket)
+    let critRate = (stats.critRate ?? 0.10) + (this.augmentManager ? this.augmentManager.getCritRateBonus() : 0)
+    let critDamage = (stats.critDamage ?? 0.50) + (this.augmentManager ? this.augmentManager.getCritDamageBonus() : 0)
+
+    // 五行生克表现标识
+    const counterBonus = this.augmentManager ? this.augmentManager.getCounterMultiplierBonus() : 0
     const multiplier = DamageCalculator.getCounterMultiplier(heroData.wuXing, targetData.wuXing) + counterBonus
     const isCounter = multiplier > 1.05
     const isResisted = multiplier < 0.95
+    damageIncreaseBonus += (multiplier - 1.0)
 
-    let damage = DamageCalculator.calculateDamage(
-      stats,
-      heroData.wuXing,
-      targetData.wuXing,
-      counterBonus,
-      attackPercentBonus
-    )
-
-    // 军情【烽燧照夜】：远程破甲加成
-    if (this.militarySituationManager && stats.attackRange > 150) {
-      const pen = this.militarySituationManager.getRangedDefensePenetration()
-      if (pen > 0) {
-        damage = Math.floor(damage * (1 + pen))
-      }
-    }
-
-    // 军情【借雾设伏】：近战暴击率加成
-    if (this.militarySituationManager && stats.attackRange <= 150) {
-      const critBonus = this.militarySituationManager.getMeleeCritChanceBonus()
-      if (critBonus > 0 && Math.random() < critBonus) {
-        damage = Math.floor(damage * 1.5)
-      }
-    }
-
-    // 军情【引水灌城】：水系伤害加成
-    if (this.militarySituationManager && heroData.wuXing === 'water') {
-      const waterMult = this.militarySituationManager.getWaterDamageMultiplier()
-      if (waterMult > 1) {
-        damage = Math.floor(damage * waterMult)
-      }
-    }
-
-    // 军情【雷动九天】：金系普攻天雷击退
-    if (this.militarySituationManager && heroData.wuXing === 'metal') {
-      const knockChance = this.militarySituationManager.getThunderKnockbackChance()
-      if (knockChance > 0 && Math.random() < knockChance) {
-        target.applyStun(1000)
-        target.hitShake(6)
-        this.attackFX.damageText({ x: target.x, y: target.y - 15 }, '【金雷击退】', { color: '#ffd54f' })
-      }
-    }
-
-    // 张飞被动【狂烈】：攻击生命低于 50% 或带有【土·破衡】的敌人，伤害提升 25%
+    // 张飞被动【狂烈】：攻击生命低于 50% 或带有【土·重】的敌人，增伤区 +25%；3★特质每4次普攻触发范围【土·重】
+    let guaranteedElementAttach = false
     if (heroData.id === 'hero_zhangfei') {
       const isLowHp = targetData.currentHealth / targetData.maxHealth < 0.5
-      const isHeavy = ElementalReactionManager.getInstance(this.scene, this.enemyManager).hasStatus(targetData.id, 'heavy')
+      const isHeavy = reactionMgr.hasStatus(targetData.id, 'heavy')
       if (isLowHp || isHeavy) {
-        damage = Math.floor(damage * 1.25)
+        damageIncreaseBonus += 0.25
         this.attackFX.damageText({ x: target.x, y: target.y - 20 }, '【狂烈】', { color: '#ff7043' })
+      }
+      if ((heroData.star ?? 1) >= 3) {
+        const count = (this.zhangfeiAttackCounter.get(deployedData.instanceId) || 0) + 1
+        if (count >= 4) {
+          this.zhangfeiAttackCounter.set(deployedData.instanceId, 0)
+          guaranteedElementAttach = true
+          target.applyHeavy(2500)
+        } else {
+          this.zhangfeiAttackCounter.set(deployedData.instanceId, count)
+        }
       }
     }
 
-    // 赵云被动【龙胆】：每连续普攻同一目标 3 次，第 4 次触发三连突刺并刷新【潮湿】
+    // 关羽 3★ 特质【春秋刀意】：每第 3 刀必挂 1 层【木·毒】
+    if (heroData.id === 'hero_guanyu' && (heroData.star ?? 1) >= 3) {
+      const count = (this.guanyuAttackCounter.get(deployedData.instanceId) || 0) + 1
+      if (count >= 3) {
+        this.guanyuAttackCounter.set(deployedData.instanceId, 0)
+        guaranteedElementAttach = true
+      } else {
+        this.guanyuAttackCounter.set(deployedData.instanceId, count)
+      }
+    }
+
+    // 赵云被动【龙胆】：每连续普攻同一目标 3 次，第 4 次触发三连突刺并必挂【水·湿】
     if (heroData.id === 'hero_zhaoyun') {
       const targetId = targetData.id
       const currentHits = (this.zhaoyunCombos.get(targetId) || 0) + 1
       if (currentHits >= 4) {
         this.zhaoyunCombos.delete(targetId)
-        const burstDmg = Math.max(1, Math.floor(damage * 0.5))
-        target.takeDamage(burstDmg)
-        target.takeDamage(burstDmg)
-        target.takeDamage(burstDmg)
-        target.applySlow(0.35, 4000)
-        ElementalReactionManager.getInstance(this.scene, this.enemyManager).handleAttack(target, 'water', Math.floor(stats.attack * 0.5))
-        this.attackFX.damageText({ x: target.x, y: target.y - 25 }, '【龙胆三连击】', { color: '#00e5ff' })
+        guaranteedElementAttach = true
+        damageIncreaseBonus += 0.35
+        target.applySlow(0.35, 2500)
+        this.attackFX.damageText({ x: target.x, y: target.y - 25 }, '【龙胆突刺】', { color: '#00e5ff' })
         target.hitShake(5)
       } else {
         this.zhaoyunCombos.set(targetId, currentHits)
       }
     }
 
-    // 黄忠被动【百步穿杨】：攻击距离自身越远的目标伤害越高（最远距离增伤达 35%）；对处于【灼烧】的敌人暴击
+    // 黄忠被动【百步穿杨】：攻击距离越远增伤越高（最远 +35%）；对处于【火·灼】的敌人暴击率大幅提升
     if (heroData.id === 'hero_huangzhong') {
       const dist = Phaser.Math.Distance.Between(deployedData.position.x, deployedData.position.y, target.x, target.y)
       const rangeBonus = this.augmentManager ? this.augmentManager.getAttackRangeBonus() : 0
       const maxRange = Math.max(1, stats.attackRange + rangeBonus)
       const distanceRatio = Math.min(1, Math.max(0, dist / maxRange))
-      const distBonus = distanceRatio * 0.35
-      damage = Math.floor(damage * (1 + distBonus))
+      damageIncreaseBonus += distanceRatio * 0.35
 
-      const isBurning = ElementalReactionManager.getInstance(this.scene, this.enemyManager).hasStatus(targetData.id, 'burn')
-      if (isBurning && Math.random() < 0.5) {
-        damage = Math.floor(damage * 1.5)
-        this.attackFX.damageText({ x: target.x, y: target.y - 20 }, '【百步暴击】', { color: '#ef4444' })
+      const isBurning = reactionMgr.hasStatus(targetData.id, 'burn')
+      if (isBurning) {
+        critRate += 0.35
       }
     }
 
-    // 马超被动【西凉骠骑】：根据当前叠加战意增伤（每层 6%）
+    // 马超被动【西凉铁骑】：根据战意增伤（每层 +6%）；对带有【土·重】目标暴击率与增伤提升
     if (heroData.id === 'hero_machao') {
       const stacks = this.machaoStacks.get(deployedData.instanceId) || 0
       if (stacks > 0) {
-        damage = Math.floor(damage * (1 + stacks * 0.06))
+        damageIncreaseBonus += stacks * 0.06
       }
-      // 破衡联动
-      const isHeavy = ElementalReactionManager.getInstance(this.scene, this.enemyManager).hasStatus(targetData.id, 'heavy')
+      const isHeavy = reactionMgr.hasStatus(targetData.id, 'heavy')
       if (isHeavy) {
-        damage = Math.floor(damage * 1.2)
+        damageIncreaseBonus += 0.20
+        if ((heroData.star ?? 1) >= 3) {
+          critRate += 0.20
+        }
         this.attackFX.damageText({ x: target.x, y: target.y - 20 }, '【金戈破甲】', { color: '#fbbf24' })
       }
     }
 
+    // 四独立乘区结算（含敌方防御/韧性/刚毅 ≥40% 下限保底）
+    const fourBucketResult = DamageCalculator.calculateFourBucketDamage({
+      baseValue: stats.attack,
+      attackBoostSum: attackPercentBonus,
+      damageIncreaseSum: damageIncreaseBonus,
+      vulnerabilitySum: vulnerabilityBonus,
+      critRate,
+      critDamage,
+      enemyInitialDefense: targetData.defense ?? 0,
+      defenseReductionRatio: typeof target.getDefenseReductionRatio === 'function' ? target.getDefenseReductionRatio() : 0,
+      enemyInitialTenacity: targetData.tenacity ?? 0,
+      tenacityReductionRatio: typeof target.getTenacityReductionRatio === 'function' ? target.getTenacityReductionRatio() : 0,
+      enemyInitialFortitude: targetData.fortitude ?? 0,
+      fortitudeReductionRatio: typeof target.getFortitudeReductionRatio === 'function' ? target.getFortitudeReductionRatio() : 0
+    })
+
+    const damage = fourBucketResult.finalDamage
+
     // 应用伤害
     const actualDamage = target.takeDamage(damage)
 
-    // 播放攻击动画
+    // 若暴击且敌军处于【土·重】或【熔岩·焦土】，触发【负重内震】额外伤害
+    if (fourBucketResult.isCrit && typeof target.triggerHeavyCritShock === 'function') {
+      const shockDmg = target.triggerHeavyCritShock(actualDamage)
+      if (shockDmg > 0) {
+        this.attackFX.damageText({ x: target.x, y: target.y - 26 }, `【负重内震】-${shockDmg}`, {
+          color: '#ffb300',
+          crit: true
+        })
+      }
+    }
+
+    // 播放攻击动画与特效
     hero.playAttackAnimation()
+    this.playWeaponFX(hero, target, actualDamage, isCounter, isResisted, fourBucketResult.isCrit)
 
-    // 播放武器特效（冲锋 → 挥砍/前刺 → 飘字/受击抖动/命中顿帧/音效）
-    this.playWeaponFX(hero, target, actualDamage, isCounter, isResisted)
+    // 计算 160px 相生阵脉搭档与交叠区加成
+    const leylinePartner = this.getHeroLeylinePartner(deployedData.instanceId)
+    const inLeylineOverlap = this.isEnemyInLeylineOverlap(hero, leylinePartner, target)
 
-    // 触发五行元素相生相克连锁反应
-    ElementalReactionManager.getInstance(this.scene, this.enemyManager).handleAttack(
-      target,
-      heroData.wuXing,
-      Math.floor(stats.attack * (1 + attackPercentBonus))
-    )
+    // 按武将星级【将星命盘 (1★~5★)】判定普攻五行附着率 (25% -> 80%)
+    const attachRate = guaranteedElementAttach ? 1.0 : getStarAttachmentRate(heroData.star ?? 1)
+    if (Math.random() <= attachRate) {
+      reactionMgr.handleAttack(
+        target,
+        heroData.wuXing,
+        Math.floor(stats.attack * (1 + attackPercentBonus)),
+        {
+          attackerHeroId: heroData.id,
+          critRate,
+          critDamage,
+          inLeylineOverlap,
+          leylinePartnerWuXing: leylinePartner ? leylinePartner.getHeroData().wuXing : undefined,
+          weatherDamageBonus: weatherBonus,
+          vulnerabilityBonus,
+          aegisBreakBonus: getStarAegisBreakBonus(heroData.star ?? 1)
+        }
+      )
+    }
 
     // 英雄专属锦囊机制
     if (this.augmentManager) {
       if (this.augmentManager.hasSpecialAugment('aug_guanyu_yanyu') && heroData.id === 'hero_guanyu') {
-        // 关羽威震华夏：附带木系滋养
-        ElementalReactionManager.getInstance(this.scene, this.enemyManager).handleAttack(
+        reactionMgr.handleAttack(
           target,
           'wood',
           Math.floor(stats.attack * (1 + attackPercentBonus) * 0.5)
         )
       } else if (this.augmentManager.hasSpecialAugment('aug_zhangfei_roar') && heroData.id === 'hero_zhangfei') {
-        target.applyStun(1500)
+        target.applyHeavy(3000)
         target.hitShake(8)
       } else if (this.augmentManager.hasSpecialAugment('aug_zhaoyun_dragon') && heroData.id === 'hero_zhaoyun') {
         if (Math.random() < 0.25) {
           const fx = new CharacterAttackFX(this.scene)
-          fx.damageText({ x: target.x, y: target.y }, Math.floor(damage * 1.5), { color: '#00e5ff' })
-          target.takeDamage(Math.floor(damage * 1.5))
+          fx.damageText({ x: target.x, y: target.y }, Math.floor(damage * 1.35), { color: '#00e5ff' })
+          target.takeDamage(Math.floor(damage * 1.35))
         }
       } else if (this.augmentManager.hasSpecialAugment('aug_huangzhong_bow') && heroData.id === 'hero_huangzhong') {
-        // 黄忠定军扬威：普攻必定附带【火·灼烧】；对处于【木·寄生】的敌军造成 60% 额外烈焰爆燃
-        const hasWood = ElementalReactionManager.getInstance(this.scene, this.enemyManager).hasStatus(targetData.id, 'parasite')
+        const hasWood = reactionMgr.hasStatus(targetData.id, 'parasite')
         if (hasWood) {
           const burnDmg = Math.floor(stats.attack * 0.6)
           target.takeDamage(burnDmg)
           this.attackFX.damageText({ x: target.x, y: target.y - 28 }, '【定军烈焰爆破】', { color: '#f97316' })
           target.hitShake(6)
         }
-        ElementalReactionManager.getInstance(this.scene, this.enemyManager).handleAttack(
+        reactionMgr.handleAttack(
           target,
           'fire',
           Math.floor(stats.attack * (1 + attackPercentBonus) * 0.4)
         )
       } else if (this.augmentManager.hasSpecialAugment('aug_machao_cavalry') && heroData.id === 'hero_machao') {
-        // 马超神威天将：对处于【土·破衡】的敌人必定触发【土生金·淬刃】散射飞刃
-        const hasHeavy = ElementalReactionManager.getInstance(this.scene, this.enemyManager).hasStatus(targetData.id, 'heavy')
+        const hasHeavy = reactionMgr.hasStatus(targetData.id, 'heavy')
         if (hasHeavy) {
           const shardDmg = Math.floor(stats.attack * 0.7)
           target.takeDamage(shardDmg)
           this.attackFX.damageText({ x: target.x, y: target.y - 25 }, '【神威飞刃】', { color: '#eab308' })
-          ElementalReactionManager.getInstance(this.scene, this.enemyManager).handleAttack(
+          reactionMgr.handleAttack(
             target,
             'metal',
             Math.floor(stats.attack * (1 + attackPercentBonus) * 0.5)
@@ -440,11 +575,8 @@ export class HeroBattleManager {
       }
     }
 
-    // 触发专属神兵器灵共鸣与五行相生隐藏机制
+    // 触发专属神兵器灵共鸣与五行相生机制
     this.triggerArtifactResonanceEffects(hero, target)
-
-    // 触发5级宝石终极特效（破甲、中毒、冰冻、灼烧与红莲殉爆、眩晕）
-    this.triggerGemAttackEffects(hero, target)
 
     // 触发被动技能（攻击时触发）
     this.triggerPassiveSkill(hero, target)
@@ -455,7 +587,7 @@ export class HeroBattleManager {
 
       // 关羽被动【武圣】：击杀带有木系寄生或处于五行元素反应状态的敌军，使【青龙偃月斩】冷却缩减 1 秒
       if (heroData.id === 'hero_guanyu') {
-        const hasWoodStatus = ElementalReactionManager.getInstance(this.scene, this.enemyManager).hasStatus(targetData.id, 'parasite')
+        const hasWoodStatus = reactionMgr.hasStatus(targetData.id, 'parasite')
         if (hasWoodStatus) {
           this.skillManager.reduceCooldown('skill_active_guanyu', 1000)
           this.attackFX.damageText({ x: hero.x, y: hero.y - 30 }, '【武圣·兵法速决】', { color: '#4caf50' })
@@ -497,13 +629,12 @@ export class HeroBattleManager {
   }
 
   /**
-   * 触发5级神品宝石专属终极攻击特效
+   * 触发5级神品宝石专属终极攻击特效（二期 Backlog 保留接口）
    */
-  private triggerGemAttackEffects(hero: HeroEntity, target: EnemyEntity): void {
+  public triggerGemAttackEffects(hero: HeroEntity, target: EnemyEntity): void {
     if (!target.active || target.getEnemyData().currentHealth <= 0) return
 
     const heroData = hero.getHeroData()
-    // 获取武将当前装备的神器上镶嵌的5级宝石
     const gem = EquipmentManager.getInstance().getHeroLevel5Gem(heroData.id)
 
     if (gem && gem.level === 5) {
@@ -524,7 +655,8 @@ export class HeroBattleManager {
     target: EnemyEntity,
     actualDamage: number,
     isCounter: boolean = false,
-    isResisted: boolean = false
+    isResisted: boolean = false,
+    isCritical: boolean = false
   ): void {
     const weapon = this.getWeaponType(hero.getHeroData().id)
 
@@ -543,21 +675,18 @@ export class HeroBattleManager {
     const onHit = () => {
       if (target.active) target.hitShake()
       this.attackFX.damageText(to, actualDamage, {
-        crit: actualDamage >= 80,
+        crit: isCritical || actualDamage >= 80,
         counter: isCounter,
         resisted: isResisted
       })
     }
 
     if (weapon === 'blade') {
-      // 青龙偃月刀：刀身约 132 长，把挥砍支点送到"刀尖刚好够到敌人"的位置
       const advance = Math.max(0, dist - 132)
       this.weaponFX.bladeSlash(from, to, onHit, advance)
     } else if (weapon === 'bow') {
-      // 黄忠射日弓：拉弓放箭，箭矢飞掠后命中
       this.weaponFX.bowShot(from, to, onHit)
     } else {
-      // 长矛：枪尖真正扎到敌人身上
       this.weaponFX.spearThrustTo(from, to, onHit)
     }
   }
@@ -585,9 +714,6 @@ export class HeroBattleManager {
         )
       }
     }
-
-    // 张飞猛将、赵云龙胆：永久buff，不需要触发
-    // buff效果已在HeroEntity.getEffectiveStats()中应用
   }
 
   /**
@@ -623,5 +749,7 @@ export class HeroBattleManager {
     this.deployedHeroes.clear()
     this.zhaoyunCombos.clear()
     this.machaoStacks.clear()
+    this.guanyuAttackCounter.clear()
+    this.zhangfeiAttackCounter.clear()
   }
 }

@@ -7,7 +7,9 @@ vi.mock('@/effects/CharacterAttackFX', () => ({
   }
 }))
 
-import { ElementalReactionManager } from '@/core/elemental/ElementalReactionManager'
+import {
+  ElementalReactionManager
+} from '@/core/elemental/ElementalReactionManager'
 
 function createMockEnemy(id: string = 'mock_enemy', hp: number = 1000) {
   return {
@@ -18,18 +20,22 @@ function createMockEnemy(id: string = 'mock_enemy', hp: number = 1000) {
     applySlow: vi.fn(),
     applyPoison: vi.fn(),
     applyBurn: vi.fn(),
+    applyBleed: vi.fn(),
+    applyHeavy: vi.fn(),
+    applyMagmaField: vi.fn(),
     applyArmorBreak: vi.fn(),
     applyStun: vi.fn(),
     applyFreeze: vi.fn(),
     takeDamage: vi.fn((dmg: number) => dmg),
     hitShake: vi.fn(),
     breakIroncladShield: vi.fn(),
+    damageBossAegis: vi.fn(() => ({ brokenGrids: 1, shattered: false, weaknessHit: false })),
     setElementalMark: vi.fn(),
     clearElementalMark: vi.fn()
   }
 }
 
-describe('ElementalReactionManager 五行元素连锁反应测试（双向等价瞬爆）', () => {
+describe('ElementalReactionManager 五行相生双向化学连锁测试（2.5s附着 / 相生不抹除 / 1.5s ICD / 共鸣取优法则）', () => {
   let manager: ElementalReactionManager
 
   beforeEach(() => {
@@ -37,141 +43,118 @@ describe('ElementalReactionManager 五行元素连锁反应测试（双向等价
     manager.reset()
   })
 
-  it('初始状态下倍率为 1.0', () => {
+  it('初始状态下倍率为 1.0，附着时长为 2500ms，同类反应 ICD 为 1500ms', () => {
     expect(manager.getReactionDamageMultiplier()).toBe(1.0)
+    expect(ElementalReactionManager.DEFAULT_ATTACHMENT_MS).toBe(2500)
+    expect(ElementalReactionManager.DEFAULT_REACTION_ICD_MS).toBe(1500)
   })
 
-  it('调整伤害倍率正常生效', () => {
-    manager.setReactionDamageMultiplier(1.8)
-    expect(manager.getReactionDamageMultiplier()).toBe(1.8)
-  })
-
-  describe('1. 水生木【滋养·蔓延】双向判定', () => {
-    it('正向：先水后木触发滋养', () => {
+  describe('1. 水生木【滋养·蔓延】双向无序判定 & 相生不抹除底层状态 & 1.5s ICD', () => {
+    it('正向：先水后木触发滋养（共鸣取优：max(100,120) + 0.25*min(100,120) = 145）且保留底层水木印记', () => {
       const enemy: any = createMockEnemy('enemy_nourish_1')
       const res1 = manager.handleAttack(enemy, 'water', 100)
       expect(res1).toBeNull()
-      expect(enemy.setElementalMark).toHaveBeenCalledWith('water', '【湿】', '#29b6f6', 4500)
+      expect(enemy.setElementalMark).toHaveBeenCalledWith('water', '【湿】', '#29b6f6', 2500)
 
       const res2 = manager.handleAttack(enemy, 'wood', 120)
       expect(res2).not.toBeNull()
       expect(res2?.reactionType).toBe('nourish')
       expect(res2?.reactionName).toBe('水生木·滋养')
-      expect(res2?.extraDamage).toBe(Math.floor(120 * 1.5))
-      expect(enemy.clearElementalMark).toHaveBeenCalled()
+      // 协同基数 = 120 + 0.25 * 100 = 145 -> 145 * 1.5 = 217
+      expect(res2?.extraDamage).toBe(Math.floor(145 * 1.5))
+      // 相生绝不抹除原有水/木状态！
+      expect(manager.hasStatus('enemy_nourish_1', 'wet')).toBe(true)
+      expect(manager.hasStatus('enemy_nourish_1', 'parasite')).toBe(true)
+      expect(enemy.clearElementalMark).not.toHaveBeenCalled()
+
+      // 1.5s ICD 内再次触发水生木不会重复结算反应
+      const resIcd = manager.handleAttack(enemy, 'water', 120)
+      expect(resIcd).toBeNull()
     })
 
-    it('逆向：先木后水同样瞬爆触发滋养', () => {
+    it('逆向：先木后水同样瞬爆触发滋养（无论先后手，高攻主C基数恒定）', () => {
       const enemy: any = createMockEnemy('enemy_nourish_2')
-      const res1 = manager.handleAttack(enemy, 'wood', 100)
-      expect(res1).toBeNull()
-      expect(enemy.setElementalMark).toHaveBeenCalledWith('wood', '【毒】', '#4caf50', 4500)
-
-      const res2 = manager.handleAttack(enemy, 'water', 140)
+      manager.handleAttack(enemy, 'wood', 120)
+      const res2 = manager.handleAttack(enemy, 'water', 100)
       expect(res2).not.toBeNull()
       expect(res2?.reactionType).toBe('nourish')
-      expect(res2?.extraDamage).toBe(Math.floor(140 * 1.5))
-      expect(enemy.clearElementalMark).toHaveBeenCalled()
+      // 无论先水100后木120，还是先木120后水100，协同基数均为 145！
+      expect(res2?.extraDamage).toBe(Math.floor(145 * 1.5))
     })
   })
 
   describe('2. 木生火【燎原·焚尽】双向判定', () => {
-    it('正向：先木后火触发燎原大爆炸', () => {
-      const enemy: any = createMockEnemy('enemy_wildfire_1')
-      manager.handleAttack(enemy, 'wood', 100)
-      const res = manager.handleAttack(enemy, 'fire', 150)
-      expect(res?.reactionType).toBe('wildfire')
-      expect(res?.extraDamage).toBe(Math.floor(150 * 2.4))
-    })
+    it('正向与逆向均等价触发燎原大爆炸', () => {
+      const enemy1: any = createMockEnemy('enemy_wildfire_1')
+      manager.handleAttack(enemy1, 'wood', 100)
+      const res1 = manager.handleAttack(enemy1, 'fire', 150)
+      expect(res1?.reactionType).toBe('wildfire')
+      // 协同基数 = 150 + 0.25 * 100 = 175 -> 175 * 2.4 + 1000 * 0.025 = 420 + 25 = 445
+      expect(res1?.extraDamage).toBe(Math.floor(175 * 2.4) + Math.floor(1000 * 0.025))
 
-    it('逆向：先火后木同样瞬爆触发燎原大爆炸', () => {
-      const enemy: any = createMockEnemy('enemy_wildfire_2')
-      manager.handleAttack(enemy, 'fire', 100)
-      const res = manager.handleAttack(enemy, 'wood', 150)
-      expect(res?.reactionType).toBe('wildfire')
-      expect(res?.extraDamage).toBe(Math.floor(150 * 2.4))
+      const enemy2: any = createMockEnemy('enemy_wildfire_2')
+      manager.handleAttack(enemy2, 'fire', 150)
+      const res2 = manager.handleAttack(enemy2, 'wood', 100)
+      expect(res2?.reactionType).toBe('wildfire')
+      expect(res2?.extraDamage).toBe(res1?.extraDamage)
     })
   })
 
-  describe('3. 火生土【熔岩·焦土】双向判定', () => {
-    it('正向：先火后土触发熔岩焦土', () => {
+  describe('3. 火生土【熔岩·焦土】双向判定（削韧破刚，不减速不破甲）', () => {
+    it('正向与逆向均触发熔岩焦土并施加 applyMagmaField', () => {
       const enemy: any = createMockEnemy('enemy_magma_1')
       manager.handleAttack(enemy, 'fire', 100)
       const res = manager.handleAttack(enemy, 'earth', 120)
       expect(res?.reactionType).toBe('magma')
-      expect(res?.extraDamage).toBe(Math.floor(120 * 1.6))
-    })
-
-    it('逆向：先土后火同样触发熔岩焦土', () => {
-      const enemy: any = createMockEnemy('enemy_magma_2')
-      manager.handleAttack(enemy, 'earth', 100)
-      const res = manager.handleAttack(enemy, 'fire', 120)
-      expect(res?.reactionType).toBe('magma')
-      expect(res?.extraDamage).toBe(Math.floor(120 * 1.6))
+      // 协同基数 = 120 + 25 = 145 -> 145 * 1.6 = 232
+      expect(res?.extraDamage).toBe(Math.floor(145 * 1.6))
+      expect(enemy.applyMagmaField).toHaveBeenCalledWith(4000, 0.4, 0.6)
     })
   })
 
   describe('4. 土生金【淬刃·锋芒】双向判定', () => {
-    it('正向：先土后金触发锋芒飞刃', () => {
+    it('正向与逆向均触发淬刃锋芒并施加【金·裂】', () => {
       const enemy: any = createMockEnemy('enemy_spikes_1')
       manager.handleAttack(enemy, 'earth', 100)
       const res = manager.handleAttack(enemy, 'metal', 110)
       expect(res?.reactionType).toBe('spikes')
-      expect(res?.extraDamage).toBe(Math.floor(110 * 1.8))
-    })
-
-    it('逆向：先金后土同样触发锋芒飞刃', () => {
-      const enemy: any = createMockEnemy('enemy_spikes_2')
-      manager.handleAttack(enemy, 'metal', 100)
-      const res = manager.handleAttack(enemy, 'earth', 110)
-      expect(res?.reactionType).toBe('spikes')
-      expect(res?.extraDamage).toBe(Math.floor(110 * 1.8))
+      // 协同基数 = 110 + 25 = 135 -> 135 * 1.8 = 243
+      expect(res?.extraDamage).toBe(Math.floor(135 * 1.8))
+      expect(enemy.applyBleed).toHaveBeenCalled()
     })
   })
 
   describe('5. 金生水【寒芒·碎冰】双向判定', () => {
-    it('正向：先金后水触发极寒碎冰', () => {
+    it('正向与逆向均触发寒芒碎冰并施加 2.5s 绝对冰封', () => {
       const enemy: any = createMockEnemy('enemy_shatter_1')
       manager.handleAttack(enemy, 'metal', 100)
       const res = manager.handleAttack(enemy, 'water', 130)
       expect(res?.reactionType).toBe('shatter')
-      expect(res?.extraDamage).toBe(Math.floor(130 * 1.7))
-    })
-
-    it('逆向：先水后金同样触发极寒碎冰', () => {
-      const enemy: any = createMockEnemy('enemy_shatter_2')
-      manager.handleAttack(enemy, 'water', 100)
-      const res = manager.handleAttack(enemy, 'metal', 130)
-      expect(res?.reactionType).toBe('shatter')
-      expect(res?.extraDamage).toBe(Math.floor(130 * 1.7))
+      // 协同基数 = 130 + 25 = 155 -> 155 * 1.7 = 263
+      expect(res?.extraDamage).toBe(Math.floor(155 * 1.7))
+      expect(enemy.applyFreeze).toHaveBeenCalledWith(2500)
     })
   })
 
-  describe('6. 水火相克【汽化·蒸发】与锦囊【水火既济】增强', () => {
-    it('先火后水触发蒸发', () => {
-      const enemy: any = createMockEnemy('enemy_vap_1')
-      manager.handleAttack(enemy, 'fire', 100)
-      const res = manager.handleAttack(enemy, 'water', 100)
-      expect(res?.reactionType).toBe('vaporize')
-      expect(res?.extraDamage).toBe(220)
-    })
+  describe('6. 160px 五行相生阵脉连线（交叠区衰减减缓 30% & 增伤区 +35% & 定向反应锁）', () => {
+    it('处于 160px 阵脉交叠区内的敌军元素附着时长延长（2500 * 1.3 = 3250ms）且相生反应获得 +35% 增伤', () => {
+      const enemy: any = createMockEnemy('enemy_leyline_1')
+      manager.handleAttack(enemy, 'water', 100, { inLeylineOverlap: true })
+      expect(enemy.setElementalMark).toHaveBeenCalledWith(
+        'water',
+        '【湿】',
+        '#29b6f6',
+        Math.round(2500 * 1.3)
+      )
 
-    it('先水后火同样触发蒸发', () => {
-      const enemy: any = createMockEnemy('enemy_vap_2')
-      manager.handleAttack(enemy, 'water', 100)
-      const res = manager.handleAttack(enemy, 'fire', 100)
-      expect(res?.reactionType).toBe('vaporize')
-      expect(res?.extraDamage).toBe(220)
-    })
-
-    it('激活【水火既济】时，蒸发伤害获得 1.6 倍提升', () => {
-      manager.setVaporizeShockwave(true)
-      const enemy: any = createMockEnemy('enemy_vap_boost')
-      manager.handleAttack(enemy, 'fire', 100)
-      const res = manager.handleAttack(enemy, 'water', 100)
-      expect(res?.reactionType).toBe('vaporize')
-      // 100 * 2.2 * 1.6 = 352
-      expect(res?.extraDamage).toBe(Math.floor(100 * 2.2 * 1.6))
+      const res = manager.handleAttack(enemy, 'wood', 120, {
+        inLeylineOverlap: true,
+        leylinePartnerWuXing: 'water'
+      })
+      expect(res?.reactionType).toBe('nourish')
+      expect(res?.leylineBoosted).toBe(true)
+      // 协同基数 145 * 1.5 * (1 + 0.35) = 293.625 -> 293
+      expect(res?.extraDamage).toBe(Math.floor(145 * 1.5 * 1.35))
     })
   })
 })

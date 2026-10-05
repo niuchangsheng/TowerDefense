@@ -2,12 +2,20 @@ import Phaser from 'phaser'
 import {
   getSkill,
   getHeroSkillEvolution,
-  getCurrentEvolutionNode,
   getHeroStatusDetails
 } from '@/data/skills'
 import { Hero, RarityNames, Rarity, WuXing } from '@/types'
 import { EquipmentManager, EquipmentInstance } from '@/core/equipment/EquipmentManager'
-import { getExpToNextLevel, getExpProgress, getExpRequiredForLevel } from '@/data/heroes/levelConfig'
+import {
+  MAX_HERO_LEVEL,
+  getExpToNextLevel,
+  getExpProgress,
+  getExpRequiredForLevel,
+  getLevelStatBonus,
+  calculateLevelFromExp
+} from '@/data/heroes/levelConfig'
+import { getStarAttachmentRate } from '@/data/heroes'
+import { DamageCalculator } from '@/core/battle/DamageCalculator'
 import { SaveManager } from '@/core/save/SaveManager'
 import {
   InkColor,
@@ -343,44 +351,61 @@ export default class HeroListScene extends Phaser.Scene {
       color: INK_RARITY[hero.rarity].text
     }))
 
-    // 五行徽章 + 等级 + 星级
+    // 五行徽章 + 武道十境等级 + 星级 + 普攻附着率
     this.createWuXingBadge(panel, 160, y + 37, hero.wuXing, 22)
-    panel.add(inkText(this, 228, y + 48, `Lv.${hero.level}`, {
+    panel.add(inkText(this, 228, y + 48, `武道 Lv.${hero.level}/${MAX_HERO_LEVEL}`, {
       size: InkFontSize.md,
       color: InkText.strong
     }))
-    panel.add(inkText(this, 300, y + 48, `${'★'.repeat(hero.star)}${'☆'.repeat(5 - hero.star)}`, {
+    panel.add(inkText(this, 360, y + 48, `${'★'.repeat(hero.star)}${'☆'.repeat(5 - hero.star)}`, {
       size: InkFontSize.md,
       color: InkText.gold
     }))
+    const attachPct = Math.round(getStarAttachmentRate(hero.star) * 100)
+    panel.add(inkText(this, 468, y + 48, `【五行附着 ${attachPct}%】`, {
+      size: 13,
+      color: InkText.cinnabar,
+      bold: true
+    }))
 
-    // 经验
+    // 一键无损传功按钮（100%返还并传授经验给其他武将）
+    if (hero.level > 1 || hero.experience > 0) {
+      const resetBtn = createInkButton(this, 622, y + 48, 108, 24, '一键无损传功', {
+        fill: InkColor.paperDeep,
+        hoverFill: 0xc5b795,
+        textColor: InkText.cinnabar,
+        fontSize: 11,
+        stroke: InkColor.cinnabar,
+        onClick: () => this.handleLosslessReset(hero)
+      })
+      panel.add(resetBtn)
+    }
+
+    // 经验（武道十境封顶 Lv.10）
     const expY = y + 86
-    panel.add(inkText(this, 160, expY, '经验', { size: InkFontSize.sm, color: InkText.faint }))
-    if (hero.level < 60) {
-      const progress = getExpProgress(hero.experience, hero.level)
-      const expToNext = getExpToNextLevel(hero.level)
-      const currentExpInLevel = Math.max(0, Math.floor(hero.experience - getExpRequiredForLevel(hero.level))) // 确保最小为0
+    panel.add(inkText(this, 160, expY, '修为', { size: InkFontSize.sm, color: InkText.faint }))
+    if (hero.level < MAX_HERO_LEVEL) {
+      const progress = getExpProgress(hero.level, hero.experience)
+      const expToNext = getExpToNextLevel(hero.level, hero.experience)
+      const currentExpInLevel = Math.max(0, Math.floor(hero.experience))
 
       // 进度条背景
-      const barBg = this.add.rectangle(400, expY, 400, 12, InkColor.paperDeep)
+      const barBg = this.add.rectangle(360, expY, 320, 12, InkColor.paperDeep)
       barBg.setStrokeStyle(1, InkColor.ink, 0.5)
       panel.add(barBg)
 
-      // 进度条填充（确保最小宽度为0）
-      const fillWidth = Math.max(0, 400 * progress)
+      // 进度条填充
+      const fillWidth = Math.max(0, 320 * progress)
       const barFill = this.add.rectangle(200 + fillWidth / 2, expY, fillWidth, 8, InkColor.ink, 0.65)
       panel.add(barFill)
 
-      // 进度文字 + 百分比（确保显示合理）
       const percentText = Math.floor(Math.max(0, Math.min(1, progress)) * 100)
-      panel.add(inkText(this, 608, expY, `${currentExpInLevel}/${expToNext} · ${percentText}%`, {
+      panel.add(inkText(this, 530, expY, `${currentExpInLevel}/${expToNext} · ${percentText}%`, {
         size: InkFontSize.xs,
         color: InkText.faint
       }))
     } else {
-      // 顶级
-      panel.add(inkText(this, 200, expY, '已达顶级', { size: 14, color: InkText.gold, bold: true }))
+      panel.add(inkText(this, 200, expY, '【武道十境 · 大圆满 (+36%)】', { size: 14, color: InkText.gold, bold: true }))
     }
 
     // 绘制水墨五维演武雷达图（右侧区域）
@@ -504,41 +529,53 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   /**
-   * 基础属性：攻击 / 攻速 / 射程（含装备加成）
+   * 五大基础属性：攻击力 / 攻击范围 / 攻击速度 / 暴击几率 / 暴击伤害（严守局外总增益 <= +50% 铁律）
    */
   private renderStats(panel: Phaser.GameObjects.Container, hero: Hero, y: number): number {
-    y += sectionHeader(this, panel, 24, y, '基础属性', HeroListScene.CONTENT_WIDTH)
+    y += sectionHeader(this, panel, 24, y, '五大基础属性（局外总加成上限 ≤ +50%）', HeroListScene.CONTENT_WIDTH)
     const rowY = y + 17
 
-    // 计算属性（含装备加成）
     const effectiveStats = this.getEffectiveStatsWithEquipment(hero)
 
-    // 攻击
-    panel.add(inkText(this, 24, rowY, '攻击', { size: 14, color: InkText.faint }))
-    const atkText = inkText(this, 88, rowY, `${effectiveStats.attack}`, {
-      size: 18,
-      color: InkText.strong,
-      bold: true
-    })
-    panel.add(atkText)
-    panel.add(inkText(this, 88 + atkText.width + 8, rowY, `（基础 ${hero.baseStats.attack}）`, {
-      size: InkFontSize.xs,
-      color: InkText.faint
-    }))
-
-    // 攻速
-    panel.add(inkText(this, 300, rowY, '攻速', { size: 14, color: InkText.faint }))
-    panel.add(inkText(this, 364, rowY, `${effectiveStats.attackSpeed.toFixed(1)}/s`, {
-      size: 18,
+    // 1. 攻击力
+    panel.add(inkText(this, 24, rowY, '攻击', { size: 13, color: InkText.faint }))
+    panel.add(inkText(this, 64, rowY, `${effectiveStats.attack}`, {
+      size: 16,
       color: InkText.strong,
       bold: true
     }))
 
-    // 射程
-    panel.add(inkText(this, 540, rowY, '射程', { size: 14, color: InkText.faint }))
-    panel.add(inkText(this, 604, rowY, `${effectiveStats.attackRange}`, {
-      size: 18,
+    // 2. 攻击速度
+    panel.add(inkText(this, 165, rowY, '攻速', { size: 13, color: InkText.faint }))
+    panel.add(inkText(this, 205, rowY, `${effectiveStats.attackSpeed.toFixed(2)}/s`, {
+      size: 16,
       color: InkText.strong,
+      bold: true
+    }))
+
+    // 3. 攻击范围
+    panel.add(inkText(this, 315, rowY, '射程', { size: 13, color: InkText.faint }))
+    panel.add(inkText(this, 355, rowY, `${effectiveStats.attackRange}px`, {
+      size: 16,
+      color: InkText.strong,
+      bold: true
+    }))
+
+    // 4. 暴击几率
+    const critRatePct = Math.round(effectiveStats.critRate * 100)
+    panel.add(inkText(this, 465, rowY, '暴率', { size: 13, color: InkText.faint }))
+    panel.add(inkText(this, 505, rowY, `${critRatePct}%`, {
+      size: 16,
+      color: InkText.cinnabar,
+      bold: true
+    }))
+
+    // 5. 暴击伤害
+    const critDmgPct = Math.round(effectiveStats.critDamage * 100)
+    panel.add(inkText(this, 595, rowY, '暴伤', { size: 13, color: InkText.faint }))
+    panel.add(inkText(this, 635, rowY, `+${critDmgPct}%`, {
+      size: 16,
+      color: InkText.gold,
       bold: true
     }))
 
@@ -1261,46 +1298,97 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   /**
-   * 计算含装备加成的属性
+   * 一键无损传功：将当前武将修为 100% 无损传授给名册中下一位未满级武将
    */
-  private getEffectiveStatsWithEquipment(hero: Hero): { attack: number; attackSpeed: number; attackRange: number } {
-    let attack = Math.floor(hero.baseStats.attack * (1 + (hero.level - 1) * 0.05))
-    let attackSpeed = hero.baseStats.attackSpeed
-    let attackRange = hero.baseStats.attackRange
-
-    // 应用升星加成（每星+5%攻击力）
-    attack = Math.floor(attack * (1 + (hero.star - 1) * 0.05))
-
-    // 应用被动技能加成
-    const passiveSkillId = hero.passiveSkillId
-    if (passiveSkillId === 'skill_passive_zhangfei') {
-      attack = Math.floor(attack * 1.1)
-    } else if (passiveSkillId === 'skill_passive_zhaoyun') {
-      attackSpeed = attackSpeed * 1.2
+  private handleLosslessReset(hero: Hero): void {
+    const refundedExp = Math.max(hero.experience, getExpRequiredForLevel(hero.level))
+    if (refundedExp <= 0) {
+      this.showMessage('当前武将尚无修为可传功')
+      return
     }
 
-    // 应用装备加成
+    const candidates = Array.from(this.heroes.values()).filter(
+      h => h.id !== hero.id && h.level < MAX_HERO_LEVEL
+    )
+    const targetHero = candidates[0] || Array.from(this.heroes.values()).find(h => h.id !== hero.id)
+
+    hero.level = 1
+    hero.experience = 0
+
+    if (targetHero) {
+      targetHero.experience += refundedExp
+      targetHero.level = calculateLevelFromExp(targetHero.experience)
+      this.autoSave()
+      this.updateDetailPanel(hero.id)
+      this.showMessage(`【无损传功】已将 ${refundedExp} 点修为全额传授予 ${targetHero.name}（Lv.${targetHero.level}）！`)
+    } else {
+      this.autoSave()
+      this.updateDetailPanel(hero.id)
+      this.showMessage(`【无损归元】已重置武道境界至 Lv.1`)
+    }
+  }
+
+  /**
+   * 计算含武道十境、装备与灵石词条加成的五大基础属性（严格遵循局外总增益 <= +50% 铁律）
+   */
+  private getEffectiveStatsWithEquipment(hero: Hero): {
+    attack: number
+    attackSpeed: number
+    attackRange: number
+    critRate: number
+    critDamage: number
+  } {
+    const levelBonus = getLevelStatBonus(hero.level)
+    const starBonus = (hero.star - 1) * 0.02
+    const gemBonuses = this.equipmentManager.getHeroGemStatBonuses(hero.id)
     const heroEquipment = this.equipmentManager.getHeroEquipment(hero.id)
+
+    let flatEquipAtk = 0
+    let flatEquipSpd = 0
+    let flatEquipRng = 0
 
     if (heroEquipment.weapon) {
       const weaponDetail = this.equipmentManager.getEquipmentDetail(heroEquipment.weapon.instanceId)
       if (weaponDetail?.bonuses) {
-        attack += weaponDetail.bonuses.attack || 0
-        attackSpeed += weaponDetail.bonuses.attackSpeed || 0
-        attackRange += weaponDetail.bonuses.attackRange || 0
+        flatEquipAtk += weaponDetail.bonuses.attack || 0
+        flatEquipSpd += weaponDetail.bonuses.attackSpeed || 0
+        flatEquipRng += weaponDetail.bonuses.attackRange || 0
       }
     }
 
     if (heroEquipment.artifact) {
       const artifactDetail = this.equipmentManager.getEquipmentDetail(heroEquipment.artifact.instanceId)
       if (artifactDetail?.bonuses) {
-        attack += artifactDetail.bonuses.attack || 0
-        attackSpeed += artifactDetail.bonuses.attackSpeed || 0
-        attackRange += artifactDetail.bonuses.attackRange || 0
+        flatEquipAtk += artifactDetail.bonuses.attack || 0
+        flatEquipSpd += artifactDetail.bonuses.attackSpeed || 0
+        flatEquipRng += artifactDetail.bonuses.attackRange || 0
       }
     }
 
-    return { attack, attackSpeed, attackRange }
+    const equipAtkPct = hero.baseStats.attack > 0 ? flatEquipAtk / hero.baseStats.attack : 0
+    const totalOutAtkBonus = DamageCalculator.clampOutOfBattleBonus(
+      levelBonus + starBonus + gemBonuses.attackPercent + equipAtkPct
+    )
+    let attack = Math.floor(hero.baseStats.attack * (1 + totalOutAtkBonus))
+
+    const equipSpdPct = hero.baseStats.attackSpeed > 0 ? flatEquipSpd / hero.baseStats.attackSpeed : 0
+    const totalOutSpdBonus = DamageCalculator.clampOutOfBattleBonus(gemBonuses.attackSpeedPercent + equipSpdPct)
+    let attackSpeed = Number((hero.baseStats.attackSpeed * (1 + totalOutSpdBonus)).toFixed(2))
+
+    const equipRngPct = hero.baseStats.attackRange > 0 ? (flatEquipRng + gemBonuses.attackRangeFlat) / hero.baseStats.attackRange : 0
+    const totalOutRngBonus = DamageCalculator.clampOutOfBattleBonus(equipRngPct)
+    const attackRange = Math.floor(hero.baseStats.attackRange * (1 + totalOutRngBonus))
+
+    if (hero.passiveSkillId === 'skill_passive_zhangfei') {
+      attack = Math.floor(attack * 1.1)
+    } else if (hero.passiveSkillId === 'skill_passive_zhaoyun') {
+      attackSpeed = Number((attackSpeed * 1.2).toFixed(2))
+    }
+
+    const critRate = Math.min(0.85, (hero.baseStats.critRate ?? 0.10) + gemBonuses.critRateBonus)
+    const critDamage = (hero.baseStats.critDamage ?? 0.50) + gemBonuses.critDamageBonus
+
+    return { attack, attackSpeed, attackRange, critRate, critDamage }
   }
 
   /**

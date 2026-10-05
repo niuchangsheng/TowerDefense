@@ -1,5 +1,5 @@
-import { Equipment, Weapon, Artifact, Gem, Hero, WuXing, WuXingNames, WuXingGenerate, getAllowedGemWuXing, ResonanceType, HeroResonanceInfo } from '@/types'
-import { getWeapon, getArtifact } from '@/data/equipment'
+import { Equipment, Weapon, Artifact, Gem, GemStatType, Hero, WuXing, WuXingNames, WuXingGenerate, getAllowedGemWuXing, ResonanceType, HeroResonanceInfo } from '@/types'
+import { getWeapon, getArtifact, rollGemAffixes } from '@/data/equipment'
 
 /**
  * 装备实例（玩家拥有的装备）
@@ -301,14 +301,15 @@ export class EquipmentManager {
 
     const isExclusive = this.isExclusiveForHero(equip.artifact.instanceId, heroId, heroName)
 
-    let gem: Gem | null = null
-    if (artifact.gemSocket?.currentGem) {
-      if (typeof artifact.gemSocket.currentGem === 'string') {
-        gem = this.ownedGems.get(artifact.gemSocket.currentGem) || null
-      } else {
-        gem = artifact.gemSocket.currentGem as Gem
-      }
+    const resolveGem = (gemRef?: string | Gem | null): Gem | null => {
+      if (!gemRef) return null
+      if (typeof gemRef === 'string') return this.ownedGems.get(gemRef) || null
+      return gemRef
     }
+
+    const gem = resolveGem(artifact.gemSocket?.currentGem)
+    const sameGem = resolveGem(artifact.gemSocket?.sameGem) || (gem && gem.wuXing === artifact.gemSocket?.requiredWuXing ? gem : null)
+    const generatingGem = resolveGem(artifact.gemSocket?.generatingGem) || (gem && WuXingGenerate[gem.wuXing] === artifact.gemSocket?.requiredWuXing ? gem : null)
 
     let resonanceType: ResonanceType = 'none'
     if (gem && artifact.gemSocket?.requiredWuXing) {
@@ -323,16 +324,79 @@ export class EquipmentManager {
     }
 
     const hasResonance = isExclusive && resonanceType !== 'none'
+    const sameGemLevel = sameGem ? sameGem.level : 0
+    const generatingGemLevel = generatingGem ? generatingGem.level : 0
+    const hasDualLv5Ultimate = isExclusive && sameGemLevel === 5 && generatingGemLevel === 5
 
     return {
       isExclusive,
       hasResonance,
       resonanceType,
-      gemLevel: gem ? gem.level : 0,
+      gemLevel: gem ? gem.level : Math.max(sameGemLevel, generatingGemLevel),
+      sameGemLevel,
+      generatingGemLevel,
+      hasDualLv5Ultimate,
       artifact,
       gem,
+      sameGem,
+      generatingGem,
       resonanceConfig: artifact.exclusiveResonance
     }
+  }
+
+  /**
+   * 计算武将所佩戴神器镶嵌宝石提供的五大基础属性增益
+   */
+  getHeroGemStatBonuses(heroId: string): {
+    attackPercent: number
+    attackRangeFlat: number
+    attackSpeedPercent: number
+    critRateBonus: number
+    critDamageBonus: number
+  } {
+    const bonuses = {
+      attackPercent: 0,
+      attackRangeFlat: 0,
+      attackSpeedPercent: 0,
+      critRateBonus: 0,
+      critDamageBonus: 0
+    }
+    const equip = this.getHeroEquipment(heroId)
+    if (!equip.artifact) return bonuses
+
+    const artifact = this.getEquipmentDetail(equip.artifact.instanceId) as Artifact
+    if (!artifact || !artifact.gemSocket) return bonuses
+
+    const gemIds = new Set<string>()
+    if (typeof artifact.gemSocket.currentGem === 'string') gemIds.add(artifact.gemSocket.currentGem)
+    if (typeof artifact.gemSocket.sameGem === 'string') gemIds.add(artifact.gemSocket.sameGem)
+    if (typeof artifact.gemSocket.generatingGem === 'string') gemIds.add(artifact.gemSocket.generatingGem)
+
+    for (const gid of gemIds) {
+      const gem = this.ownedGems.get(gid)
+      if (!gem || !gem.affixes) continue
+      for (const affix of gem.affixes) {
+        switch (affix.stat) {
+          case 'attack':
+            bonuses.attackPercent += affix.value
+            break
+          case 'attackRange':
+            bonuses.attackRangeFlat += affix.value
+            break
+          case 'attackSpeed':
+            bonuses.attackSpeedPercent += affix.value
+            break
+          case 'critRate':
+            bonuses.critRateBonus += affix.value
+            break
+          case 'critDamage':
+            bonuses.critDamageBonus += affix.value
+            break
+        }
+      }
+    }
+
+    return bonuses
   }
 
   /**
@@ -358,13 +422,19 @@ export class EquipmentManager {
   }
 
   /**
-   * 添加宝石
+   * 添加宝石（自动生成 2 条随机五维基础属性词条，支持无尽保底分位与三合一主石词条继承）
    */
-  addGem(wuXing: string, level: number): Gem {
+  addGem(
+    wuXing: string,
+    level: number,
+    minRollPercentile: number = 0,
+    inheritedStats?: GemStatType[]
+  ): Gem {
     const gem: Gem = {
       id: `gem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      wuXing: wuXing as any,
-      level
+      wuXing: wuXing as WuXing,
+      level,
+      affixes: rollGemAffixes(level, minRollPercentile, inheritedStats)
     }
     this.ownedGems.set(gem.id, gem)
     return gem
@@ -395,12 +465,13 @@ export class EquipmentManager {
   }
 
   /**
-   * 宝石合成（3个同级宝石合成1个高级宝石）
+   * 宝石三合一升阶（支持指定【主石】mainGemId 100% 继承其 2 条词条属性类型）
    * @param wuXing 五行属性
    * @param level 当前等级（合成前的等级）
+   * @param mainGemId 可选指定的主石ID（若未指定则默认取第1颗为主石，100%继承其词条类型）
    * @returns 合成后的新宝石，或null（合成失败）
    */
-  synthesizeGems(wuXing: string, level: number): Gem | null {
+  synthesizeGems(wuXing: string, level: number, mainGemId?: string): Gem | null {
     // 不能合成5级宝石（已经是最高级）
     if (level >= 5) {
       console.warn('5级宝石无法继续合成')
@@ -414,15 +485,27 @@ export class EquipmentManager {
       return null
     }
 
-    // 删除3个低级宝石
-    for (let i = 0; i < 3; i++) {
-      this.ownedGems.delete(gems[i].id)
+    // 确定主石并提取其 2 条词条类型以 100% 定向继承
+    const mainGem = (mainGemId ? gems.find(g => g.id === mainGemId) : undefined) || gems[0]
+    const inheritedStats = mainGem.affixes?.map(a => a.stat)
+
+    // 挑选需要消耗的3颗宝石（包含主石）
+    const toConsume: Gem[] = [mainGem]
+    for (const g of gems) {
+      if (toConsume.length >= 3) break
+      if (g.id !== mainGem.id) {
+        toConsume.push(g)
+      }
     }
 
-    // 创建1个高级宝石
-    const newGem = this.addGem(wuXing, level + 1)
+    for (const g of toConsume) {
+      this.ownedGems.delete(g.id)
+    }
 
-    console.log(`合成成功：3个${wuXing}系Lv.${level}宝石 → 1个${wuXing}系Lv.${level + 1}宝石`)
+    // 创建1个高级宝石，100% 继承主石的 2 条词条类型并在新等级 [Min, Max] 区间重新 Roll 值
+    const newGem = this.addGem(wuXing, level + 1, 0, inheritedStats)
+
+    console.log(`合成成功：3个${wuXing}系Lv.${level}宝石 → 1个${wuXing}系Lv.${level + 1}宝石（主石词条100%继承）`)
     return newGem
   }
 
@@ -441,7 +524,7 @@ export class EquipmentManager {
   }
 
   /**
-   * 镶嵌宝石到神器（支持同源与相生宝石匹配）
+   * 镶嵌宝石到神器（支持 2★ 同源槽 same 与 4★ 相生槽 generating，兼容单槽 currentGem）
    */
   socketGemToArtifact(artifactInstanceId: string, gemId: string): boolean {
     const artifactInstance = this.ownedEquipment.get(artifactInstanceId)
@@ -459,8 +542,13 @@ export class EquipmentManager {
       return false
     }
 
-    // 镶嵌新宝石（旧宝石保留在拥有列表中）
+    // 同步记录到同源槽或相生槽以及 currentGem
     artifactDetail.gemSocket.currentGem = gemId
+    if (gem.wuXing === artifactDetail.gemSocket.requiredWuXing) {
+      artifactDetail.gemSocket.sameGem = gemId
+    } else if (WuXingGenerate[gem.wuXing] === artifactDetail.gemSocket.requiredWuXing) {
+      artifactDetail.gemSocket.generatingGem = gemId
+    }
     return true
   }
 
@@ -475,6 +563,8 @@ export class EquipmentManager {
     if (!artifactDetail || !artifactDetail.gemSocket) return false
 
     artifactDetail.gemSocket.currentGem = null
+    artifactDetail.gemSocket.sameGem = null
+    artifactDetail.gemSocket.generatingGem = null
     return true
   }
 

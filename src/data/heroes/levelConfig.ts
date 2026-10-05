@@ -1,144 +1,165 @@
 import { HeroLevelConfig, ExpRewardConfig } from '@/types'
 
 /**
- * 英雄等级经验配置
- * 每升一级所需的经验值
+ * 武道十境（Lv.1 ~ Lv.10）等级配置
+ * 铁律：局外保下限，严控数值膨胀。
+ * - 最高等级为 10 级（十境·无双大宗师）；
+ * - 每升 1 境，基础攻击力提升 +3.6%（Lv.1 = 1.000，Lv.10 = 1.360，即最高 +36.0%）；
+ * - 配合双 Lv.5 宝石极限攻击词条（+7.0% × 2 = +14.0%），全局局外攻击总增益严格 <= +50.0%！
  */
-export const heroLevelConfigs: HeroLevelConfig[] = [
-  // 1-10级
-  { level: 1, expRequired: 0, statMultiplier: 1.0 },
-  { level: 2, expRequired: 100, statMultiplier: 1.05 },
-  { level: 3, expRequired: 200, statMultiplier: 1.1 },
-  { level: 4, expRequired: 350, statMultiplier: 1.15 },
-  { level: 5, expRequired: 500, statMultiplier: 1.2 },
-  { level: 6, expRequired: 700, statMultiplier: 1.25 },
-  { level: 7, expRequired: 900, statMultiplier: 1.3 },
-  { level: 8, expRequired: 1200, statMultiplier: 1.35 },
-  { level: 9, expRequired: 1500, statMultiplier: 1.4 },
-  { level: 10, expRequired: 2000, statMultiplier: 1.45 },
+export const MAX_HERO_LEVEL = 10
 
-  // 11-20级
-  { level: 11, expRequired: 2500, statMultiplier: 1.5 },
-  { level: 12, expRequired: 3000, statMultiplier: 1.55 },
-  { level: 13, expRequired: 3500, statMultiplier: 1.6 },
-  { level: 14, expRequired: 4000, statMultiplier: 1.65 },
-  { level: 15, expRequired: 5000, statMultiplier: 1.7 },
-  { level: 16, expRequired: 6000, statMultiplier: 1.75 },
-  { level: 17, expRequired: 7000, statMultiplier: 1.8 },
-  { level: 18, expRequired: 8500, statMultiplier: 1.85 },
-  { level: 19, expRequired: 10000, statMultiplier: 1.9 },
-  { level: 20, expRequired: 12000, statMultiplier: 1.95 },
+export const MARTIAL_REALM_NAMES: Record<number, string> = {
+  1: '一境·初窥门径',
+  2: '二境·气贯周天',
+  3: '三境·洗髓伐毛',
+  4: '四境·罡气外放',
+  5: '五境·炉火纯青',
+  6: '六境·登峰造极',
+  7: '七境·出神入化',
+  8: '八境·返璞归真',
+  9: '九境·一代宗师',
+  10: '十境·无双大宗师'
+}
 
-  // 21-30级
-  { level: 21, expRequired: 14000, statMultiplier: 2.0 },
-  { level: 22, expRequired: 16000, statMultiplier: 2.05 },
-  { level: 23, expRequired: 18000, statMultiplier: 2.1 },
-  { level: 24, expRequired: 20000, statMultiplier: 2.15 },
-  { level: 25, expRequired: 25000, statMultiplier: 2.2 },
-  { level: 26, expRequired: 30000, statMultiplier: 2.25 },
-  { level: 27, expRequired: 35000, statMultiplier: 2.3 },
-  { level: 28, expRequired: 40000, statMultiplier: 2.35 },
-  { level: 29, expRequired: 45000, statMultiplier: 2.4 },
-  { level: 30, expRequired: 50000, statMultiplier: 2.45 },
+/**
+ * 生成 1~10 境的武道升级经验与属性倍率配置
+ */
+function generateLevelConfigs(): HeroLevelConfig[] {
+  const configs: HeroLevelConfig[] = []
+  const expTable = [0, 100, 160, 240, 350, 500, 700, 950, 1250, 1600]
 
-  // 31-40级
-  { level: 31, expRequired: 60000, statMultiplier: 2.5 },
-  { level: 32, expRequired: 70000, statMultiplier: 2.55 },
-  { level: 33, expRequired: 80000, statMultiplier: 2.6 },
-  { level: 34, expRequired: 90000, statMultiplier: 2.65 },
-  { level: 35, expRequired: 100000, statMultiplier: 2.7 },
-  { level: 36, expRequired: 120000, statMultiplier: 2.75 },
-  { level: 37, expRequired: 140000, statMultiplier: 2.8 },
-  { level: 38, expRequired: 160000, statMultiplier: 2.85 },
-  { level: 39, expRequired: 180000, statMultiplier: 2.9 },
-  { level: 40, expRequired: 200000, statMultiplier: 2.95 },
+  for (let level = 1; level <= MAX_HERO_LEVEL; level++) {
+    // Lv.1 为 1.000，每升 1 境 +4.0%，Lv.10 封顶为 1.360（即局外武道十境累计最高 +36.0%）
+    const statMultiplier = Number((1 + (level - 1) * 0.04).toFixed(4))
 
-  // 41-50级
-  { level: 41, expRequired: 250000, statMultiplier: 3.0 },
-  { level: 42, expRequired: 300000, statMultiplier: 3.05 },
-  { level: 43, expRequired: 350000, statMultiplier: 3.1 },
-  { level: 44, expRequired: 400000, statMultiplier: 3.15 },
-  { level: 45, expRequired: 500000, statMultiplier: 3.2 },
-  { level: 46, expRequired: 600000, statMultiplier: 3.25 },
-  { level: 47, expRequired: 700000, statMultiplier: 3.3 },
-  { level: 48, expRequired: 800000, statMultiplier: 3.35 },
-  { level: 49, expRequired: 900000, statMultiplier: 3.4 },
-  { level: 50, expRequired: 1000000, statMultiplier: 3.45 },
+    configs.push({
+      level,
+      expRequired: expTable[level - 1] ?? 1600,
+      statMultiplier
+    })
+  }
 
-  // 51-60级（顶级）
-  { level: 51, expRequired: 1200000, statMultiplier: 3.5 },
-  { level: 52, expRequired: 1400000, statMultiplier: 3.55 },
-  { level: 53, expRequired: 1600000, statMultiplier: 3.6 },
-  { level: 54, expRequired: 1800000, statMultiplier: 3.65 },
-  { level: 55, expRequired: 2000000, statMultiplier: 3.7 },
-  { level: 56, expRequired: 2500000, statMultiplier: 3.75 },
-  { level: 57, expRequired: 3000000, statMultiplier: 3.8 },
-  { level: 58, expRequired: 3500000, statMultiplier: 3.85 },
-  { level: 59, expRequired: 4000000, statMultiplier: 3.9 },
-  { level: 60, expRequired: 5000000, statMultiplier: 4.0 }
-]
+  return configs
+}
+
+export const heroLevelConfigs: HeroLevelConfig[] = generateLevelConfigs()
 
 /**
  * 经验奖励配置
- * 不同敌人提供的经验值
  */
 export const expRewardConfig: ExpRewardConfig = {
   normalEnemy: 10,
-  eliteEnemy: 50,
-  bossEnemy: 200
+  eliteEnemy: 30,
+  bossEnemy: 100
 }
 
 /**
- * 获取升级所需经验
+ * 获取武道十境称号
+ */
+export function getMartialRealmName(level: number): string {
+  const clamped = Math.max(1, Math.min(MAX_HERO_LEVEL, level))
+  return MARTIAL_REALM_NAMES[clamped] || `Lv.${clamped}`
+}
+
+/**
+ * 获取指定等级所需经验
  */
 export function getExpRequiredForLevel(level: number): number {
-  if (level < 1 || level > 60) return 0
+  if (level <= 1) return 0
+  if (level > MAX_HERO_LEVEL) return Infinity
 
   const config = heroLevelConfigs.find(c => c.level === level)
-  return config?.expRequired || 0
+  return config ? config.expRequired : Infinity
 }
 
 /**
- * 获取下一级所需经验（当前等级到下一级的差距）
- */
-export function getExpToNextLevel(currentLevel: number): number {
-  if (currentLevel >= 60) return 0 // 已达顶级
-
-  const currentExp = getExpRequiredForLevel(currentLevel)
-  const nextExp = getExpRequiredForLevel(currentLevel + 1)
-
-  return nextExp - currentExp
-}
-
-/**
- * 根据总经验计算当前等级
- */
-export function calculateLevelFromExp(totalExp: number): number {
-  for (let i = heroLevelConfigs.length - 1; i >= 0; i--) {
-    if (totalExp >= heroLevelConfigs[i].expRequired) {
-      return heroLevelConfigs[i].level
-    }
-  }
-  return 1
-}
-
-/**
- * 获取当前等级的经验进度（0-1）
- */
-export function getExpProgress(currentExp: number, currentLevel: number): number {
-  if (currentLevel >= 60) return 1 // 顶级显示100%
-
-  const levelExp = getExpRequiredForLevel(currentLevel)
-  const nextLevelExp = getExpRequiredForLevel(currentLevel + 1)
-
-  const progress = (currentExp - levelExp) / (nextLevelExp - levelExp)
-  return Math.min(1, Math.max(0, progress))
-}
-
-/**
- * 获取属性倍率
+ * 获取指定等级的属性倍率（最高夹紧在 Lv.10 的 1.36 倍，确保不超过 +36%）
  */
 export function getStatMultiplier(level: number): number {
-  const config = heroLevelConfigs.find(c => c.level === level)
-  return config?.statMultiplier || 1.0
+  const clampedLevel = Math.max(1, Math.min(MAX_HERO_LEVEL, level))
+  const config = heroLevelConfigs.find(c => c.level === clampedLevel)
+  return config ? config.statMultiplier : 1.0
+}
+
+/**
+ * 获取指定等级的局外属性加成百分比（Lv.1 = 0, Lv.10 = 0.36）
+ */
+export function getLevelStatBonus(level: number): number {
+  return Number((getStatMultiplier(level) - 1.0).toFixed(4))
+}
+
+/**
+ * 根据累计总经验计算对应的武道等级（Lv.1 ~ Lv.10）
+ */
+export function calculateLevelFromExp(totalExp: number): number {
+  const res = calculateLevelUp(1, 0, Math.max(0, totalExp))
+  return res.newLevel
+}
+
+/**
+ * 计算从 Lv.1 升至指定等级累计消耗的总经验（用于【一键无损传功】100% 返还）
+ */
+export function getTotalInvestedExp(level: number, currentExp: number = 0): number {
+  const clampedLevel = Math.max(1, Math.min(MAX_HERO_LEVEL, level))
+  let total = Math.max(0, currentExp)
+  for (let lv = 2; lv <= clampedLevel; lv++) {
+    total += getExpRequiredForLevel(lv)
+  }
+  return total
+}
+
+/**
+ * 计算升级后的等级和剩余经验
+ */
+export function calculateLevelUp(currentLevel: number, currentExp: number, addedExp: number): {
+  newLevel: number
+  remainingExp: number
+  leveledUp: boolean
+} {
+  let level = Math.min(MAX_HERO_LEVEL, Math.max(1, currentLevel))
+  let exp = currentExp + addedExp
+  let leveledUp = false
+
+  while (level < MAX_HERO_LEVEL) {
+    const expNeeded = getExpRequiredForLevel(level + 1)
+    if (exp >= expNeeded) {
+      exp -= expNeeded
+      level++
+      leveledUp = true
+    } else {
+      break
+    }
+  }
+
+  if (level >= MAX_HERO_LEVEL) {
+    exp = 0
+  }
+
+  return {
+    newLevel: level,
+    remainingExp: exp,
+    leveledUp
+  }
+}
+
+/**
+ * 获取当前等级到下一级的经验进度（0-1）
+ */
+export function getExpProgress(currentLevel: number, currentExp: number): number {
+  if (currentLevel >= MAX_HERO_LEVEL) return 1.0
+
+  const expNeeded = getExpRequiredForLevel(currentLevel + 1)
+  if (expNeeded === 0 || expNeeded === Infinity) return 1.0
+  return Math.min(currentExp / expNeeded, 1.0)
+}
+
+/**
+ * 获取升到下一级还需要的经验
+ */
+export function getExpToNextLevel(currentLevel: number, currentExp: number): number {
+  if (currentLevel >= MAX_HERO_LEVEL) return 0
+
+  const expNeeded = getExpRequiredForLevel(currentLevel + 1)
+  return Math.max(expNeeded - currentExp, 0)
 }

@@ -1,5 +1,5 @@
 import { WuXing } from '@/types/wuxing.types'
-import { Augment, StratagemState } from '@/types/augment'
+import { Augment } from '@/types/augment'
 import { AUGMENT_POOL, REPEATABLE_AUGMENTS } from '@/data/augments'
 import { ElementalReactionManager } from '@/core/elemental/ElementalReactionManager'
 
@@ -9,21 +9,30 @@ export interface AugmentManagerCallbacks {
   onStratagemReady?: (readyCount: number) => void
 }
 
+/** 15 波紧凑战役中固定触发锦囊三选一的波次节点（共 5 次：W1开局，W4/W7/W10/W13清波后） */
+export const CAMPAIGN_CLEAR_AUGMENT_WAVES: readonly number[] = [4, 7, 10, 13]
+
 /**
  * 军师锦囊（天命肉鸽）管理器
- * 负责局内能量充能、锦囊卡池抽取、三选一选择与全局词条加成计算
+ * 负责局内 5 次自选锦囊节奏、能量充能、保底 1 张在场五行契合牌 + 纯随机抽取、2 枚免费易策令与四乘区加成汇总
  */
 export class AugmentManager {
   private currentEnergy: number = 0
   private readonly maxEnergy: number = 100
   private readyCount: number = 0
-  private rerollCount: number = 1
+  /** 每局默认附带 2 枚免费【易策令】（重抽机会） */
+  private rerollCount: number = 2
   private activeAugments: Augment[] = []
+  private triggeredWaveAugments: Set<number> = new Set()
 
-  // 累积效果缓存
+  // 四独立乘区与基础通用累积效果缓存
   private totalAttackPercentBonus: number = 0
   private totalAttackSpeedBonus: number = 0
   private totalAttackRangeBonus: number = 0
+  private totalCritRateBonus: number = 0
+  private totalCritDamageBonus: number = 0
+  private totalDamageIncreaseBonus: number = 0
+  private totalVulnerabilityBonus: number = 0
   private totalReactionMultiplierBonus: number = 0
   private totalCostGainBonus: number = 0
   private totalCounterMultiplierBonus: number = 0
@@ -38,6 +47,30 @@ export class AugmentManager {
 
   public setCallbacks(callbacks: AugmentManagerCallbacks): void {
     this.callbacks = callbacks
+  }
+
+  /**
+   * 检查并触发 15 波战役的 5 次固定节点锦囊（Wave 1 开局，Wave 4 / 7 / 10 / 13 清波后）
+   * @param waveNumber 波次编号
+   * @param timing 'start' | 'clear'
+   * @returns 是否触发了新的锦囊三选一
+   */
+  public checkAndTriggerWaveAugment(waveNumber: number, timing: 'start' | 'clear'): boolean {
+    if (timing === 'start' && waveNumber === 1 && !this.triggeredWaveAugments.has(1)) {
+      this.triggeredWaveAugments.add(1)
+      this.grantInstantStratagem()
+      return true
+    }
+    if (
+      timing === 'clear' &&
+      CAMPAIGN_CLEAR_AUGMENT_WAVES.includes(waveNumber) &&
+      !this.triggeredWaveAugments.has(waveNumber)
+    ) {
+      this.triggeredWaveAugments.add(waveNumber)
+      this.grantInstantStratagem()
+      return true
+    }
+    return false
   }
 
   /**
@@ -74,7 +107,7 @@ export class AugmentManager {
   }
 
   /**
-   * 直接奖励一个就绪锦囊（例如Boss掉落密函）
+   * 直接奖励一个就绪锦囊（例如固定波次节点或 Boss 掉落密函）
    */
   public grantInstantStratagem(): void {
     this.readyCount++
@@ -101,7 +134,8 @@ export class AugmentManager {
 
   /**
    * 从卡池中抽取 3 个候选锦囊
-   * 算法会根据出场英雄的阵营与五行属性进行智能加权推荐
+   * 规则：取消按已选流派隐性加权推荐的温室算法，恢复肉鸽随机性！
+   * 每次三选一仅保底 1 张与当前在场武将或五行相关的锦囊，其余 2 张从可用池纯粹随机抽取。
    */
   public drawOptions(
     deployedHeroIds: string[] = [],
@@ -110,72 +144,59 @@ export class AugmentManager {
   ): Augment[] {
     const activeIds = new Set(this.activeAugments.filter(a => !a.repeatable).map(a => a.id))
 
-    // 过滤掉不可重复且已选择的锦囊，并无缝混入可重复精进锦囊（保证后期与长线随时可选取精进词条）
     const unpickedUnique = AUGMENT_POOL.filter(aug => !activeIds.has(aug.id))
-    const candidates = [...unpickedUnique, ...REPEATABLE_AUGMENTS]
+    const allCandidates = [...unpickedUnique, ...REPEATABLE_AUGMENTS]
 
-    if (candidates.length <= count) {
-      return [...candidates]
-    }
-
-    // 智能权重计算
-    const weightedPool: { augment: Augment; weight: number }[] = candidates.map(aug => {
-      let weight = 10
-
-      // 英雄专属判定
-      if (aug.heroRequirement) {
-        if (deployedHeroIds.includes(aug.heroRequirement)) {
-          weight += 25 // 场上有对应英雄，权重极大提升
-        } else {
-          weight = 1 // 场上没有对应英雄，几乎不出现
-        }
+    // 若场上有部署英雄，过滤掉未登场英雄的专属卡（避免抽到未上阵英雄死卡）
+    const validCandidates = allCandidates.filter(aug => {
+      if (aug.heroRequirement && deployedHeroIds.length > 0) {
+        return deployedHeroIds.includes(aug.heroRequirement)
       }
-
-      // 五行相生共鸣判定
-      if (aug.wuXingRequirement && aug.wuXingRequirement.length > 0) {
-        const matches = aug.wuXingRequirement.filter(w => deployedWuXing.includes(w))
-        if (matches.length === aug.wuXingRequirement.length) {
-          weight += 30 // 全匹配五行共鸣组合，极高权重
-        } else if (matches.length > 0) {
-          weight += 12 // 部分匹配
-        }
-      }
-
-      // 品质基底权重
-      if (aug.rarity === 'common') weight *= 1.2
-      else if (aug.rarity === 'rare') weight *= 1.0
-      else if (aug.rarity === 'epic') weight *= 0.65
-      else if (aug.rarity === 'legendary') weight *= 0.35
-
-      return { augment: aug, weight: Math.max(1, weight) }
+      return true
     })
 
-    // 无放回加权抽样
+    const pool = validCandidates.length >= count ? [...validCandidates] : [...allCandidates]
+    if (pool.length <= count) {
+      return [...pool]
+    }
+
     const selected: Augment[] = []
-    const available = [...weightedPool]
 
-    for (let i = 0; i < count && available.length > 0; i++) {
-      const totalWeight = available.reduce((sum, item) => sum + item.weight, 0)
-      let randomVal = Math.random() * totalWeight
+    // 槽位 1：保底 1 张与在场五行或已部署武将相关的契合牌
+    if (deployedHeroIds.length > 0 || deployedWuXing.length > 0) {
+      const matchingPool = pool.filter(aug => {
+        if (aug.heroRequirement && deployedHeroIds.includes(aug.heroRequirement)) {
+          return true
+        }
+        if (aug.wuXingRequirement && aug.wuXingRequirement.some(w => deployedWuXing.includes(w))) {
+          return true
+        }
+        return false
+      })
 
-      let chosenIndex = 0
-      for (let j = 0; j < available.length; j++) {
-        randomVal -= available[j].weight
-        if (randomVal <= 0) {
-          chosenIndex = j
-          break
+      if (matchingPool.length > 0) {
+        const idx = Math.floor(Math.random() * matchingPool.length)
+        const picked = matchingPool[idx]
+        selected.push(picked)
+        const poolIdx = pool.findIndex(a => a.id === picked.id)
+        if (poolIdx !== -1) {
+          pool.splice(poolIdx, 1)
         }
       }
+    }
 
-      selected.push(available[chosenIndex].augment)
-      available.splice(chosenIndex, 1)
+    // 其余槽位：从剩余可用池中纯粹随机无放回抽取
+    while (selected.length < count && pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length)
+      selected.push(pool[idx])
+      pool.splice(idx, 1)
     }
 
     return selected
   }
 
   /**
-   * 刷新抽卡候选
+   * 使用【易策令】刷新抽卡候选
    */
   public reroll(
     deployedHeroIds: string[] = [],
@@ -187,14 +208,14 @@ export class AugmentManager {
   }
 
   /**
-   * 增加重整军策（刷新令）次数
+   * 增加【易策令】（刷新令）次数
    */
   public grantRerolls(count: number = 1): void {
     this.rerollCount += count
   }
 
   /**
-   * 玩家确认选择锦囊
+   * 玩家确认选择锦囊（严格归入四独立伤害乘区加算）
    */
   public selectAugment(augment: Augment): void {
     if (this.readyCount > 0) {
@@ -204,10 +225,15 @@ export class AugmentManager {
     this.activeAugments.push(augment)
     const eff = augment.effects
 
-    // 叠加通用属性
+    // 叠加通用属性与四独立乘区加成
     if (eff.attackPercentBonus) this.totalAttackPercentBonus += eff.attackPercentBonus
     if (eff.attackSpeedBonus) this.totalAttackSpeedBonus += eff.attackSpeedBonus
     if (eff.attackRangeBonus) this.totalAttackRangeBonus += eff.attackRangeBonus
+    if (eff.critRateBonus) this.totalCritRateBonus += eff.critRateBonus
+    if (eff.critDamageBonus) this.totalCritDamageBonus += eff.critDamageBonus
+    if (eff.damageIncreaseBonus) this.totalDamageIncreaseBonus += eff.damageIncreaseBonus
+    if (eff.vulnerabilityBonus) this.totalVulnerabilityBonus += eff.vulnerabilityBonus
+
     if (eff.reactionDamageMultiplier) {
       this.totalReactionMultiplierBonus += eff.reactionDamageMultiplier
       ElementalReactionManager.getInstance().setReactionDamageMultiplier(
@@ -233,10 +259,30 @@ export class AugmentManager {
     }
   }
 
-  // ==================== 属性加成查询 ====================
+  // ==================== 四独立乘区与属性加成查询 ====================
 
+  /** 乘区 1：攻击力加成区 */
   public getAttackPercentBonus(): number {
     return this.totalAttackPercentBonus
+  }
+
+  /** 乘区 2：增伤加成区 */
+  public getDamageIncreaseBonus(): number {
+    return this.totalDamageIncreaseBonus
+  }
+
+  /** 乘区 3：易伤加成区 */
+  public getVulnerabilityBonus(): number {
+    return this.totalVulnerabilityBonus
+  }
+
+  /** 乘区 4：暴击率与暴击伤害加成 */
+  public getCritRateBonus(): number {
+    return this.totalCritRateBonus
+  }
+
+  public getCritDamageBonus(): number {
+    return this.totalCritDamageBonus
   }
 
   public getAttackSpeedBonus(): number {
@@ -265,11 +311,16 @@ export class AugmentManager {
   public reset(): void {
     this.currentEnergy = 0
     this.readyCount = 0
-    this.rerollCount = 1
+    this.rerollCount = 2
     this.activeAugments = []
+    this.triggeredWaveAugments.clear()
     this.totalAttackPercentBonus = 0
     this.totalAttackSpeedBonus = 0
     this.totalAttackRangeBonus = 0
+    this.totalCritRateBonus = 0
+    this.totalCritDamageBonus = 0
+    this.totalDamageIncreaseBonus = 0
+    this.totalVulnerabilityBonus = 0
     this.totalReactionMultiplierBonus = 0
     this.totalCostGainBonus = 0
     this.totalCounterMultiplierBonus = 0

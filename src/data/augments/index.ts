@@ -67,41 +67,44 @@ export const AUGMENT_POOL: Augment[] = [
     id: 'aug_molten_core',
     name: '大地熔炉',
     subtitle: '火生土·熔岩共鸣',
-    description: '火土共鸣：【火生土·熔岩】减速效果提升至 70%，且对路过敌人造成持续百分比灼伤。',
+    description: '火土共鸣：【火生土·熔岩】额外削减敌军韧性与刚毅，且全军暴击伤害 +25%，熔岩池灼烧伤害提升 50%。',
     rarity: 'rare',
     category: 'elemental',
     wuXingRequirement: ['fire', 'earth'],
     tags: ['火', '土', '熔岩'],
     effects: {
       reactionDamageMultiplier: 0.5,
+      critDamageBonus: 0.25,
       specialId: 'aug_molten_core'
     }
   },
   {
     id: 'aug_vaporize_burst',
-    name: '水火既济',
-    subtitle: '水火相克·蒸发共鸣',
-    description: '水火相克化汽：全场火系与水系英雄攻击力 +15%，【水火·蒸发】爆破伤害提升 60%，且蒸发时产生强劲蒸汽冲击波，击退周围小兵 60 像素并附加 1 秒眩晕！',
+    name: '赤壁火船',
+    subtitle: '火借风势·烈焰共鸣',
+    description: '赤壁东风：全场火系与水系英雄攻击力 +15%，相生反应增伤 +60%，并产生冲击气浪震退周围小兵！',
     rarity: 'rare',
     category: 'elemental',
     wuXingRequirement: ['water', 'fire'],
-    tags: ['水', '火', '蒸发'],
+    tags: ['水', '火', '冲击'],
     effects: {
       reactionDamageMultiplier: 0.6,
       attackPercentBonus: 0.15,
+      damageIncreaseBonus: 0.2,
       specialId: 'aug_vaporize_burst'
     }
   },
   {
     id: 'aug_five_cycle',
-    name: '生生不息',
-    subtitle: '五行大循环',
-    description: '全场五行连锁：每次触发任意五行相生反应，所有英雄攻击力临时提升 2%（本局最高可叠 50%）。',
+    name: '五气朝元',
+    subtitle: '五行相生大循环',
+    description: '五行流转：相生反应伤害提升 50%，且处于多重元素状态下的敌军受到易伤加成 +35%（归入易伤乘区加算）。',
     rarity: 'epic',
     category: 'elemental',
-    tags: ['五行', '成长'],
+    tags: ['五行', '易伤'],
     effects: {
       reactionDamageMultiplier: 0.5,
+      vulnerabilityBonus: 0.35,
       specialId: 'aug_five_cycle'
     }
   },

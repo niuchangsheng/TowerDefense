@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { BattleResult, Rarity, WuXing } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
+import { EquipmentManager } from '@/core/equipment/EquipmentManager'
+import { EndlessModeManager } from '@/core/level/EndlessModeManager'
 import { getHeroConfig } from '@/data/heroes'
 import {
   InkColor,
@@ -96,7 +98,7 @@ export default class SettlementScene extends Phaser.Scene {
       // 每 10 波获指定武将将魂
       const heroStoneCount = Math.floor(waves / 10)
       if (heroStoneCount > 0) {
-        const heroes = ['hero_guanyu', 'hero_zhangfei', 'hero_zhaoyun']
+        const heroes = ['hero_guanyu', 'hero_huangzhong', 'hero_zhangfei', 'hero_machao', 'hero_zhaoyun']
         for (let i = 0; i < heroStoneCount; i++) {
           const heroId = heroes[i % heroes.length]
           const heroConfig = getHeroConfig(heroId)
@@ -142,24 +144,24 @@ export default class SettlementScene extends Phaser.Scene {
       }
     }
 
-    // 随机宝石奖励（20%概率）
-    if (Math.random() < 0.2) {
+    // 随机宝石奖励（35%概率）
+    if (Math.random() < 0.35) {
       const wuXings = ['metal', 'wood', 'water', 'fire', 'earth']
       const gemWuXing = wuXings[Math.floor(Math.random() * wuXings.length)]
-      const gemLevel = Math.ceil(Math.random() * 3) // 1-3级宝石
+      const gemLevel = Math.ceil(Math.random() * 2) // 1-2级宝石
       rewards.gems.push({ wuXing: gemWuXing, level: gemLevel })
     }
 
-    // 武将碎片奖励（通关Boss关卡必有）
-    if (this.battleResult.isVictory && this.hasBossWave()) {
-      const heroes = ['hero_guanyu', 'hero_zhangfei', 'hero_zhaoyun']
+    // 武将碎片奖励（通关15波Boss战役必有）
+    if (this.battleResult.isVictory) {
+      const heroes = ['hero_guanyu', 'hero_huangzhong', 'hero_zhangfei', 'hero_machao', 'hero_zhaoyun']
       const heroId = heroes[Math.floor(Math.random() * heroes.length)]
       const heroConfig = getHeroConfig(heroId)
       if (heroConfig) {
         rewards.soulStones.push({
           heroId,
           heroName: heroConfig.name,
-          amount: Math.ceil(Math.random() * 5) + 2 // 3-7个碎片
+          amount: Math.ceil(Math.random() * 5) + 3
         })
       }
     }
@@ -684,12 +686,15 @@ export default class SettlementScene extends Phaser.Scene {
       saveData.inventory.equipment.push(equip.id)
     }
 
-    // 添加宝石
+    // 添加宝石（支持无尽北伐 Wave 16+ 词条 Min Roll 保底分位跃升）
+    const minRollPct = EndlessModeManager.getGemMinRollPercentile(this.battleResult.wavesCompleted || 0)
+    const eqMgr = EquipmentManager.getInstance()
     for (const gem of this.rewards.gems) {
+      const createdGem = eqMgr.addGem(gem.wuXing as WuXing, gem.level, minRollPct)
       saveData.inventory.gems.push({
-        id: `gem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        wuXing: gem.wuXing,
-        level: gem.level
+        id: createdGem.id,
+        wuXing: createdGem.wuXing,
+        level: createdGem.level
       })
     }
 

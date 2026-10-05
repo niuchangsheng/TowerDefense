@@ -2,6 +2,9 @@ import Phaser from 'phaser'
 import { Hero, DeployedHero, Point, HeroStats } from '@/types'
 import { InkColor, INK_WUXING, InkRadius, inkText, InkText } from '@/ui/InkTheme'
 import { InkSilhouetteRenderer } from '@/rendering/InkSilhouetteRenderer'
+import { getStatMultiplier } from '@/data/heroes/levelConfig'
+import { EquipmentManager } from '@/core/equipment/EquipmentManager'
+import { DamageCalculator } from '@/core/battle/DamageCalculator'
 
 /**
  * 英雄渲染实体（水墨战阵将印风）
@@ -318,17 +321,25 @@ export class HeroEntity extends Phaser.GameObjects.Container {
   }
 
   /**
-   * 获取英雄属性（包含等级、装备和被动技能加成）
+   * 获取英雄五维有效属性（包含武道十境、神兵宝石与被动技能加成，严格执行局外总增益 <= +50% 铁律）
    */
   getEffectiveStats(): HeroStats {
-    const levelMultiplier = 1 + (this.heroData.level - 1) * 0.05
+    const levelMult = getStatMultiplier(this.heroData.level)
+    const levelBonusRatio = Math.max(0, levelMult - 1)
 
-    // 基础属性
-    let attack = Math.floor(this.heroData.baseStats.attack * levelMultiplier)
-    let attackSpeed = this.heroData.baseStats.attackSpeed
-    const attackRange = this.heroData.baseStats.attackRange
+    const gemBonuses = EquipmentManager.getInstance().getHeroGemStatBonuses(this.heroData.id)
 
-    // 应用被动技能buff
+    // 铁律：全局局外数值总增益上限 <= +50%（武道十境最高 +36% + 双 Lv.5 宝石攻击最高 +14% <= +50%）
+    const totalOutAttackBonus = DamageCalculator.clampOutOfBattleBonus(levelBonusRatio + gemBonuses.attackPercent)
+    const totalOutSpeedBonus = DamageCalculator.clampOutOfBattleBonus(gemBonuses.attackSpeedPercent)
+
+    const attack = Math.floor(this.heroData.baseStats.attack * (1 + totalOutAttackBonus))
+    let attackSpeed = this.heroData.baseStats.attackSpeed * (1 + totalOutSpeedBonus)
+    const attackRange = this.heroData.baseStats.attackRange + Math.min(40, gemBonuses.attackRangeFlat)
+    const critRate = Math.min(1.0, (this.heroData.baseStats.critRate ?? 0.15) + gemBonuses.critRateBonus)
+    const critDamage = (this.heroData.baseStats.critDamage ?? 0.50) + gemBonuses.critDamageBonus
+
+    // 应用局内被动技能加成
     const passiveSkillId = this.heroData.passiveSkillId
     if (passiveSkillId === 'skill_passive_zhaoyun') {
       // 龙胆：攻速+15%
@@ -341,7 +352,9 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     return {
       attack,
       attackSpeed,
-      attackRange
+      attackRange,
+      critRate,
+      critDamage
     }
   }
 }

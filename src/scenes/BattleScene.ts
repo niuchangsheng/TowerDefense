@@ -97,7 +97,9 @@ export default class BattleScene extends Phaser.Scene {
   private readonly speedOptions: number[] = [1.0, 2.0, 3.0, 5.0]
   private startWave: number = 1
   private weatherFX!: WeatherAmbientFX
+  private leylineGraphics!: Phaser.GameObjects.Graphics
   private pauseOverlay: Phaser.GameObjects.Container | null = null
+  private wave15ChoiceModal: Phaser.GameObjects.Container | null = null
   private deployDock!: Phaser.GameObjects.Container
   private dockHeight = 96
 
@@ -151,6 +153,7 @@ export default class BattleScene extends Phaser.Scene {
     this.unitDrag = null
     this.unitInfoContainer = null
     this.militaryModal = null
+    this.wave15ChoiceModal = null
     this.dockHeroItems.clear()
     this.dockTroopItems.clear()
 
@@ -178,6 +181,10 @@ export default class BattleScene extends Phaser.Scene {
 
     // 4. 渲染路径格网（任意格可部署）
     this.deploymentZoneRenderer.renderDeploymentZones()
+
+    // 4.5 160px 五行相生阵脉连线图层（位于地面之上、单位之下）
+    this.leylineGraphics = this.add.graphics()
+    this.leylineGraphics.setDepth(8)
 
     // 5. 初始化战斗系统（使用存档中的武将数据）
     const saveManager = SaveManager.getInstance()
@@ -462,7 +469,9 @@ export default class BattleScene extends Phaser.Scene {
 
   /**
    * 已部署单位按住交互：
-   * 按下 → 显示攻击范围 + 属性卡；拖动越过阈值 → 重定位；拖回底栏 → 撤下；松开 → 恢复
+   * 按下 → 显示攻击范围 + 五维属性卡；
+   * 波间布阵期拖动越过阈值 → 重定位；拖回底栏 → 撤下；
+   * 交火期（场上有敌军行军）锁定位置，点击英雄直接触发绝技或查看射程。
    */
   private wireUnitPress(unit: RangeUnit): void {
     const kind: 'hero' | 'troop' = unit instanceof HeroEntity ? 'hero' : 'troop'
@@ -482,7 +491,15 @@ export default class BattleScene extends Phaser.Scene {
       this.rangeUnit = unit
       this.showUnitInfo(unit)
 
-      // 预备拖拽重定位：先释放格子占用（松开未拖动时恢复）
+      // 交火期锁定阵位：不允许拖拽换位，点击武将直接尝试施放主动绝技
+      if (!this.battleSystem.canRepositionUnits()) {
+        if (kind === 'hero') {
+          this.tryManualCastSkill(unit.getDeployedData().instanceId)
+        }
+        return
+      }
+
+      // 波间布阵期预备拖拽重定位：先释放格子占用（松开未拖动时恢复）
       const instanceId = unit.getDeployedData().instanceId
       const footprint = this.battleSystem.beginUnitDrag(instanceId)
       if (!footprint) return
@@ -605,7 +622,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 属性卡：单位头顶的宣纸小片（按住时显示）
+   * 属性卡：单位头顶的宣纸小片（按住时显示五维属性与相生阵脉状态）
    */
   private showUnitInfo(unit: RangeUnit): void {
     this.hideUnitInfo()
@@ -616,8 +633,12 @@ export default class BattleScene extends Phaser.Scene {
       const hero = unit.getHeroData()
       const stats = unit.getEffectiveStats()
       const wuxing = INK_WUXING[hero.wuXing]
-      title = `${hero.name} · Lv.${hero.level} · ${wuxing.label}`
-      line = `攻 ${stats.attack} · 速 ${stats.attackSpeed.toFixed(1)}/秒 · 程 ${stats.attackRange}`
+      const partner = this.battleSystem.getHeroBattleManager().getHeroLeylinePartner(unit.getDeployedData().instanceId)
+      const leylineTag = partner ? ` · 【脉:${partner.getHeroData().name}】` : ''
+      title = `${hero.name} (${hero.star ?? 1}★ Lv.${hero.level}) · ${wuxing.label}${leylineTag}`
+      const critR = Math.round((stats.critRate ?? 0.1) * 100)
+      const critD = Math.round((stats.critDamage ?? 0.5) * 100)
+      line = `攻 ${stats.attack} · 速 ${stats.attackSpeed.toFixed(1)}/s · 程 ${stats.attackRange} · 暴 ${critR}%/+${critD}%`
     } else {
       const troop = unit.getTroopData()
       title = `${troop.name} · ${troop.displayChar}`
@@ -626,7 +647,7 @@ export default class BattleScene extends Phaser.Scene {
 
     const width = this.cameras.main.width
     const offsetY = unit instanceof HeroEntity ? 92 : 50
-    const cx = Phaser.Math.Clamp(unit.x, 110, width - 110)
+    const cx = Phaser.Math.Clamp(unit.x, 140, width - 140)
     const c = this.add.container(cx, unit.y - offsetY)
     c.setDepth(45)
 
@@ -1096,7 +1117,8 @@ export default class BattleScene extends Phaser.Scene {
         color: InkText.ink,
         originX: 0.5
       })
-      const costText = inkText(this, x, y + 38, `${hero.deploymentCost}`, {
+      const effectiveCost = this.battleSystem.getEffectiveHeroDeploymentCost(hero)
+      const costText = inkText(this, x, y + 38, `${effectiveCost}`, {
         size: 10,
         color: InkText.gold,
         originX: 0.5
@@ -1182,13 +1204,31 @@ export default class BattleScene extends Phaser.Scene {
     })
 
     this.battleSystem.onEnemyReachedExit((enemy) => {
-      console.log(`敌人 ${enemy.getEnemyData().name} 到达终点`)
-      this.showTemporaryMessage('敌人突破了防线！')
+      const data = enemy.getEnemyData()
+      if (data.type === 'boss') {
+        this.showTemporaryMessage(`【大营沦陷 · 斩将夺旗】统帅 ${data.name} 突破防线！`)
+      } else if (data.type === 'elite') {
+        this.showTemporaryMessage(`精英【${data.name}】突破防线，帅营 -3！`)
+      } else {
+        this.showTemporaryMessage('敌兵突破防线，帅营 -1！')
+      }
     })
 
     this.battleSystem.onWaveStart((wave) => {
-      console.log(`波次 ${wave} 开始`)
-      this.showTemporaryMessage(`波次 ${wave} 开始！`)
+      const weather = this.battleSystem.getWeatherSystem().getCurrentWeather()
+      this.showTemporaryMessage(`第 ${wave} 波来袭 · 天时【${weather.name}】`)
+    })
+
+    // 无弹窗动态天时轮转监听
+    this.battleSystem.onWeatherChanged((weather, wave) => {
+      this.updateMilitaryBadge()
+      this.weatherFX.setWeather(weather.ambientWeatherKey || 'clear')
+      inkToast(this, `【观星天时 · 第${wave}波】${weather.name}：${weather.description}`, 120)
+    })
+
+    // 第 15 波通关抉择：【🏆 凯旋班师】 vs 【🔥 乘胜北伐 · 踏入无尽烽火 (Wave 16+)】
+    this.battleSystem.onCampaignWave15Choice(() => {
+      this.showCampaignWave15ChoiceModal()
     })
 
     this.battleSystem.onBattleEnd((result) => {
@@ -1209,14 +1249,158 @@ export default class BattleScene extends Phaser.Scene {
     this.battleSystem.getAugmentManager().setCallbacks({
       onStratagemReady: (count) => {
         this.energyGaugeBar?.updateProgress()
-        inkToast(this, `【天命锦囊已就绪 ×${count}】按空格或点击开启`, 120)
+        inkToast(this, `【天命锦囊已就绪 ×${count}】点击上方军令台开启三选一`, 120)
       }
     })
 
-    // 监听天时军情急报事件
     this.battleSystem.onMilitarySituation((situation) => {
       this.openMilitarySituationModal(situation)
     })
+  }
+
+  /**
+   * 弹出第 15 波关底统帅击败后的水墨抉择：
+   * [🏆 凯旋班师] 或 [🔥 乘胜北伐 · 踏入无尽烽火 (Wave 16+)]
+   */
+  private showCampaignWave15ChoiceModal(): void {
+    if (this.wave15ChoiceModal) {
+      this.wave15ChoiceModal.destroy()
+      this.wave15ChoiceModal = null
+    }
+
+    const width = this.cameras.main.width
+    const height = this.cameras.main.height
+
+    const modal = this.add.container(0, 0)
+    modal.setDepth(60)
+
+    const mask = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.55)
+    mask.setInteractive()
+    modal.add(mask)
+
+    const cardW = 540
+    const cardH = 290
+    const cardX = width / 2 - cardW / 2
+    const cardY = height / 2 - cardH / 2
+
+    const box = this.add.graphics()
+    box.fillStyle(InkColor.paperPanel, 0.98)
+    box.fillRoundedRect(cardX, cardY, cardW, cardH, 10)
+    box.lineStyle(2.5, InkColor.cinnabar, 0.9)
+    box.strokeRoundedRect(cardX, cardY, cardW, cardH, 10)
+    box.lineStyle(1, InkColor.ink, 0.35)
+    box.strokeRoundedRect(cardX + 6, cardY + 6, cardW - 12, cardH - 12, 8)
+    modal.add(box)
+
+    const title = inkText(this, width / 2, cardY + 42, '【大捷 · 十五波镇守主帅授首】', {
+      size: 22,
+      color: InkText.cinnabar,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    const desc = inkText(
+      this,
+      width / 2,
+      cardY + 106,
+      '主公已涤荡十五波敌军、击破关底统帅五行铁壁！\n今可凯旋班师领取全额功勋，或率当前阵脉与五策锦囊乘胜北伐，\n踏入第 16 波无尽烽火（掉落灵石词条保底分位逐层跃升）！',
+      {
+        size: 14,
+        color: InkText.ink,
+        originX: 0.5,
+        originY: 0.5
+      }
+    )
+    desc.setAlign('center')
+    modal.add([title, desc])
+
+    const triumphBtn = createInkButton(this, width / 2 - 135, cardY + 225, 220, 46, '🏆 凯旋班师（通关结算）', {
+      fill: InkColor.inkStrong,
+      hoverFill: InkColor.ink,
+      textColor: InkText.paper,
+      fontSize: 15,
+      onClick: () => {
+        modal.destroy()
+        this.wave15ChoiceModal = null
+        this.battleSystem.confirmCampaignVictory()
+      }
+    })
+
+    const endlessBtn = createInkButton(this, width / 2 + 135, cardY + 225, 235, 46, '🔥 乘胜北伐 (Wave 16+)', {
+      fill: InkColor.cinnabar,
+      hoverFill: 0xb53a32,
+      textColor: InkText.paper,
+      fontSize: 15,
+      onClick: () => {
+        modal.destroy()
+        this.wave15ChoiceModal = null
+        inkToast(this, '【乘胜北伐】大军开拔！踏入第 16 波无尽烽火！', 140)
+        this.battleSystem.continueToEndlessNorthExpedition()
+      }
+    })
+
+    modal.add([triumphBtn, endlessBtn])
+    this.wave15ChoiceModal = modal
+  }
+
+  /**
+   * 渲染地面 160px 五行相生阵脉连线（水墨流光双线 + 阵脉交叠提示）
+   */
+  private renderGeneratingLeylines(): void {
+    if (!this.leylineGraphics || !this.battleSystem) return
+    this.leylineGraphics.clear()
+
+    const heroMgr = this.battleSystem.getHeroBattleManager()
+    const connections = heroMgr.getLeylineConnections()
+    if (connections.length === 0) return
+
+    const heroes = heroMgr.getDeployedHeroes()
+    const heroMap = new Map<string, HeroEntity>()
+    for (const h of heroes) {
+      heroMap.set(h.getDeployedData().instanceId, h)
+    }
+
+    for (const conn of connections) {
+      const h1 = heroMap.get(conn.sourceHeroId)
+      const h2 = heroMap.get(conn.targetHeroId)
+      if (!h1 || !h2) continue
+
+      const x1 = h1.x
+      const y1 = h1.y
+      const x2 = h2.x
+      const y2 = h2.y
+
+      const c1 = INK_WUXING[conn.sourceWuXing]?.border ?? InkColor.cinnabar
+      const c2 = INK_WUXING[conn.targetWuXing]?.border ?? InkColor.cinnabar
+
+      // 外层水墨晕染底线
+      this.leylineGraphics.lineStyle(6, InkColor.ink, 0.18)
+      this.leylineGraphics.beginPath()
+      this.leylineGraphics.moveTo(x1, y1)
+      this.leylineGraphics.lineTo(x2, y2)
+      this.leylineGraphics.strokePath()
+
+      // 双色五行相生流光连线
+      this.leylineGraphics.lineStyle(2.5, c1, 0.78)
+      this.leylineGraphics.beginPath()
+      this.leylineGraphics.moveTo(x1, y1)
+      this.leylineGraphics.lineTo((x1 + x2) / 2, (y1 + y2) / 2)
+      this.leylineGraphics.strokePath()
+
+      this.leylineGraphics.lineStyle(2.5, c2, 0.78)
+      this.leylineGraphics.beginPath()
+      this.leylineGraphics.moveTo((x1 + x2) / 2, (y1 + y2) / 2)
+      this.leylineGraphics.lineTo(x2, y2)
+      this.leylineGraphics.strokePath()
+
+      // 连线中点阵脉金环节点
+      const mx = (x1 + x2) / 2
+      const my = (y1 + y2) / 2
+      this.leylineGraphics.fillStyle(InkColor.paperPanel, 0.92)
+      this.leylineGraphics.fillCircle(mx, my, 7)
+      this.leylineGraphics.lineStyle(1.5, InkColor.cinnabar, 0.85)
+      this.leylineGraphics.strokeCircle(mx, my, 7)
+    }
   }
 
   /**
@@ -1241,20 +1425,27 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建顶部令台右侧军机令印徽章（width - 435，常驻可点查阅详情）
+   * 创建顶部令台右侧【观星台·天时】令印徽章（width - 425，点击可查看当前与下段天时预告）
    */
   private createMilitaryBadge(bar: Phaser.GameObjects.Container, width: number): void {
     this.militaryBadgeContainer = this.add.container(width - 425, 26)
     this.militaryBadgeContainer.setVisible(true)
 
-    this.militarySealBg = this.add.rectangle(0, 0, 86, 28, InkColor.paperDeep, 0.95)
+    this.militarySealBg = this.add.rectangle(0, 0, 96, 28, InkColor.paperDeep, 0.95)
     this.militarySealBg.setStrokeStyle(1.2, InkColor.ink)
     this.militarySealBg.setInteractive({ useHandCursor: true })
     this.militarySealBg.on('pointerdown', () => {
-      this.openMilitaryDetailModal()
+      const ws = this.battleSystem.getWeatherSystem()
+      const cur = ws.getCurrentWeather()
+      const next = ws.getNextSegmentWeather(this.battleSystem.getState().currentWave || 1)
+      inkToast(
+        this,
+        `【观星台】当前：${cur.name}（${cur.description}）｜下段预告：${next.name}`,
+        140
+      )
     })
 
-    this.militarySealText = inkText(this, 0, 0, '军机·平', {
+    this.militarySealText = inkText(this, 0, 0, '天时·晴空', {
       size: 12,
       color: InkText.strong,
       bold: true,
@@ -1303,28 +1494,28 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 刷新军机令印显示（避免每帧反复重建对象）
+   * 刷新观星台天时徽章显示
    */
   private updateMilitaryBadge(): void {
     if (!this.militaryBadgeContainer || !this.militarySealBg || !this.militarySealText) return
-    const mgr = this.battleSystem.getMilitarySituationManager()
-    const tactic = mgr.getActiveTactic()
-    const tacticId = tactic ? tactic.id : null
+    const weather = this.battleSystem.getWeatherSystem().getCurrentWeather()
+    const weatherKey = weather.id
 
-    if (tacticId === this.lastMilitaryTacticId) return
-    this.lastMilitaryTacticId = tacticId
+    if (weatherKey === this.lastMilitaryTacticId) return
+    this.lastMilitaryTacticId = weatherKey
 
-    if (tactic) {
-      const isUpper = tactic.type === 'upper'
-      this.militarySealBg.setFillStyle(isUpper ? InkColor.cinnabar : 0x2e5c8a, 1)
-      this.militarySealBg.setSize(102, 28)
+    const shortName = weather.name.slice(0, 2)
+    if (weather.element) {
+      const wxColor = INK_WUXING[weather.element]?.border ?? InkColor.cinnabar
+      this.militarySealBg.setFillStyle(wxColor, 0.9)
+      this.militarySealBg.setSize(96, 28)
       this.militarySealText.setColor('#ffffff')
-      this.militarySealText.setText(`军机·${tactic.name}`)
+      this.militarySealText.setText(`天时·${shortName}`)
     } else {
       this.militarySealBg.setFillStyle(InkColor.paperDeep, 0.95)
-      this.militarySealBg.setSize(86, 28)
+      this.militarySealBg.setSize(96, 28)
       this.militarySealText.setColor(InkText.strong)
-      this.militarySealText.setText('军机·平')
+      this.militarySealText.setText(`天时·${shortName}`)
     }
   }
 
@@ -1335,6 +1526,7 @@ export default class BattleScene extends Phaser.Scene {
     if (!this.battleSystem) return
 
     this.battleSystem.update(delta)
+    this.renderGeneratingLeylines()
     this.updateUI()
   }
 

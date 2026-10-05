@@ -11,24 +11,32 @@ export type AugmentRarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type AugmentCategory = 'elemental' | 'hero' | 'general'
 
 /**
- * 锦囊数值修正与被动机制
+ * 锦囊数值修正与被动机制（严格归入四大独立伤害乘区：攻击加成区 / 增伤区 / 易伤区 / 暴击区）
  */
 export interface AugmentEffects {
-  /** 全体攻击力百分比加成 (例如 0.15 = +15%) */
+  /** 【攻击力加成区】全体攻击力百分比加成 (例如 0.15 = +15%) */
   attackPercentBonus?: number
   /** 全体攻击速度加成 (例如 0.2 = +20%) */
   attackSpeedBonus?: number
   /** 全体攻击范围加成 (例如 25) */
   attackRangeBonus?: number
-  /** 相生相克元素反应伤害加成 (例如 0.5 = +50%) */
+  /** 【暴击区】全体暴击率加成 (例如 0.15 = +15%) */
+  critRateBonus?: number
+  /** 【暴击区】全体暴击伤害加成 (例如 0.35 = +35%) */
+  critDamageBonus?: number
+  /** 【增伤区】五行相生反应伤害加成 (例如 0.5 = +50%，增伤区加算) */
   reactionDamageMultiplier?: number
-  /** 击杀金币/灵石获取加成 (例如 0.3 = +30%) */
+  /** 【增伤区】全局增伤加成 (例如 0.2 = +20%，增伤区加算) */
+  damageIncreaseBonus?: number
+  /** 【易伤区】敌军承受易伤加成 (例如 0.3 = +30%，易伤区加算) */
+  vulnerabilityBonus?: number
+  /** 击杀军费获取加成 (例如 0.3 = +30%) */
   costGainBonus?: number
-  /** 基地最大生命值增加 */
+  /** 帅营最大生命值增加 */
   baseMaxHealthBonus?: number
-  /** 基地当前生命恢复 */
+  /** 帅营当前生命恢复 */
   baseHealthHeal?: number
-  /** 相克伤害倍率加成 (原 1.5 倍基础加成) */
+  /** 相克伤害倍率加成（兼容保留） */
   counterMultiplierBonus?: number
   /** 专属机制标识符 */
   specialId?: string

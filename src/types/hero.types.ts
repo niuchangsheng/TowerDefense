@@ -11,11 +11,13 @@ export const RarityNames: Record<Rarity, string> = {
   legendary: '传说'
 }
 
-// 英雄属性
+// 英雄五大基础属性（我方唯一基础属性池）
 export interface HeroStats {
-  attack: number      // 攻击力
-  attackSpeed: number // 攻击速度（每秒攻击次数）
-  attackRange: number // 攻击范围（游戏单位）
+  attack: number        // 攻击力
+  attackSpeed: number   // 攻击速度（每秒攻击次数）
+  attackRange: number   // 攻击范围（像素单位）
+  critRate?: number     // 暴击几率（0~1，默认 0.15 即 15%）
+  critDamage?: number   // 暴击伤害加成（如 0.50 表示暴击造成 +50% 额外伤害，即 150% 总伤）
 }
 
 // 装备槽位
@@ -25,6 +27,7 @@ export type EquipmentSlot = 'weapon' | 'artifact'
 export interface HeroConfig {
   id: string
   name: string
+  title?: string                     // 武将称号（如【武圣】）
   wuXing: WuXing
   rarity: Rarity
   baseStats: HeroStats
@@ -33,18 +36,20 @@ export interface HeroConfig {
   activeSkillId: string
   unlockSoulStoneCount: number
   starUpgradeRequirements: number[]  // [2星需要, 3星需要, 4星需要, 5星需要]
+  star3TraitName?: string            // 3★ 本命武魂特质名称
+  star3TraitDesc?: string            // 3★ 本命武魂特质描述
 }
 
 // 英雄实体（运行时）
 export interface Hero extends HeroConfig {
-  level: number           // 当前等级 (1-60)
-  star: number            // 当前星级 (1-5)
-  experience: number      // 当前经验
+  level: number           // 当前武道境界等级 (1-10，武道十境)
+  star: number            // 当前将星命盘星级 (1-5，1★~5★)
+  experience: number      // 当前经验/战功
   equipment: {
-    weapon: string | null   // 装备ID
-    artifact: string | null // 神器ID
+    weapon: string | null   // 武器ID
+    artifact: string | null // 专属神兵ID
   }
-  isUnlocked: boolean     // 是否已解锁
+  isUnlocked: boolean     // 是否已解锁（一期五虎上将开局全员解锁）
 }
 
 // 已部署的英雄（战斗中）
