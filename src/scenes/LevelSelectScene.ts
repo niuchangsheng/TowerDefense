@@ -1,6 +1,12 @@
 import Phaser from 'phaser'
 import { SaveManager } from '@/core/save/SaveManager'
-import { getAllChapters, getChapterLevels, isLevelUnlocked, isChapterUnlocked } from '@/data/levels'
+import {
+  getAllChapters,
+  getChapterLevels,
+  isLevelUnlocked,
+  isChapterUnlocked,
+  getBattlefieldMapMeta
+} from '@/data/levels'
 import { ChapterConfig, LevelConfig, WuXing } from '@/types'
 import { getEnemyConfig } from '@/data/enemies'
 import {
@@ -361,12 +367,14 @@ export default class LevelSelectScene extends Phaser.Scene {
       return
     }
 
-    // --- 3. 关隘城寨坐标布局 ---
-    // 3 个关卡按照险要地形曲折布列，形成自西南破前哨、攀中道险隘、直至捣毁敌军中军大寨的进军路线
+    // --- 3. 五大三国古战场卷轴坐标布局 ---
+    // 卷一巨鹿 -> 卷二樊城 -> 卷三合淝 -> 卷四焚城洛阳 -> 卷五虎牢雄关
     const nodeCoords = [
-      { x: ST_X + 170, y: ST_Y + 340 }, // 第一关：前哨营盘
-      { x: ST_X + 410, y: ST_Y + 185 }, // 第二关：中道险隘
-      { x: ST_X + 650, y: ST_Y + 320 }  // 第三关：中军总寨
+      { x: ST_X + 125, y: ST_Y + 370 }, // 卷一：巨鹿破黄巾（张角）
+      { x: ST_X + 265, y: ST_Y + 210 }, // 卷二：樊城破八门（曹仁）
+      { x: ST_X + 415, y: ST_Y + 345 }, // 卷三：合淝威逍遥（张辽）
+      { x: ST_X + 555, y: ST_Y + 195 }, // 卷四：焚城讨董卓（董卓）
+      { x: ST_X + 695, y: ST_Y + 330 }  // 卷五：虎牢战温侯（吕布）
     ]
 
     // --- 4. 绘制蜿蜒行军虚线轨迹与箭头 ---
@@ -380,16 +388,9 @@ export default class LevelSelectScene extends Phaser.Scene {
       const isConquered = this.completedLevels.includes(levelA.id)
       const isRouteUnlocked = isLevelUnlocked(levelB.id, this.completedLevels)
 
-      // 曲折中继点，营造山道险阻的古地图质感
-      let waypoints = [startCoord]
-      if (i === 0) {
-        waypoints.push({ x: ST_X + 270, y: ST_Y + 295 })
-        waypoints.push({ x: ST_X + 340, y: ST_Y + 225 })
-      } else {
-        waypoints.push({ x: ST_X + 490, y: ST_Y + 215 })
-        waypoints.push({ x: ST_X + 570, y: ST_Y + 300 })
-      }
-      waypoints.push(endCoord)
+      const midX = (startCoord.x + endCoord.x) / 2
+      const midY = (startCoord.y + endCoord.y) / 2 + (i % 2 === 0 ? -18 : 18)
+      const waypoints = [startCoord, { x: midX, y: midY }, endCoord]
 
       this.drawDashedRoute(g, waypoints, isConquered, isRouteUnlocked)
     }
@@ -397,7 +398,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     // --- 5. 绘制城寨关隘节点徽章 ---
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i]
-      const coord = nodeCoords[i] || { x: ST_X + 200 + i * 200, y: ST_Y + 250 }
+      const coord = nodeCoords[i] || { x: ST_X + 120 + i * 140, y: ST_Y + 260 }
       const isCompleted = this.completedLevels.includes(level.id)
       const isUnlocked = isLevelUnlocked(level.id, this.completedLevels)
       const isSelected = this.selectedLevelId === level.id
@@ -645,7 +646,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     const nodeContainer = this.add.container(x, y)
     this.sandTableContainer.add(nodeContainer)
 
-    const glyphs = ['营', '隘', '寨']
+    const glyphs = ['鹿', '樊', '淝', '洛', '牢']
     const glyph = glyphs[index] || '城'
 
     // 阴影
@@ -703,7 +704,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     innerRing.setStrokeStyle(1, isUnlocked ? InkColor.ink : InkColor.inkFaint, 0.6)
     nodeContainer.add(innerRing)
 
-    // 居中关卡性质铭文（营/隘/寨）
+    // 居中关卡性质铭文（鹿/樊/淝/洛/牢）
     const centerChar = inkText(this, 0, 0, glyph, {
       size: 20,
       color: isUnlocked ? (isSelected ? InkText.strong : InkText.ink) : InkText.faint,
@@ -779,9 +780,11 @@ export default class LevelSelectScene extends Phaser.Scene {
     }
 
     // 节点下方关卡名称
+    const meta = getBattlefieldMapMeta(level.id)
     const levelLabelY = isCompleted ? 54 : 48
-    const levelLabel = inkText(this, 0, levelLabelY, `第${index + 1}关 · ${level.name}`, {
-      size: 13,
+    const shortTitle = meta ? `${meta.scrollTitle} · ${meta.guardianBossName}` : `第${index + 1}关 · ${level.name}`
+    const levelLabel = inkText(this, 0, levelLabelY, shortTitle, {
+      size: 12,
       color: isUnlocked ? InkText.strong : InkText.faint,
       bold: isSelected,
       originX: 0.5,
@@ -889,8 +892,9 @@ export default class LevelSelectScene extends Phaser.Scene {
     const isCompleted = this.completedLevels.includes(selectedLevel.id)
     const isUnlocked = isLevelUnlocked(selectedLevel.id, this.completedLevels)
     const levelIndex = levels.findIndex(l => l.id === selectedLevel!.id)
+    const mapMeta = getBattlefieldMapMeta(selectedLevel.id)
 
-    let curY = IY + 24
+    let curY = IY + 22
 
     // 1. 卷首印信与关隘名称
     const sealBg = this.add.rectangle(IX + 58, curY + 6, 76, 22, InkColor.cinnabar)
@@ -919,22 +923,22 @@ export default class LevelSelectScene extends Phaser.Scene {
     )
     this.intelContainer.add(statusBadge)
 
-    curY += 28
+    curY += 26
 
     const titleText = inkText(
       this,
       IX + 20,
       curY,
-      `第 ${levelIndex + 1} 关 · ${selectedLevel.name}`,
+      mapMeta ? `${mapMeta.scrollTitle} · ${selectedLevel.name}` : `第 ${levelIndex + 1} 关 · ${selectedLevel.name}`,
       {
-        size: 20,
+        size: 18,
         color: InkText.strong,
         bold: true
       }
     )
     this.intelContainer.add(titleText)
 
-    curY += 30
+    curY += 26
 
     // 分割线
     ig.lineStyle(1, InkColor.ink, 0.4)
@@ -943,34 +947,34 @@ export default class LevelSelectScene extends Phaser.Scene {
     ig.lineTo(IX + IW - 18, curY)
     ig.strokePath()
 
-    curY += 12
+    curY += 10
 
     // 2. 战地密报与战役背景
-    const briefingBg = this.add.rectangle(IX + IW / 2, curY + 30, IW - 36, 60, InkColor.paperDeep)
+    const briefingBg = this.add.rectangle(IX + IW / 2, curY + 26, IW - 36, 52, InkColor.paperDeep)
     briefingBg.setStrokeStyle(1, InkColor.inkFaint, 0.5)
     this.intelContainer.add(briefingBg)
 
     const briefingContent = this.getLevelBriefing(selectedLevel.id)
-    const briefingText = inkText(this, IX + 26, curY + 8, briefingContent, {
-      size: 12,
+    const briefingText = inkText(this, IX + 26, curY + 7, briefingContent, {
+      size: 11,
       color: InkText.wash,
       wrapWidth: IW - 56
     })
     this.intelContainer.add(briefingText)
 
-    curY += 72
+    curY += 60
 
-    // 3. 敌情侦察（波次规模与五行分布）
+    // 3. 敌情侦察与镇守主帅命脉弱点
     const enemyAnalysis = this.analyzeEnemyIntel(selectedLevel)
 
-    const reconHeader = inkText(this, IX + 20, curY, '◈ 敌情侦察', {
-      size: 14,
+    const reconHeader = inkText(this, IX + 20, curY, '◈ 敌情侦察 & 镇守主帅', {
+      size: 13,
       color: InkText.wash,
       bold: true
     })
     this.intelContainer.add(reconHeader)
 
-    curY += 22
+    curY += 20
 
     const scaleText = inkText(
       this,
@@ -978,16 +982,32 @@ export default class LevelSelectScene extends Phaser.Scene {
       curY,
       `敌势规模: 共 ${selectedLevel.waves.length} 波冲阵 · 约 ${enemyAnalysis.totalCount} 众敌兵`,
       {
-        size: 12,
+        size: 11,
         color: InkText.ink
       }
     )
     this.intelContainer.add(scaleText)
 
-    curY += 22
+    curY += 18
+
+    if (mapMeta) {
+      const bossLine = inkText(
+        this,
+        IX + 24,
+        curY,
+        `镇守主帅: ${mapMeta.guardianBossName} (${INK_WUXING[mapMeta.guardianBossElement].label}) · 命脉弱点: ${mapMeta.weaknessReactionDesc}`,
+        {
+          size: 11,
+          color: InkText.cinnabar,
+          bold: true
+        }
+      )
+      this.intelContainer.add(bossLine)
+      curY += 18
+    }
 
     const wuxingIntro = inkText(this, IX + 24, curY, '敌众五行: ', {
-      size: 12,
+      size: 11,
       color: InkText.ink
     })
     this.intelContainer.add(wuxingIntro)
@@ -1011,42 +1031,39 @@ export default class LevelSelectScene extends Phaser.Scene {
       badgeX += 38
     }
 
-    curY += 26
+    curY += 24
 
     // 孙子兵策：克敌制胜要略卡
-    const stratBg = this.add.rectangle(IX + IW / 2, curY + 28, IW - 36, 56, 0xf0ebd9)
+    const stratBg = this.add.rectangle(IX + IW / 2, curY + 26, IW - 36, 52, 0xf0ebd9)
     stratBg.setStrokeStyle(1, 0xb08a52, 0.7)
     this.intelContainer.add(stratBg)
 
-    const stratTitle = inkText(this, IX + 26, curY + 8, '【破敌兵法】', {
+    const stratTitle = inkText(this, IX + 26, curY + 6, '【破敌兵法 · 命脉破壁】', {
       size: 11,
       color: InkText.cinnabar,
       bold: true
     })
-    const stratAdvice = inkText(
-      this,
-      IX + 26,
-      curY + 24,
-      enemyAnalysis.counterAdvice,
-      {
-        size: 11,
-        color: InkText.wash,
-        wrapWidth: IW - 56
-      }
-    )
+    const adviceText = mapMeta
+      ? `第15波决战【${mapMeta.guardianBossName}】拥有五行铁壁；以【${mapMeta.weaknessReactionDesc}】命中可双倍破壁并瘫痪3s！`
+      : enemyAnalysis.counterAdvice
+    const stratAdvice = inkText(this, IX + 26, curY + 21, adviceText, {
+      size: 11,
+      color: InkText.wash,
+      wrapWidth: IW - 56
+    })
     this.intelContainer.add([stratTitle, stratAdvice])
 
-    curY += 66
+    curY += 60
 
-    // 4. 守军军资备给与大捷悬赏
-    const prepHeader = inkText(this, IX + 20, curY, '◈ 军备与封赏', {
-      size: 14,
+    // 4. 守军军资备给、宿命主材与将魂定向悬赏
+    const prepHeader = inkText(this, IX + 20, curY, '◈ 军备与定向悬赏（选图即定主帅）', {
+      size: 13,
       color: InkText.wash,
       bold: true
     })
     this.intelContainer.add(prepHeader)
 
-    curY += 22
+    curY += 20
 
     const prepRow1 = inkText(
       this,
@@ -1054,13 +1071,13 @@ export default class LevelSelectScene extends Phaser.Scene {
       curY,
       `帅旗耐久: ❤️ ${selectedLevel.playerStartHealth} 点   战备资粮: 🪙 ${selectedLevel.playerStartCost} 钱`,
       {
-        size: 12,
+        size: 11,
         color: InkText.ink
       }
     )
     this.intelContainer.add(prepRow1)
 
-    curY += 20
+    curY += 18
 
     const prepRow2 = inkText(
       this,
@@ -1068,29 +1085,60 @@ export default class LevelSelectScene extends Phaser.Scene {
       curY,
       `凯旋酬银: 💰 ${selectedLevel.rewards.gold} 金币   功勋军绩: ⭐ ${selectedLevel.rewards.experience} 军勋`,
       {
-        size: 12,
+        size: 11,
         color: InkText.gold
       }
     )
     this.intelContainer.add(prepRow2)
 
-    curY += 46
+    curY += 18
+
+    if (mapMeta) {
+      const matRow = inkText(
+        this,
+        IX + 24,
+        curY,
+        `🛠️ 必掉主材: 【${mapMeta.divineMaterialName}】→ 铸 ${mapMeta.targetHeroName}${mapMeta.exclusiveWeaponName}`,
+        {
+          size: 11,
+          color: InkText.cinnabar,
+          bold: true
+        }
+      )
+      this.intelContainer.add(matRow)
+      curY += 18
+
+      const soulRow = inkText(
+        this,
+        IX + 24,
+        curY,
+        `💎 必掉将魂: ${mapMeta.soulStoneName} ×1（通达第15波可择【凯旋】或【乘胜北伐】）`,
+        {
+          size: 11,
+          color: InkText.green
+        }
+      )
+      this.intelContainer.add(soulRow)
+      curY += 28
+    } else {
+      curY += 28
+    }
 
     // 5. 出征按钮
     if (isUnlocked) {
-      const btnLabel = isCompleted ? '⚔️ 扫荡再战' : '⚔️ 点将出征'
+      const btnLabel = isCompleted ? '⚔️ 扫荡 / 北伐再战' : '⚔️ 点将出征'
       const startBtn = createInkButton(
         this,
         IX + IW / 2,
         curY,
         260,
-        46,
+        42,
         btnLabel,
         {
           fill: InkColor.cinnabar,
           hoverFill: 0xb53a32,
           textColor: '#ffffff',
-          fontSize: 17,
+          fontSize: 16,
           onClick: () => {
             this.startLevel(selectedLevel!.id)
           }
@@ -1098,7 +1146,7 @@ export default class LevelSelectScene extends Phaser.Scene {
       )
       this.intelContainer.add(startBtn)
     } else {
-      const lockedBox = this.add.rectangle(IX + IW / 2, curY, 260, 44, InkColor.paperDeep)
+      const lockedBox = this.add.rectangle(IX + IW / 2, curY, 260, 42, InkColor.paperDeep)
       lockedBox.setStrokeStyle(1, InkColor.inkFaint)
       const lockedText = inkText(this, IX + IW / 2, curY, '🔒 关隘封锁 · 需克复前置', {
         size: 14,
@@ -1116,13 +1164,17 @@ export default class LevelSelectScene extends Phaser.Scene {
   private getLevelBriefing(levelId: string): string {
     switch (levelId) {
       case 'chapter1_level1':
-        return '密探急报：张角偏师于外围扎下鹿角大营，贼兵虽众但阵脚未稳。速发精兵直捣中枢，斩将夺旗！'
+        return '卷一《巨鹿破黄巾》：天公将军张角据守巨鹿中军大帐，以黄天回春之术愈合部曲。善用木生火【燎原·焚尽】破其五行铁壁！'
       case 'chapter1_level2':
-        return '密探急报：敌军沿山道险隘布下暗桩深栅，占住关隘阻击官军。弓弩伏兵伺机而动，当步步为营！'
+        return '卷二《樊城破八门》：曹仁于樊城布下八门金锁重甲铁阵，防御高达120%。唯有土生金【淬刃·锋芒】可震碎其玄铁金锁！'
       case 'chapter1_level3':
-        return '密探急报：黄巾贼酋聚结精锐死守中军大寨，妖风阵阵。此乃决胜之役，斩敌首恶在此一举，诸将奋勇！'
+        return '卷三《合淝威逍遥》：张辽率八百铁骑疾风突袭逍遥津，移速极快。当以金生水【寒芒·碎冰】或水生木藤蔓硬控锁其锋芒！'
+      case 'chapter1_level4':
+        return '卷四《焚城讨董卓》：董卓率西凉飞熊重骑盘踞洛阳，暴击抗性极高。以火生土【熔岩·焦土】削其韧性刚毅，方可一击克敌！'
+      case 'chapter1_level5':
+        return '卷五《虎牢战温侯》：无双温侯吕布立马虎牢雄关，五格铁壁威震天下。集五虎上将之力，以水生木【滋养·蔓延】锁拿温侯！'
       default:
-        return '密探急报：贼兵据险设防，阵中旗帜林立。诸将当深察五行生克，审度虚实，奇兵制胜！'
+        return '密探急报：贼兵据险设防，阵中旗帜林立。诸将当深察五行相生，审度虚实，奇兵制胜！'
     }
   }
 

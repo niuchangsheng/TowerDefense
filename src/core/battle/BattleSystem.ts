@@ -480,11 +480,23 @@ export class BattleSystem {
       this.handleEnemyKilled(enemy)
     }
 
-    // 检查是否有其他死亡的敌人（技能或DoT杀死等）
+    // 检查是否有其他死亡的敌人（技能或DoT杀死等），并应用天时梅雨连绵回血
+    const weatherEnemyMod = this.weatherSystem.getCurrentEnemyModifiers()
+    const reactionMgr = ElementalReactionManager.getInstance()
     const allEnemies = this.enemyManager.getActiveEnemies()
     for (const enemy of allEnemies) {
-      if (!enemy.getEnemyData().isActive) {
+      const eData = enemy.getEnemyData()
+      if (!eData.isActive) {
         this.handleEnemyKilled(enemy)
+        continue
+      }
+      // 梅雨瘴林（wood_rain）：敌军每秒恢复 1.0% 最大生命（受【木·毒】禁疗压制）
+      if (
+        weatherEnemyMod.hpRegenPerSec > 0 &&
+        !reactionMgr.hasStatus(eData.id, 'parasite')
+      ) {
+        const healAmt = eData.maxHealth * weatherEnemyMod.hpRegenPerSec * (scaledDelta / 1000)
+        eData.currentHealth = Math.min(eData.maxHealth, eData.currentHealth + healAmt)
       }
     }
 
@@ -550,8 +562,29 @@ export class BattleSystem {
       this.heroBattleManager.resetAllHeroTransforms()
       this.troopBattleManager.resetAllTroopTransforms()
 
+      // 同步观星借天策锦囊状态：《五丈原祈星》与《奇门遁甲》
+      if (this.augmentManager.hasSpecialAugment('aug_wuzhangyuan_star')) {
+        this.weatherSystem.setReverseNegativeAndBoostPositive(true)
+      }
+      if (this.augmentManager.hasSpecialAugment('aug_celestial_tome')) {
+        this.weatherSystem.setDualWeatherActive(true)
+      }
+
       // 无弹窗动态天时轮转（Wave 1, 6, 11, 16... 自动切换）
-      this.weatherSystem.onWaveStart(currentWave)
+      const rotated = this.weatherSystem.onWaveStart(currentWave)
+
+      // 《望梅止渴》：每当天时轮转或每经过 3 波，开启 10s 普攻 100% 必挂五行元素窗口
+      if (
+        this.augmentManager.hasSpecialAugment('aug_endless_wuxing_harmony') &&
+        (rotated || currentWave % 3 === 1)
+      ) {
+        this.weatherSystem.triggerWangmeiGuaranteedElement(this.elapsedTime, 10000)
+      }
+
+      // 《木牛流马》：每波开始时额外拨付 +10 军费
+      if (this.augmentManager.hasSpecialAugment('aug_wooden_ox')) {
+        this.costManager.addCost(10)
+      }
 
       // 无尽模式记录进度，每 5 波额外赠送 1 次锦囊与 1 枚易策令
       if (this.isEndlessMode()) {
@@ -569,29 +602,61 @@ export class BattleSystem {
   }
 
   /**
-   * 生成单个敌人
+   * 生成单个敌人（含天时双向敌方属性修正 + Wave 5 / Wave 10 随天时绑定的先锋统帅）
    */
   private spawnEnemy(enemyId: string): void {
-    const config = getEnemyConfig(enemyId)
+    let config = getEnemyConfig(enemyId)
+    const currentWave = this.waveManager.getCurrentWave()
+
+    // 战役第 5 波与第 10 波：先锋与中军统帅随本段天时动态绑定（第 15 波固定为本卷镇守主帅）
+    if (
+      config &&
+      config.type === 'boss' &&
+      !this.isEndlessMode() &&
+      (currentWave === 5 || currentWave === 10)
+    ) {
+      const boundBossId = this.weatherSystem.getCurrentWeather().vanguardBossId
+      if (boundBossId) {
+        const boundConfig = getEnemyConfig(boundBossId)
+        if (boundConfig) {
+          config = boundConfig
+        }
+      }
+    }
 
     if (config) {
-      let spawnOptions: EnemySpawnOptions | undefined = undefined
+      const weatherEnemyMod = this.weatherSystem.getCurrentEnemyModifiers()
+      let healthMult = 1.0 + (weatherEnemyMod.hpBonus || 0)
+      let speedMult = Math.max(0.4, 1.0 + (weatherEnemyMod.moveSpeedBonus || 0))
+      let affixes: EnemySpawnOptions['affixes'] = []
 
-      const currentWave = this.waveManager.getCurrentWave()
       if (this.isEndlessMode() || currentWave > 1) {
         const mult = EndlessModeManager.getStatMultiplier(currentWave)
-        const affixes = this.isEndlessMode()
-          ? EndlessModeManager.getAffixesForWave(currentWave, config.type)
-          : []
-
-        spawnOptions = {
-          healthMultiplier: mult.healthMultiplier,
-          speedMultiplier: mult.speedMultiplier,
-          affixes
+        healthMult *= mult.healthMultiplier
+        speedMult *= mult.speedMultiplier
+        if (this.isEndlessMode()) {
+          affixes = EndlessModeManager.getAffixesForWave(currentWave, config.type)
         }
       }
 
-      this.enemyManager.spawnEnemy(config, spawnOptions)
+      const spawnOptions: EnemySpawnOptions = {
+        healthMultiplier: healthMult,
+        speedMultiplier: speedMult,
+        affixes
+      }
+
+      const spawned = this.enemyManager.spawnEnemy(config, spawnOptions)
+      const eData = spawned.getEnemyData()
+      if (weatherEnemyMod.defenseBonus) {
+        const baseDef = eData.defense ?? 0
+        eData.defense = Math.max(baseDef * 0.4, baseDef * (1 + weatherEnemyMod.defenseBonus))
+      }
+      if (weatherEnemyMod.tenacityBonus) {
+        eData.tenacity = Math.max(0, (eData.tenacity ?? 0) + weatherEnemyMod.tenacityBonus)
+      }
+      if (weatherEnemyMod.fortitudeBonus) {
+        eData.fortitude = Math.max(0, (eData.fortitude ?? 0) + weatherEnemyMod.fortitudeBonus)
+      }
     }
   }
 

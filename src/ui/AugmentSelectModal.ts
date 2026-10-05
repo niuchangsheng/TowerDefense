@@ -13,10 +13,10 @@ import {
 import { SoundFX } from '@/effects/SoundFX'
 
 const RARITY_COLORS: Record<AugmentRarity, { text: string; stroke: number; bg: number; name: string }> = {
-  common: { text: '#4e5a65', stroke: 0x6e7d8c, bg: 0xe6e4df, name: '【军略·凡品】' },
-  rare: { text: '#2962ff', stroke: 0x2979ff, bg: 0xdde9fd, name: '【奇策·良品】' },
-  epic: { text: '#aa00ff', stroke: 0xd500f9, bg: 0xf5e8fd, name: '【神算·绝品】' },
-  legendary: { text: '#ff6d00', stroke: 0xffab00, bg: 0xfff3e0, name: '【天机·无双】' }
+  common: { text: '#2e7d32', stroke: 0x388e3c, bg: 0xf4f1ea, name: '【奇谋战法策】' },
+  rare: { text: '#1565c0', stroke: 0x1976d2, bg: 0xf4f1ea, name: '【相生连环策】' },
+  epic: { text: '#8e24aa', stroke: 0x7b1fa2, bg: 0xf4f1ea, name: '【攻防逆转策】' },
+  legendary: { text: '#b45309', stroke: 0xc2410c, bg: 0xf4f1ea, name: '【观星借天策】' }
 }
 
 /**
@@ -215,8 +215,9 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, InkRadius.md)
     c.add(bg)
 
-    // 2. 品质标识顶栏
-    const rarityLabel = inkText(scene, 0, -h / 2 + 24, conf.name, {
+    // 2. 策系标识顶栏（无品质平权 · 五大策系）
+    const catTitle = aug.stratagemCategory ? `【${aug.stratagemCategory}】` : conf.name
+    const rarityLabel = inkText(scene, 0, -h / 2 + 24, catTitle, {
       size: 13,
       color: conf.text,
       bold: true,
@@ -225,8 +226,9 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     c.add(rarityLabel)
 
     // 3. 锦囊名称
-    const nameText = inkText(scene, 0, -h / 2 + 62, aug.name, {
-      size: 22,
+    const displayName = aug.name.startsWith('《') ? aug.name : `《${aug.name}》`
+    const nameText = inkText(scene, 0, -h / 2 + 62, displayName, {
+      size: 21,
       color: InkText.strong,
       bold: true,
       originX: 0.5

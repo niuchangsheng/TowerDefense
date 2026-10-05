@@ -11,6 +11,16 @@ export type AugmentRarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type AugmentCategory = 'elemental' | 'hero' | 'general'
 
 /**
+ * 三国典故锦囊五大策系（无品质平权，纯机制改写）
+ */
+export type StratagemCategory =
+  | '五行异变策'
+  | '相生连环策'
+  | '攻防逆转策'
+  | '奇谋战法策'
+  | '观星借天策'
+
+/**
  * 锦囊数值修正与被动机制（严格归入四大独立伤害乘区：攻击加成区 / 增伤区 / 易伤区 / 暴击区）
  */
 export interface AugmentEffects {
@@ -43,7 +53,7 @@ export interface AugmentEffects {
 }
 
 /**
- * 军师锦囊（天命肉鸽词条）接口
+ * 军师锦囊（三国典故名策 · 无品质平权）接口
  */
 export interface Augment {
   id: string
@@ -52,6 +62,8 @@ export interface Augment {
   description: string
   rarity: AugmentRarity
   category: AugmentCategory
+  /** 所属三国典故五大策系 */
+  stratagemCategory?: StratagemCategory
   icon?: string
   tags?: string[]
   /** 触发五行限制（若有，则需要场上有该五行英雄时才更容易刷出） */

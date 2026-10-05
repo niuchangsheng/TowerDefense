@@ -232,7 +232,26 @@ export default class EquipmentScene extends Phaser.Scene {
       }
 
       const equipRows = Math.ceil(displayEquip.length / EquipmentScene.EQUIP_COLS)
-      curY = equipTop + equipRows * (EquipmentScene.EQUIP_H + EquipmentScene.EQUIP_GAP) + 16
+      curY = equipTop + equipRows * (EquipmentScene.EQUIP_H + EquipmentScene.EQUIP_GAP) + 12
+
+      // 蒲元铸剑坊（神兵定向锻造入口 · 第5章§3）
+      const forgeBtn = createInkButton(
+        this,
+        L + EquipmentScene.LEFT_W / 2,
+        curY + 18,
+        240,
+        34,
+        '⚒️ 蒲元铸剑坊（神兵定向锻造）',
+        {
+          fill: InkColor.cinnabar,
+          hoverFill: 0xb53a32,
+          textColor: '#ffffff',
+          fontSize: 13,
+          onClick: () => this.showPuyuanForgeDialog()
+        }
+      )
+      this.listContainer.add(forgeBtn)
+      curY += 46
     }
 
     if (showGems) {
@@ -1050,19 +1069,50 @@ export default class EquipmentScene extends Phaser.Scene {
       y += 30
     }
 
-    // 3. 灵石双随机基础属性词条与 [Min ~ Max] 随机区间（严守局外总增益 <= +50% 铁律）
-    y += sectionHeader(this, this.detailPanel, PAD, y, '灵石双基础词条（[Min ~ Max] 区间透视）', EquipmentScene.CONTENT_W)
+    // 3. 灵石双随机基础属性词条与 [Min ~ Max] 随机区间（严守局外总增益 <= +50% 铁律 + 灵砂保底淬炼）
+    const dustCount = this.equipmentManager.getSpiritDust()
+    y += sectionHeader(
+      this,
+      this.detailPanel,
+      PAD,
+      y,
+      `灵石双基础词条（[Min~Max] 区间透视 · 持有五行灵砂: ${dustCount}）`,
+      EquipmentScene.CONTENT_W
+    )
     if (!gem.affixes || gem.affixes.length === 0) {
       gem.affixes = rollGemAffixes(gem.level)
     }
     for (let i = 0; i < gem.affixes.length; i++) {
       const affix = gem.affixes[i]
-      this.detailPanel.add(inkText(this, PAD, y + 8, `◆ 词条 ${i + 1}：${formatGemAffixText(affix)}`, {
-        size: InkFontSize.md,
-        color: InkText.gold,
-        bold: true
-      }))
-      y += 26
+      const rowY = y + 12
+      this.detailPanel.add(
+        inkText(this, PAD, rowY, `◆ 词条 ${i + 1}：${formatGemAffixText(affix)}`, {
+          size: InkFontSize.md,
+          color: InkText.gold,
+          bold: true
+        })
+      )
+      // 灵砂保底淬炼按钮（20 灵砂重随词条，可选择保留原词条或替换为新词条，100%不降级）
+      const reforgeBtn = createInkButton(
+        this,
+        PAD + 580,
+        rowY + 8,
+        175,
+        24,
+        `🔥 灵砂淬炼词条${i + 1} (20砂)`,
+        {
+          fill: InkColor.paperDeep,
+          hoverFill: InkColor.paper,
+          textColor: InkText.cinnabar,
+          fontSize: 11,
+          stroke: InkColor.cinnabar,
+          onClick: () => {
+            this.showReforgeAffixDialog(gem, i as 0 | 1)
+          }
+        }
+      )
+      this.detailPanel.add(reforgeBtn)
+      y += 28
     }
 
     // 5级神石共鸣说明（双Lv.5神品可解锁神兵终极圣兽法相大招）
@@ -1089,8 +1139,8 @@ export default class EquipmentScene extends Phaser.Scene {
     }))
     y += 34
 
-    // 5. 三合一升阶路线（指定主石 100% 继承词条类型）
-    y += sectionHeader(this, this.detailPanel, PAD, y, '三合一升阶路线（主石 100% 继承词条类型）', EquipmentScene.CONTENT_W)
+    // 5. 三合一升阶路线（指定主石 100% 继承词条类型）与溢出分解灵砂
+    y += sectionHeader(this, this.detailPanel, PAD, y, '三合一升阶路线（主石100%继承） & 灵砂分解', EquipmentScene.CONTENT_W)
     if (gem.level < 5) {
       const nextGemName = gemNames[gem.wuXing]?.[gem.level + 1] || '更高阶宝石'
       const curCount = this.equipmentManager.getGemCountByWuXingAndLevel(gem.wuXing, gem.level)
@@ -1131,7 +1181,232 @@ export default class EquipmentScene extends Phaser.Scene {
         color: InkText.gold,
         bold: true
       }))
+      y += 32
     }
+
+    // 分解未镶嵌溢出宝石为【五行灵砂】按钮
+    const salvageBtn = createInkButton(
+      this,
+      PAD + 310,
+      y + 18,
+      200,
+      32,
+      `♻️ 分解为五行灵砂 (+${gem.level * 15}砂)`,
+      {
+        fill: InkColor.paperDeep,
+        hoverFill: InkColor.paper,
+        textColor: InkText.ink,
+        fontSize: 12,
+        stroke: InkColor.inkFaint,
+        onClick: () => {
+          const res = this.equipmentManager.salvageGemToDust(gem.id)
+          this.showMessage(res.message)
+          if (res.success) {
+            this.refreshGemList()
+            const remaining = this.equipmentManager.getOwnedGems()
+            if (remaining.length > 0) {
+              this.selectGem(remaining[0])
+            }
+          }
+        }
+      }
+    )
+    this.detailPanel.add(salvageBtn)
+  }
+
+  /**
+   * 弹出【灵砂保底淬炼】对比弹窗（支持【保留原词条】或【替换为新词条】，100% 绝不负向降级）
+   */
+  private showReforgeAffixDialog(gem: Gem, affixIndex: 0 | 1): void {
+    const res = this.equipmentManager.previewReforgeGemAffix(gem.id, affixIndex)
+    if (!res.success || !res.oldAffix || !res.newAffix) {
+      this.showMessage(res.message)
+      return
+    }
+
+    const dialogW = 500
+    const dialogH = 260
+    const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
+      stroke: InkColor.cinnabar,
+      strokeWidth: 2
+    })
+    const closeAll = () => {
+      overlay.destroy()
+      panel.destroy()
+    }
+
+    panel.add(
+      inkText(this, dialogW / 2, 28, `【灵砂保底淬炼 · 词条 ${affixIndex + 1}】`, {
+        size: 19,
+        color: InkText.cinnabar,
+        bold: true,
+        originX: 0.5
+      })
+    )
+    panel.add(
+      inkText(this, dialogW / 2, 54, '保底铁律：可自由选择保留原词条或替换为新词条，绝不负向降级！', {
+        size: 12,
+        color: InkText.wash,
+        originX: 0.5
+      })
+    )
+
+    const oldStr = formatGemAffixText(res.oldAffix)
+    const newStr = formatGemAffixText(res.newAffix)
+
+    panel.add(
+      inkText(this, 36, 98, `【原词条】：${oldStr}`, {
+        size: 15,
+        color: InkText.ink,
+        bold: true
+      })
+    )
+    panel.add(
+      inkText(this, 36, 138, `【新词条】：${newStr}`, {
+        size: 15,
+        color: InkText.gold,
+        bold: true
+      })
+    )
+
+    const keepBtn = createInkButton(this, dialogW / 2 - 110, dialogH - 42, 180, 36, '🛡️ 保留原词条', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.ink,
+      fontSize: 14,
+      stroke: InkColor.ink,
+      onClick: () => {
+        closeAll()
+        this.showMessage('已保留原词条（绝无损耗降级）')
+        this.updateGemDetailPanel(gem)
+      }
+    })
+    const applyBtn = createInkButton(this, dialogW / 2 + 110, dialogH - 42, 180, 36, '🔥 替换为新词条', {
+      fill: InkColor.cinnabar,
+      hoverFill: 0xb53a32,
+      textColor: '#ffffff',
+      fontSize: 14,
+      onClick: () => {
+        this.equipmentManager.applyReforgedGemAffix(gem.id, affixIndex, res.newAffix!)
+        closeAll()
+        this.showMessage(`淬炼成功！词条已更新为：${newStr}`)
+        this.updateGemDetailPanel(gem)
+      }
+    })
+    panel.add([keepBtn, applyBtn])
+  }
+
+  /**
+   * 弹出【蒲元铸剑坊】神兵定向锻造弹窗（第5章 §3 · 宿命主材 100% 定向铸造，一生仅需铸造 1 把）
+   */
+  private showPuyuanForgeDialog(): void {
+    const dialogW = 620
+    const dialogH = 430
+    const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
+      stroke: InkColor.cinnabar,
+      strokeWidth: 2
+    })
+    const closeAll = () => {
+      overlay.destroy()
+      panel.destroy()
+    }
+
+    panel.add(
+      inkText(this, dialogW / 2, 26, '【蒲元铸剑坊 · 五虎本命神兵定向锻造】', {
+        size: 20,
+        color: InkText.cinnabar,
+        bold: true,
+        originX: 0.5
+      })
+    )
+    panel.add(
+      inkText(
+        this,
+        dialogW / 2,
+        50,
+        '击败五大古战场关底统帅必掉对应宿命主材 · 100% 定向铸造 · 神兵一生仅需铸造 1 把',
+        {
+          size: 12,
+          color: InkText.wash,
+          originX: 0.5
+        }
+      )
+    )
+
+    const recipes = EquipmentManager.DIVINE_FORGE_RECIPES
+    let rowY = 86
+    for (const r of recipes) {
+      const owned = this.equipmentManager.hasOwnedEquipmentId(r.artifactId)
+      const matCount = this.equipmentManager.getDivineMaterialCount(r.materialId)
+      const wxStyle = INK_WUXING[r.wuXing]
+
+      const rowBg = this.add.rectangle(dialogW / 2, rowY, dialogW - 44, 52, InkColor.paperDeep, 0.75)
+      rowBg.setStrokeStyle(1, owned ? 0x5f7a4a : wxStyle.border)
+      panel.add(rowBg)
+
+      panel.add(
+        inkText(
+          this,
+          36,
+          rowY - 9,
+          `【${r.heroName} · ${wxStyle.label}】《${r.artifactName}》`,
+          {
+            size: 14,
+            color: InkText.strong,
+            bold: true
+          }
+        )
+      )
+      panel.add(
+        inkText(
+          this,
+          36,
+          rowY + 11,
+          `宿命主材: 【${r.materialName}】(持有 ${matCount}) · 掉落自: ${r.bossName}`,
+          {
+            size: 11,
+            color: InkText.wash
+          }
+        )
+      )
+
+      if (owned) {
+        panel.add(
+          inkText(this, dialogW - 95, rowY, '✓ 已认主铸成', {
+            size: 13,
+            color: InkText.green,
+            bold: true,
+            originX: 0.5,
+            originY: 0.5
+          })
+        )
+      } else {
+        const forgeBtn = createInkButton(this, dialogW - 95, rowY, 110, 30, '⚒️ 定向铸造', {
+          fill: InkColor.cinnabar,
+          hoverFill: 0xb53a32,
+          textColor: '#ffffff',
+          fontSize: 12,
+          onClick: () => {
+            const res = this.equipmentManager.forgeExclusiveArtifact(r.materialId)
+            this.showMessage(res.message)
+            closeAll()
+            this.refreshListContent()
+          }
+        })
+        panel.add(forgeBtn)
+      }
+
+      rowY += 60
+    }
+
+    const closeBtn = createInkButton(this, dialogW / 2, dialogH - 26, 100, 30, '关闭剑坊', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.ink,
+      fontSize: 13,
+      onClick: closeAll
+    })
+    panel.add(closeBtn)
   }
 
   /**

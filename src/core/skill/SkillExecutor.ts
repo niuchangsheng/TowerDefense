@@ -7,6 +7,7 @@ import { getSkill } from '@/data/skills'
 import { InkColor, InkText, inkText } from '@/ui/InkTheme'
 import { DamageCalculator } from '../battle/DamageCalculator'
 import { ElementalReactionManager } from '../elemental/ElementalReactionManager'
+import { EquipmentManager } from '../equipment/EquipmentManager'
 import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
 import { SoundFX } from '@/effects/SoundFX'
 
@@ -24,7 +25,7 @@ export interface SkillExecutionResult {
 
 /**
  * 技能执行器
- * 负责执行英雄主动/被动技能，按攻击力百分比加成计算伤害并联动五行反应
+ * 负责执行英雄主动/被动技能，按攻击力百分比加成计算伤害并联动五行反应与四阶神兵圣兽演出
  */
 export class SkillExecutor {
   private scene: Scene
@@ -67,8 +68,9 @@ export class SkillExecutor {
     // 触发冷却
     this.skillManager.triggerCooldown(skillId)
 
-    // 主动大招播放特写横幅与音效
+    // 主动大招播放四阶神兵视效递进（八卦起手阵 / 0.35s微暗聚焦 / 名将诗号Cut-in / 五行圣兽法相）
     if (skill.type === 'active') {
+      this.playFourTierSkillPresentation(hero, casterPos, skill.name)
       this.showBaojiImage(hero.getHeroData().id, skill.name)
       SoundFX.gong(0.3)
     }
@@ -507,6 +509,147 @@ export class SkillExecutor {
             duration: 200,
             ease: 'Power2.easeIn',
             onComplete: () => banner.destroy()
+          })
+        })
+      }
+    })
+  }
+
+  /**
+   * 第10章 §2：我军武将四阶技能发动视效递进
+   * ① 原始技能 -> ② 专属神兵八卦起手阵 -> ③ 同源+相生双色流光 -> ④ 双Lv.5终极大招（0.35s战场微暗聚焦 + 名将诗号Cut-in + 五行圣兽法相）
+   */
+  private playFourTierSkillPresentation(hero: HeroEntity, casterPos: Point, skillName: string): void {
+    if (!this.scene || !this.scene.add || !this.scene.tweens) return
+    const heroData = hero.getHeroData()
+    const resonance = EquipmentManager.getInstance().getHeroResonance(heroData.id, heroData.name)
+
+    // Tier 2: 专属神兵八卦起手阵
+    if (resonance.isExclusive) {
+      const bagua = this.scene.add.graphics()
+      bagua.setDepth(148)
+      bagua.lineStyle(2, 0xd97706, 0.9)
+      bagua.strokeCircle(casterPos.x, casterPos.y, 26)
+      bagua.strokeCircle(casterPos.x, casterPos.y, 34)
+      this.scene.tweens.add({
+        targets: bagua,
+        scaleX: 1.4,
+        scaleY: 1.4,
+        alpha: 0,
+        duration: 450,
+        onComplete: () => bagua.destroy()
+      })
+    }
+
+    // Tier 4: 双 Lv.5 终极大招或 5★ 神将（0.35s 战场微暗聚焦 + 左侧名将诗号卷轴切入 + 圣兽法相降临）
+    const isUltimateTier =
+      resonance.hasDualLv5Ultimate || resonance.gemLevel >= 5 || (heroData.star ?? 1) >= 5
+    if (!isUltimateTier) return
+
+    const poemConfig: Record<
+      string,
+      { poem: string; ultimateTitle: string; beastGlyph: string; color: number; textColor: string }
+    > = {
+      hero_guanyu: {
+        poem: '「青龙饮水化苍莽，一刀威震九州寒！」',
+        ultimateTitle: '【青龙神威 · 万木屠苏】',
+        beastGlyph: '🐉 东方青龙法相',
+        color: 0x2e7d32,
+        textColor: '#a5d6a7'
+      },
+      hero_huangzhong: {
+        poem: '「老当益壮挽天弓，烈火燎原坠落日！」',
+        ultimateTitle: '【朱雀焚天 · 九日落陨】',
+        beastGlyph: '🦅 南方朱雀法相',
+        color: 0xd84315,
+        textColor: '#ffccbc'
+      },
+      hero_zhangfei: {
+        poem: '「当阳桥头一声雷，泰山崩摧万马暗！」',
+        ultimateTitle: '【玄岳崩云 · 万钧镇狱】',
+        beastGlyph: '⛰️ 中土玄岳法相',
+        color: 0x8d6e63,
+        textColor: '#ffe082'
+      },
+      hero_machao: {
+        poem: '「西凉铁骑踏冰河，满城尽带黄金甲！」',
+        ultimateTitle: '【白虎裂空 · 十步一杀】',
+        beastGlyph: '🐅 西方白虎法相',
+        color: 0xf9a825,
+        textColor: '#fff59d'
+      },
+      hero_zhaoyun: {
+        poem: '「白马银枪破重围，寒江孤影七进出！」',
+        ultimateTitle: '【玄武踏浪 · 千里冰封】',
+        beastGlyph: '🐢 北方玄武法相',
+        color: 0x0277bd,
+        textColor: '#b3e5fc'
+      }
+    }
+
+    const cfg = poemConfig[heroData.id] || {
+      poem: `「三军听令，${skillName}破敌！」`,
+      ultimateTitle: `【无双绝技 · ${skillName}】`,
+      beastGlyph: '☯ 五行圣兽法相',
+      color: 0xc62828,
+      textColor: '#ffffff'
+    }
+
+    const width = this.scene.cameras?.main?.width || 1280
+    const height = this.scene.cameras?.main?.height || 720
+
+    if (typeof this.scene.add?.rectangle !== 'function' || typeof this.scene.add?.container !== 'function') {
+      return
+    }
+
+    // 1. 0.35s 战场微暗聚焦遮罩
+    const focusDim = this.scene.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.38)
+    focusDim.setDepth(190)
+    this.scene.tweens.add({
+      targets: focusDim,
+      alpha: 0,
+      duration: 350,
+      delay: 180,
+      onComplete: () => focusDim.destroy()
+    })
+
+    // 2. 左侧名将诗号水墨卷轴切入 (Cut-in) + 圣兽法相印记
+    const scrollW = 480
+    const scrollH = 64
+    const scroll = this.scene.add.container(-scrollW / 2, 168)
+    scroll.setDepth(205)
+
+    const sBg = this.scene.add.graphics()
+    sBg.fillStyle(0x1a1815, 0.92)
+    sBg.fillRoundedRect(-scrollW / 2, -scrollH / 2, scrollW, scrollH, 6)
+    sBg.lineStyle(2, cfg.color, 0.95)
+    sBg.strokeRoundedRect(-scrollW / 2, -scrollH / 2, scrollW, scrollH, 6)
+
+    const beastTxt = inkText(this.scene, -scrollW / 2 + 18, -14, `${cfg.beastGlyph} · ${cfg.ultimateTitle}`, {
+      size: 13,
+      color: cfg.textColor,
+      bold: true
+    })
+    const poemTxt = inkText(this.scene, -scrollW / 2 + 18, 10, cfg.poem, {
+      size: 15,
+      color: '#ffffff',
+      bold: true
+    })
+    scroll.add([sBg, beastTxt, poemTxt])
+
+    this.scene.tweens.add({
+      targets: scroll,
+      x: 270,
+      duration: 200,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        this.scene.time.delayedCall(550, () => {
+          this.scene.tweens.add({
+            targets: scroll,
+            x: -scrollW,
+            alpha: 0,
+            duration: 220,
+            onComplete: () => scroll.destroy()
           })
         })
       }

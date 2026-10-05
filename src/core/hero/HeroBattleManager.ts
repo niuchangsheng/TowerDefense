@@ -261,11 +261,15 @@ export class HeroBattleManager {
     }
 
     // 执行主动技能
-    this.skillExecutor.executeSkill(
+    const res = this.skillExecutor.executeSkill(
       activeSkillId,
       deployedData.position,
       hero
     )
+    if (res !== null && (heroData.star ?? 1) >= 5 && this.augmentManager) {
+      // 5★ 无双天命：每次释放主动战法额外为【军令台】注入 +8% 锦囊充能
+      this.augmentManager.addEnergy(8)
+    }
   }
 
   /**
@@ -292,6 +296,10 @@ export class HeroBattleManager {
 
     const deployedData = heroEntity.getDeployedData()
     const result = this.skillExecutor.executeSkill(activeSkillId, deployedData.position, heroEntity)
+    if (result !== null && (heroData.star ?? 1) >= 5 && this.augmentManager) {
+      // 5★ 无双天命：每次释放主动战法额外为【军令台】注入 +8% 锦囊充能
+      this.augmentManager.addEnergy(8)
+    }
     return result !== null
   }
 
@@ -312,15 +320,47 @@ export class HeroBattleManager {
    */
   private checkAndAttack(hero: HeroEntity, currentTime: number): EnemyEntity | null {
     const deployedData = hero.getDeployedData()
+    const heroData = hero.getHeroData()
     const stats = hero.getEffectiveStats()
 
-    // 计算攻击间隔（考虑锦囊攻速加成 + 军情近战攻速加成）
-    const speedBonus = this.augmentManager ? this.augmentManager.getAttackSpeedBonus() : 0
+    // 计算攻击间隔（考虑锦囊攻速加成 + 马超 3★ 特质射程内流血敌军攻速加成 + 军情加成）
+    let speedBonus = this.augmentManager ? this.augmentManager.getAttackSpeedBonus() : 0
+
+    // 马超 3★ 特质【神威天将】：射程内每有 1 名处于【金·裂】流血状态的敌军，攻击速度提升 +6%（最高 6 层 +36%）
+    if (heroData.id === 'hero_machao' && (heroData.star ?? 1) >= 3) {
+      const reactionMgr = ElementalReactionManager.getInstance(this.scene, this.enemyManager)
+      const rangeBonus = this.augmentManager ? this.augmentManager.getAttackRangeBonus() : 0
+      const enemiesInRange: EnemyEntity[] = this.enemyManager.getEnemiesInRange(
+        deployedData.position,
+        stats.attackRange + rangeBonus
+      )
+      const bleedingCount = Math.min(
+        6,
+        enemiesInRange.filter(e => reactionMgr.hasStatus(e.getEnemyData().id, 'bleed')).length
+      )
+      speedBonus += bleedingCount * 0.06
+    }
+
     let effectiveSpeed = stats.attackSpeed * (1 + speedBonus)
     if (this.militarySituationManager && stats.attackRange <= 150) {
       effectiveSpeed *= this.militarySituationManager.getMeleeAttackSpeedMultiplier()
     }
     const attackInterval = DamageCalculator.calculateAttackInterval(effectiveSpeed)
+
+    // 张飞 3★ 特质【断桥喝水】：处于张飞射程内的敌军，其身上的【土·重】持续时间暂停衰减
+    if (heroData.id === 'hero_zhangfei' && (heroData.star ?? 1) >= 3) {
+      const reactionMgr = ElementalReactionManager.getInstance(this.scene, this.enemyManager)
+      const rangeBonus = this.augmentManager ? this.augmentManager.getAttackRangeBonus() : 0
+      const enemiesInRange: EnemyEntity[] = this.enemyManager.getEnemiesInRange(
+        deployedData.position,
+        stats.attackRange + rangeBonus
+      )
+      for (const e of enemiesInRange) {
+        if (reactionMgr.hasStatus(e.getEnemyData().id, 'heavy')) {
+          e.applyHeavy(2500)
+        }
+      }
+    }
 
     // 检查是否可以攻击（冷却时间）
     if (currentTime - deployedData.lastAttackTime < attackInterval) {
@@ -334,7 +374,7 @@ export class HeroBattleManager {
     }
 
     // 执行攻击
-    const killed = this.executeAttack(hero, target)
+    const killed = this.executeAttack(hero, target, currentTime)
 
     // 更新上次攻击时间
     hero.updateLastAttackTime(currentTime)
@@ -344,13 +384,18 @@ export class HeroBattleManager {
 
   /**
    * 选择攻击目标
-   * 策略：优先攻击最近的敌人（考虑锦囊射程加成 + 军情远程射程加成）
+   * 策略：优先攻击最近的敌人（考虑锦囊射程加成 + 黄忠 3★ 特质 +25% 射程）
    */
   private selectTarget(hero: HeroEntity): EnemyEntity | null {
     const deployedData = hero.getDeployedData()
+    const heroData = hero.getHeroData()
     const stats = hero.getEffectiveStats()
     const rangeBonus = this.augmentManager ? this.augmentManager.getAttackRangeBonus() : 0
     let effectiveRange = stats.attackRange + rangeBonus
+    // 黄忠 3★ 特质【定军斩渊】：射程额外 +25%
+    if (heroData.id === 'hero_huangzhong' && (heroData.star ?? 1) >= 3) {
+      effectiveRange *= 1.25
+    }
     if (this.militarySituationManager && stats.attackRange > 150) {
       effectiveRange *= this.militarySituationManager.getRangedRangeMultiplier()
     }
@@ -359,9 +404,9 @@ export class HeroBattleManager {
   }
 
   /**
-   * 执行普攻（严格遵循四独立乘区公式 + 160px 相生阵脉连线 + 将星附着率）
+   * 执行普攻（严格遵循四独立乘区公式 + 160px 相生阵脉连线 + 将星附着率 + 3★本命特质）
    */
-  private executeAttack(hero: HeroEntity, target: EnemyEntity): EnemyEntity | null {
+  private executeAttack(hero: HeroEntity, target: EnemyEntity, currentTime: number = 0): EnemyEntity | null {
     const heroData = hero.getHeroData()
     const stats = hero.getEffectiveStats()
     const targetData = target.getEnemyData()
@@ -369,7 +414,13 @@ export class HeroBattleManager {
     const reactionMgr = ElementalReactionManager.getInstance(this.scene, this.enemyManager)
 
     // 1. 攻击加成区 (Attack Bonus Bucket)
-    const attackPercentBonus = this.augmentManager ? this.augmentManager.getAttackPercentBonus() : 0
+    let attackPercentBonus = this.augmentManager ? this.augmentManager.getAttackPercentBonus() : 0
+
+    // 《空城抚琴》：每少部署 1 名武将（以满编 5 人计），额外 +10% 攻击与 +8% 暴击
+    const missingHeroes = Math.max(0, 5 - this.deployedHeroes.size)
+    if (this.augmentManager?.hasSpecialAugment('aug_empty_city') && missingHeroes > 0) {
+      attackPercentBonus += missingHeroes * 0.10
+    }
 
     // 2. 增伤加成区 (Damage Increase Bucket: 天时加成 + 锦囊增伤 + 武将特质增伤)
     const weatherBonus = this.weatherSystem ? this.weatherSystem.getDamageIncreaseBonus(heroData.wuXing) : 0
@@ -392,8 +443,10 @@ export class HeroBattleManager {
     const isResisted = multiplier < 0.95
     damageIncreaseBonus += (multiplier - 1.0)
 
-    // 张飞被动【狂烈】：攻击生命低于 50% 或带有【土·重】的敌人，增伤区 +25%；3★特质每4次普攻触发范围【土·重】
-    let guaranteedElementAttach = false
+    // 张飞被动【狂烈】与 3★ 特质【断桥喝水】
+    let guaranteedElementAttach =
+      this.weatherSystem?.isWangmeiGuaranteedActive(currentTime) ?? false
+    let zhangfeiSplashShock = false
     if (heroData.id === 'hero_zhangfei') {
       const isLowHp = targetData.currentHealth / targetData.maxHealth < 0.5
       const isHeavy = reactionMgr.hasStatus(targetData.id, 'heavy')
@@ -406,6 +459,7 @@ export class HeroBattleManager {
         if (count >= 4) {
           this.zhangfeiAttackCounter.set(deployedData.instanceId, 0)
           guaranteedElementAttach = true
+          zhangfeiSplashShock = true
           target.applyHeavy(2500)
         } else {
           this.zhangfeiAttackCounter.set(deployedData.instanceId, count)
@@ -413,7 +467,7 @@ export class HeroBattleManager {
       }
     }
 
-    // 关羽 3★ 特质【春秋刀意】：每第 3 刀必挂 1 层【木·毒】
+    // 关羽 3★ 特质【威震华夏】：每第 3 刀必挂 1 层【木·毒】
     if (heroData.id === 'hero_guanyu' && (heroData.star ?? 1) >= 3) {
       const count = (this.guanyuAttackCounter.get(deployedData.instanceId) || 0) + 1
       if (count >= 3) {
@@ -424,7 +478,7 @@ export class HeroBattleManager {
       }
     }
 
-    // 赵云被动【龙胆】：每连续普攻同一目标 3 次，第 4 次触发三连突刺并必挂【水·湿】
+    // 赵云被动【龙胆】与 3★ 特质【七进七出】：每第 4 次普攻必挂【水·湿】，3★对【水·湿】目标必定暴击且减速翻倍 2s
     if (heroData.id === 'hero_zhaoyun') {
       const targetId = targetData.id
       const currentHits = (this.zhaoyunCombos.get(targetId) || 0) + 1
@@ -432,7 +486,13 @@ export class HeroBattleManager {
         this.zhaoyunCombos.delete(targetId)
         guaranteedElementAttach = true
         damageIncreaseBonus += 0.35
-        target.applySlow(0.35, 2500)
+        const isTargetWet = reactionMgr.hasStatus(targetId, 'wet')
+        if ((heroData.star ?? 1) >= 3 && isTargetWet) {
+          critRate = Math.max(critRate, 1.5) // 必定暴击
+          target.applySlow(0.60, 2000) // 水·湿减速翻倍持续 2s
+        } else {
+          target.applySlow(0.35, 2500)
+        }
         this.attackFX.damageText({ x: target.x, y: target.y - 25 }, '【龙胆突刺】', { color: '#00e5ff' })
         target.hitShake(5)
       } else {
@@ -440,7 +500,8 @@ export class HeroBattleManager {
       }
     }
 
-    // 黄忠被动【百步穿杨】：攻击距离越远增伤越高（最远 +35%）；对处于【火·灼】的敌人暴击率大幅提升
+    // 黄忠被动【百步穿杨】与 3★ 特质【定军斩渊】：攻击【火·灼】敌人暴击率 +35%，3★额外无视 20% 韧性
+    let extraTenacityIgnore = 0
     if (heroData.id === 'hero_huangzhong') {
       const dist = Phaser.Math.Distance.Between(deployedData.position.x, deployedData.position.y, target.x, target.y)
       const rangeBonus = this.augmentManager ? this.augmentManager.getAttackRangeBonus() : 0
@@ -451,10 +512,13 @@ export class HeroBattleManager {
       const isBurning = reactionMgr.hasStatus(targetData.id, 'burn')
       if (isBurning) {
         critRate += 0.35
+        if ((heroData.star ?? 1) >= 3) {
+          extraTenacityIgnore = 0.20
+        }
       }
     }
 
-    // 马超被动【西凉铁骑】：根据战意增伤（每层 +6%）；对带有【土·重】目标暴击率与增伤提升
+    // 马超被动【西凉铁骑】与 3★ 特质【神威天将】：对【土·重】目标暴击率 +20%
     if (heroData.id === 'hero_machao') {
       const stacks = this.machaoStacks.get(deployedData.instanceId) || 0
       if (stacks > 0) {
@@ -470,7 +534,13 @@ export class HeroBattleManager {
       }
     }
 
+    // 《长坂单骑》：超出 100% 的暴击率转化为 2.5 倍暴击伤害
+    if (this.augmentManager?.hasSpecialAugment('aug_zhaoyun_dragon') && critRate > 1.0) {
+      critDamage += (critRate - 1.0) * 2.5
+    }
+
     // 四独立乘区结算（含敌方防御/韧性/刚毅 ≥40% 下限保底）
+    const baseTenacityRed = typeof target.getTenacityReductionRatio === 'function' ? target.getTenacityReductionRatio() : 0
     const fourBucketResult = DamageCalculator.calculateFourBucketDamage({
       baseValue: stats.attack,
       attackBoostSum: attackPercentBonus,
@@ -481,7 +551,7 @@ export class HeroBattleManager {
       enemyInitialDefense: targetData.defense ?? 0,
       defenseReductionRatio: typeof target.getDefenseReductionRatio === 'function' ? target.getDefenseReductionRatio() : 0,
       enemyInitialTenacity: targetData.tenacity ?? 0,
-      tenacityReductionRatio: typeof target.getTenacityReductionRatio === 'function' ? target.getTenacityReductionRatio() : 0,
+      tenacityReductionRatio: baseTenacityRed + extraTenacityIgnore,
       enemyInitialFortitude: targetData.fortitude ?? 0,
       fortitudeReductionRatio: typeof target.getFortitudeReductionRatio === 'function' ? target.getFortitudeReductionRatio() : 0
     })
@@ -491,6 +561,15 @@ export class HeroBattleManager {
     // 应用伤害
     const actualDamage = target.takeDamage(damage)
 
+    // 《长坂单骑》：每次暴击使自身主动战法 CD 缩减 0.5s
+    if (
+      fourBucketResult.isCrit &&
+      this.augmentManager?.hasSpecialAugment('aug_zhaoyun_dragon') &&
+      heroData.activeSkillId
+    ) {
+      this.skillManager.reduceCooldown(heroData.activeSkillId, 500)
+    }
+
     // 若暴击且敌军处于【土·重】或【熔岩·焦土】，触发【负重内震】额外伤害
     if (fourBucketResult.isCrit && typeof target.triggerHeavyCritShock === 'function') {
       const shockDmg = target.triggerHeavyCritShock(actualDamage)
@@ -499,6 +578,15 @@ export class HeroBattleManager {
           color: '#ffb300',
           crit: true
         })
+        // 张飞 3★ 特质【断桥喝水】或《霸桥挑袍》：每第 4 击或暴击内震向周围 85px 溅射 50% 内震伤害并挂【土·重】
+        if (zhangfeiSplashShock || this.augmentManager?.hasSpecialAugment('aug_zhangfei_roar')) {
+          const nearby: EnemyEntity[] = this.enemyManager.getEnemiesInRange({ x: target.x, y: target.y }, 85)
+          for (const ne of nearby) {
+            if (ne === target || !ne.active) continue
+            ne.takeDamage(Math.max(1, Math.floor(shockDmg * 0.5)))
+            ne.applyHeavy(2500)
+          }
+        }
       }
     }
 
@@ -585,11 +673,20 @@ export class HeroBattleManager {
     if (targetData.currentHealth <= 0) {
       target.die()
 
-      // 关羽被动【武圣】：击杀带有木系寄生或处于五行元素反应状态的敌军，使【青龙偃月斩】冷却缩减 1 秒
+      // 关羽被动【武圣】与 3★ 特质【威震华夏】：击杀木毒敌军缩减 CD（3★额外 -0.6s 并扩散 +35% 毒雾）
       if (heroData.id === 'hero_guanyu') {
         const hasWoodStatus = reactionMgr.hasStatus(targetData.id, 'parasite')
         if (hasWoodStatus) {
-          this.skillManager.reduceCooldown('skill_active_guanyu', 1000)
+          const cdReduce = (heroData.star ?? 1) >= 3 ? 1600 : 1000
+          this.skillManager.reduceCooldown('skill_active_guanyu', cdReduce)
+          if ((heroData.star ?? 1) >= 3) {
+            const nearby: EnemyEntity[] = this.enemyManager.getEnemiesInRange({ x: target.x, y: target.y }, 95)
+            for (const ne of nearby) {
+              if (ne === target || !ne.active) continue
+              ne.takeDamage(Math.max(1, Math.floor(stats.attack * 0.35)))
+              reactionMgr.handleAttack(ne, 'wood', Math.floor(stats.attack * 0.35))
+            }
+          }
           this.attackFX.damageText({ x: hero.x, y: hero.y - 30 }, '【武圣·兵法速决】', { color: '#4caf50' })
         }
       }

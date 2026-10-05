@@ -14,7 +14,7 @@ import {
   getLevelStatBonus,
   calculateLevelFromExp
 } from '@/data/heroes/levelConfig'
-import { getStarAttachmentRate } from '@/data/heroes'
+import { getStarAttachmentRate, STAR_DESTINY_NODES } from '@/data/heroes'
 import { DamageCalculator } from '@/core/battle/DamageCalculator'
 import { SaveManager } from '@/core/save/SaveManager'
 import {
@@ -33,7 +33,8 @@ import {
   createInkButton,
   renderPageHeader,
   createPageBackButton,
-  inkToast
+  inkToast,
+  createInkDialog
 } from '@/ui/InkTheme'
 
 /**
@@ -582,31 +583,52 @@ export default class HeroListScene extends Phaser.Scene {
     return y + 34
   }
 
+  /** 已领取的名将传记试炼记录 */
+  private claimedBioTrials: Set<string> = new Set()
+
   /**
-   * 星级：碎片进度 + 升星按钮
+   * 将星命盘（1★~5★）与名将传记试炼
    */
   private renderStarUpgrade(panel: Phaser.GameObjects.Container, hero: Hero, y: number): number {
-    y += sectionHeader(this, panel, 24, y, '星级', HeroListScene.CONTENT_WIDTH)
+    const curNode = STAR_DESTINY_NODES.find(n => n.star === hero.star) || STAR_DESTINY_NODES[0]
+    y += sectionHeader(
+      this,
+      panel,
+      24,
+      y,
+      `将星命盘（当前 ${hero.star}★【${curNode.title}】· 普攻五行附着率 ${Math.round(curNode.attachmentRate * 100)}%）`,
+      HeroListScene.CONTENT_WIDTH
+    )
     const rowY = y + 20
 
     if (hero.star < 5) {
+      const nextNode = STAR_DESTINY_NODES.find(n => n.star === hero.star + 1)
       const soulStones = this.getSoulStones(hero.id)
       const required = hero.starUpgradeRequirements[hero.star - 1] || 0
       const canUpgrade = soulStones >= required
 
-      // 碎片数量
-      panel.add(inkText(this, 24, rowY, `碎片: ${soulStones}/${required}`, {
-        size: 14,
-        color: canUpgrade ? InkText.green : InkText.faint
-      }))
+      // 将魂数量与下一星命盘预告
+      panel.add(
+        inkText(
+          this,
+          24,
+          rowY,
+          `专属将魂: ${soulStones}/${required}  ➔  下一阶 ${hero.star + 1}★【${nextNode?.title || ''}】（附着率 ${Math.round((nextNode?.attachmentRate || 0.8) * 100)}%）`,
+          {
+            size: 13,
+            color: canUpgrade ? InkText.green : InkText.ink,
+            bold: canUpgrade
+          }
+        )
+      )
 
       // 升星按钮
       if (canUpgrade) {
-        const upgradeBtn = createInkButton(this, 776, rowY, 96, 28, '升星', {
+        const upgradeBtn = createInkButton(this, 776, rowY, 96, 28, '点亮命星', {
           fill: InkColor.cinnabar,
           hoverFill: 0xb2362e,
           textColor: InkText.paper,
-          fontSize: 14,
+          fontSize: 13,
           onClick: () => {
             this.showUpgradeConfirmDialog(hero, soulStones, required)
           }
@@ -614,10 +636,176 @@ export default class HeroListScene extends Phaser.Scene {
         panel.add(upgradeBtn)
       }
     } else {
-      panel.add(inkText(this, 24, rowY, '已满星', { size: 14, color: InkText.gold, bold: true }))
+      panel.add(
+        inkText(this, 24, rowY, '★ 已臻 5★【无双天命】（80%附着率 · 双Lv.5终极大招 · 战法+8%军令充能）', {
+          size: 13,
+          color: InkText.gold,
+          bold: true
+        })
+      )
     }
 
+    // 【📜 名将传记试炼】按钮（第4章 §6：3项轻量实战试炼保底赠 4 块专属将魂，直通 3★ 本命武魂）
+    const bioBtn = createInkButton(this, 635, rowY, 155, 28, '📜 名将传记试炼 (领将魂)', {
+      fill: InkColor.paperDeep,
+      hoverFill: 0xc5b795,
+      textColor: InkText.cinnabar,
+      fontSize: 12,
+      stroke: InkColor.cinnabar,
+      onClick: () => {
+        this.showBiographyTrialDialog(hero)
+      }
+    })
+    panel.add(bioBtn)
+
     return y + 42
+  }
+
+  /**
+   * 弹出【名将传记试炼】弹窗（每名五虎上将 3 项历史典故试炼，领取专属将魂保底直升 3★）
+   */
+  private showBiographyTrialDialog(hero: Hero): void {
+    const dialogW = 580
+    const dialogH = 360
+    const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
+      stroke: InkColor.cinnabar,
+      strokeWidth: 2
+    })
+    const closeAll = () => {
+      overlay.destroy()
+      panel.destroy()
+    }
+
+    panel.add(
+      inkText(this, dialogW / 2, 26, `【📜 ${hero.name} · 名将传记试炼】`, {
+        size: 20,
+        color: InkText.cinnabar,
+        bold: true,
+        originX: 0.5
+      })
+    )
+    panel.add(
+      inkText(
+        this,
+        dialogW / 2,
+        50,
+        '达成名将实战传记壮举即可领取专属将魂（共 4 块，保底点亮 2★【同源开窍】与 3★【本命武魂】）',
+        {
+          size: 12,
+          color: InkText.wash,
+          originX: 0.5
+        }
+      )
+    )
+
+    const trialsMap: Record<string, { id: string; title: string; desc: string; reward: number }[]> = {
+      hero_guanyu: [
+        { id: 'guanyu_1', title: '传记一 · 温酒斩华雄', desc: '派遣关羽出战并累计触发 10 次【木·毒】侵蚀', reward: 1 },
+        { id: 'guanyu_2', title: '传记二 · 水淹七军', desc: '单局内以关羽触发 5 次水生木【滋养·蔓延】藤蔓定身', reward: 1 },
+        { id: 'guanyu_3', title: '传记三 · 威震华夏', desc: '单局内触发 8 次木生火【燎原·焚尽】并击败镇守统帅', reward: 2 }
+      ],
+      hero_huangzhong: [
+        { id: 'hz_1', title: '传记一 · 百步穿杨', desc: '派遣黄忠出战并在最远射程命中敌军 15 次', reward: 1 },
+        { id: 'hz_2', title: '传记二 · 烈弓焚营', desc: '单局内以黄忠引爆 6 次木生火【燎原·焚尽】火海', reward: 1 },
+        { id: 'hz_3', title: '传记三 · 定军斩渊', desc: '单局内以黄忠触发 6 次火生土【熔岩·焦土】并破除统帅铁壁', reward: 2 }
+      ],
+      hero_zhangfei: [
+        { id: 'zf_1', title: '传记一 · 当阳怒吼', desc: '派遣张飞出战并累计使 15 名敌军陷入【土·重】削韧', reward: 1 },
+        { id: 'zf_2', title: '传记二 · 焦土震岳', desc: '单局内触发 5 次火生土【熔岩·焦土】并打出负重内震', reward: 1 },
+        { id: 'zf_3', title: '传记三 · 据水断桥', desc: '单局内触发 6 次土生金【淬刃·锋芒】并守护帅营不失', reward: 2 }
+      ],
+      hero_machao: [
+        { id: 'mc_1', title: '传记一 · 西凉锦马超', desc: '派遣马超出战并累计触发 15 次【金·裂】破甲流血', reward: 1 },
+        { id: 'mc_2', title: '传记二 · 潼关割袍', desc: '单局内以马超触发 6 次土生金【淬刃·锋芒】剑气迸射', reward: 1 },
+        { id: 'mc_3', title: '传记三 · 渭水筑冰城', desc: '单局内触发 6 次金生水【寒芒·碎冰】冻结敌军主力', reward: 2 }
+      ],
+      hero_zhaoyun: [
+        { id: 'zy_1', title: '传记一 · 白马银枪', desc: '派遣赵云出战并累计触发 15 次【水·湿】迟滞减速', reward: 1 },
+        { id: 'zy_2', title: '传记二 · 汉水拒曹', desc: '单局内以赵云触发 6 次金生水【寒芒·碎冰】绝对冰封', reward: 1 },
+        { id: 'zy_3', title: '传记三 · 长坂七进七出', desc: '单局内触发 6 次水生木【滋养·蔓延】并满血通关战役', reward: 2 }
+      ]
+    }
+
+    const trials = trialsMap[hero.id] || trialsMap.hero_guanyu
+    let rowY = 98
+    for (const t of trials) {
+      const claimed = this.claimedBioTrials.has(t.id)
+      const rowBg = this.add.rectangle(dialogW / 2, rowY, dialogW - 44, 58, InkColor.paperDeep, 0.75)
+      rowBg.setStrokeStyle(1, claimed ? 0x5f7a4a : InkColor.cinnabar)
+      panel.add(rowBg)
+
+      panel.add(
+        inkText(this, 36, rowY - 11, `${t.title}  （奖励: 💎 ${hero.name}将魂 ×${t.reward}）`, {
+          size: 14,
+          color: InkText.strong,
+          bold: true
+        })
+      )
+      panel.add(
+        inkText(this, 36, rowY + 11, t.desc, {
+          size: 11,
+          color: InkText.wash
+        })
+      )
+
+      if (claimed) {
+        panel.add(
+          inkText(this, dialogW - 88, rowY, '✓ 已领取', {
+            size: 13,
+            color: InkText.green,
+            bold: true,
+            originX: 0.5,
+            originY: 0.5
+          })
+        )
+      } else {
+        const claimBtn = createInkButton(this, dialogW - 88, rowY, 100, 30, '领取将魂', {
+          fill: InkColor.cinnabar,
+          hoverFill: 0xb53a32,
+          textColor: '#ffffff',
+          fontSize: 12,
+          onClick: () => {
+            this.claimedBioTrials.add(t.id)
+            this.addSoulStones(hero.id, t.reward)
+            inkToast(this, `完成【${t.title}】，获得 ${hero.name}将魂 ×${t.reward}！`)
+            closeAll()
+            this.updateDetailPanel(hero.id)
+          }
+        })
+        panel.add(claimBtn)
+      }
+
+      rowY += 68
+    }
+
+    const closeBtn = createInkButton(this, dialogW / 2, dialogH - 26, 100, 30, '关闭卷轴', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.ink,
+      fontSize: 13,
+      onClick: closeAll
+    })
+    panel.add(closeBtn)
+  }
+
+  /**
+   * 为指定英雄增加专属将魂并保存至存档
+   */
+  private addSoulStones(heroId: string, amount: number): void {
+    const saveManager = SaveManager.getInstance()
+    let saveData = saveManager.getCurrentSave() || saveManager.loadFromSlot(0)
+    if (!saveData) {
+      saveManager.createNewSave(1)
+      saveData = saveManager.getCurrentSave()
+    }
+    if (!saveData) return
+    const existing = saveData.inventory.soulStones.find(s => s.heroId === heroId)
+    if (existing) {
+      existing.amount += amount
+    } else {
+      saveData.inventory.soulStones.push({ heroId, amount })
+    }
+    saveManager.saveCurrent()
   }
 
   /**

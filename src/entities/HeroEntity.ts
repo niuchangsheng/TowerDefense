@@ -54,7 +54,31 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     tokenBg.strokeCircle(0, -2, 15)
     tokenBg.lineStyle(0.8, InkColor.ink, 0.35)
     tokenBg.strokeCircle(0, -2, 12)
+
+    // 第10章 §2：② 专属神兵常驻器灵金环 + ③ 同源/相生双色护体灵魄
+    const resonance = EquipmentManager.getInstance().getHeroResonance(hero.id, hero.name)
+    if (resonance.isExclusive) {
+      tokenBg.lineStyle(1.8, 0xd97706, 0.9)
+      tokenBg.strokeCircle(0, -2, 17.5)
+    }
     this.add(tokenBg)
+
+    if (resonance.hasResonance) {
+      const orbG = scene.add.graphics()
+      const sameColor = wuxing.border
+      const genColor = resonance.generatingGem ? INK_WUXING[resonance.generatingGem.wuXing].border : 0xfbbf24
+      orbG.fillStyle(sameColor, 0.95)
+      orbG.fillCircle(-16, -2, 3)
+      orbG.fillStyle(genColor, 0.95)
+      orbG.fillCircle(16, -2, 3)
+      this.add(orbG)
+      scene.tweens.add({
+        targets: orbG,
+        angle: 360,
+        duration: 3600,
+        repeat: -1
+      })
+    }
 
     // 2. 英雄头像（规范为 24x24 紧凑尺寸，完全容纳在 1 格 40px 内）
     const imageKey = this.getHeroImageKey(hero.id)

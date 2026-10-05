@@ -837,7 +837,7 @@ export default class TitleScene extends Phaser.Scene {
       originY: 0.5
     })
 
-    const subTitle = inkText(this, 0, 15, '· 讨伐董卓 · 开疆拓土 ·', {
+    const subTitle = inkText(this, 0, 15, '· 五大古战场 · 15波决战无缝北伐 ·', {
       size: 11,
       color: '#e8dbbe',
       bold: false,
@@ -902,8 +902,8 @@ export default class TitleScene extends Phaser.Scene {
 
   /**
    * 创建 2×2 功能名片矩阵
-   * [ 聚贤武将 ]  [ 神兵宝甲 ]
-   * [ 天命锦囊 ]  [ 百战无尽 ]
+   * [ 聚贤武将 ]  [ 神兵灵石 ]
+   * [ 水墨博物志 ] [ 无尽北伐 ]
    */
   private createFeatureGrid(width: number): void {
     const colSpacing = 270
@@ -920,7 +920,7 @@ export default class TitleScene extends Phaser.Scene {
       row1Y,
       '将',
       '聚贤武将',
-      '点将封侯 · 绝学演武',
+      '将星命盘 · 传记试炼',
       InkColor.cinnabar,
       () => this.transitionTo('HeroListScene')
     )
@@ -930,35 +930,35 @@ export default class TitleScene extends Phaser.Scene {
       rightColX,
       row1Y,
       '兵',
-      '神兵宝甲',
-      '淬火重铸 · 五行共鸣',
+      '神兵灵石',
+      '蒲元铸剑 · 灵砂淬炼',
       InkColor.cinnabar,
       () => this.transitionTo('EquipmentScene')
     )
 
-    // 3. 锦囊图鉴
+    // 3. 水墨博物志（名将录/神兵谱/灵石鉴/锦囊）
     this.createClassicalFeatureCard(
       leftColX,
       row2Y,
-      '策',
-      '天命锦囊',
-      '奇门遁甲 · 锦囊妙计',
+      '志',
+      '水墨博物志',
+      '名将录 · 神兵谱 · 灵石鉴',
       0x4a5f6d,
       () => this.transitionTo('AugmentCompendiumScene')
     )
 
-    // 4. 无尽试炼（展示断点）
+    // 4. 无尽北伐（展示最高波次记录）
     const currentWave = SaveManager.getInstance().getEndlessCurrentWave()
     const record = SaveManager.getInstance().getEndlessRecord()
     const displayWave = currentWave > 1 ? currentWave : (record && record.highestWave > 0 ? record.highestWave : 0)
-    const endlessTitle = displayWave > 0 ? `百战第${displayWave}阵` : '百战无尽'
+    const endlessTitle = displayWave > 0 ? `北伐第${displayWave}阵` : '乘胜北伐'
 
     this.createClassicalFeatureCard(
       rightColX,
       row2Y,
-      '塔',
+      '伐',
       endlessTitle,
-      '决战巅峰 · 战塔破阵',
+      '无尽烽火 · 极品灵石',
       0x8a6230,
       () => this.transitionToBattle('level_endless_tower', currentWave)
     )

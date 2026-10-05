@@ -1,7 +1,11 @@
 import Phaser from 'phaser'
 import { Augment, AugmentRarity } from '@/types/augment'
 import { AUGMENT_POOL, REPEATABLE_AUGMENTS } from '@/data/augments'
-import { getHeroConfig } from '@/data/heroes'
+import { heroes, getHeroConfig, STAR_ATTACHMENT_RATES } from '@/data/heroes'
+import { getSkill } from '@/data/skills'
+import { artifacts, gems, gemNames, GEM_STAT_RANGES } from '@/data/equipment'
+import { DIVINE_FORGE_RECIPES } from '@/core/equipment/EquipmentManager'
+import { WuXing } from '@/types'
 import {
   InkColor,
   InkText,
@@ -18,6 +22,7 @@ import {
 import { SoundFX } from '@/effects/SoundFX'
 
 type FilterTab = 'all' | 'elemental' | 'hero' | 'general' | 'endless' | 'repeatable'
+type CompendiumVolume = 'heroes' | 'weapons' | 'gems' | 'stratagems'
 
 interface TabDef {
   key: FilterTab
@@ -25,23 +30,35 @@ interface TabDef {
 }
 
 const RARITY_INFO: Record<AugmentRarity, { label: string; stroke: number; bg: number; text: string }> = {
-  common: { label: '军略·凡品', stroke: 0x6e7d8c, bg: 0xe6e4df, text: '#4e5a65' },
-  rare: { label: '奇策·良品', stroke: 0x2979ff, bg: 0xdde9fd, text: '#1565c0' },
-  epic: { label: '神算·绝品', stroke: 0x8e24aa, bg: 0xf3e5f5, text: '#6a1b9a' },
-  legendary: { label: '天机·无双', stroke: 0xd97706, bg: 0xfff3e0, text: '#b45309' }
+  common: { label: '五行异变策', stroke: 0x6e7d8c, bg: 0xe6e4df, text: '#4e5a65' },
+  rare: { label: '奇谋战法策', stroke: 0x2979ff, bg: 0xdde9fd, text: '#1565c0' },
+  epic: { label: '攻防逆转策', stroke: 0x8e24aa, bg: 0xf3e5f5, text: '#6a1b9a' },
+  legendary: { label: '相生连环策', stroke: 0xd97706, bg: 0xfff3e0, text: '#b45309' }
 }
 
 /**
- * 军事锦囊图鉴场景（水墨宣纸风）
- * 汇聚三国谋士全套 27 卷锦囊秘策，提供分类浏览、属性拆解与兵法策论
+ * 水墨博物志（四大典藏图鉴：名将录 · 神兵谱 · 灵石鉴 · 军师锦囊）
+ * 严格遵循 docs/Wuxing_System_Design.md 第十章 §10.3 设计规范：
+ * 1. 【卷一：名将录（武将图鉴）】：展示 1★~5★ 北斗将星命盘节点与 260×180px 实时微缩演武场（Mini Sandbox）预览四阶技能；
+ * 2. 【卷二：神兵谱（武器图鉴）】：展示专属认主朱砂大印、2★同源槽 + 4★相生槽 + 5★终极大招，配备 Lv.1~Lv.5 实时交互游标；
+ * 3. 【卷三：灵石鉴（宝石图鉴）】：展示 5×5 五行灵石矩阵、完整 [Min ~ Max] 随机上下限区间表及适配神兵跳转；
+ * 4. 【卷四：军师锦囊（典故名策）】：汇聚全套三国典故锦囊，支持分类检索与策论详案。
  */
 export default class AugmentCompendiumScene extends Phaser.Scene {
   private allAugments: Augment[] = []
   private filteredAugments: Augment[] = []
+  private currentVolume: CompendiumVolume = 'heroes'
   private currentTab: FilterTab = 'all'
   private selectedAugmentId: string | null = null
+  private selectedHeroId: string = 'hero_guanyu'
+  private sandboxTier: 1 | 2 | 3 | 4 = 1
+  private selectedArtifactId: string = 'artifact_qinglong'
+  private weaponPreviewGemLevel: number = 3
+  private selectedGemId: string = 'gem_wood_5'
 
   // UI 容器与组件
+  private volumeButtons: Phaser.GameObjects.Container[] = []
+  private bodyContainer: Phaser.GameObjects.Container | null = null
   private tabButtons: Phaser.GameObjects.Container[] = []
   private listContainer!: Phaser.GameObjects.Container
   private listScrollY = 0
@@ -53,41 +70,32 @@ export default class AugmentCompendiumScene extends Phaser.Scene {
     super({ key: 'AugmentCompendiumScene' })
   }
 
-  init(): void {
-    // 整合唯一锦囊池与可重复精进锦囊池 (共27卷)
+  init(data?: { volume?: CompendiumVolume; artifactId?: string }): void {
+    // 整合唯一锦囊池与可重复精进锦囊池 (共30卷)
     this.allAugments = [...AUGMENT_POOL, ...REPEATABLE_AUGMENTS]
+    this.currentVolume = data?.volume || 'heroes'
     this.currentTab = 'all'
     this.listScrollY = 0
     this.selectedAugmentId = this.allAugments[0]?.id || null
-  }
-
-  create(): void {
-    const height = this.cameras.main.height
-
-    drawPaperBackground(this)
-
-    // 1. 顶部标题栏 + 返回按钮
-    this.renderHeader()
-
-    // 2. 分类过滤标签栏
-    this.renderTabs()
-
-    // 3. 左侧锦囊列表
-    this.renderListPanel(height)
-
-    // 4. 右侧军机详案面板
-    this.renderDetailPanel()
-
-    // 5. 初始选中第一张锦囊
-    if (this.selectedAugmentId) {
-      this.selectAugment(this.selectedAugmentId)
+    if (data?.artifactId) {
+      this.selectedArtifactId = data.artifactId
     }
   }
 
-  private renderHeader(): void {
-    renderPageHeader(this, '锦囊', '· 图鉴')
+  create(): void {
+    drawPaperBackground(this)
 
-    // 右上角返回按钮
+    // 1. 顶部标题栏 + 返回按钮 + 四大典藏卷轴切换栏
+    this.renderHeader()
+    this.renderVolumeSwitcher()
+
+    // 2. 渲染当前卷轴主体
+    this.renderActiveVolume()
+  }
+
+  private renderHeader(): void {
+    renderPageHeader(this, '水墨博物志', '· 名将录 · 神兵谱 · 灵石鉴 · 军师锦囊')
+
     createPageBackButton(this, () => {
       try {
         this.scene.start('TitleScene')
@@ -95,6 +103,72 @@ export default class AugmentCompendiumScene extends Phaser.Scene {
         console.error('Failed to return to TitleScene:', err)
       }
     })
+  }
+
+  private renderVolumeSwitcher(): void {
+    this.volumeButtons.forEach(b => b.destroy())
+    this.volumeButtons = []
+
+    const volumes: { key: CompendiumVolume; label: string }[] = [
+      { key: 'heroes', label: '📜 卷一：名将录（演武沙盒）' },
+      { key: 'weapons', label: '⚔️ 卷二：神兵谱（Lv.1~5 游标）' },
+      { key: 'gems', label: '💎 卷三：灵石鉴（5×5 矩阵）' },
+      { key: 'stratagems', label: '🎴 卷四：军师锦囊（典故名策）' }
+    ]
+
+    let vx = 420
+    const vy = 42
+    for (const vol of volumes) {
+      const isAct = this.currentVolume === vol.key
+      const btn = createInkButton(this, vx, vy, 178, 30, vol.label, {
+        fill: isAct ? InkColor.cinnabar : InkColor.paperDeep,
+        hoverFill: isAct ? 0xb53a32 : InkColor.paperPanel,
+        textColor: isAct ? InkText.paper : InkText.ink,
+        fontSize: 11,
+        stroke: isAct ? 0x6e1b15 : InkColor.inkFaint,
+        onClick: () => {
+          if (this.currentVolume === vol.key) return
+          SoundFX.thud(0.2)
+          this.currentVolume = vol.key
+          this.renderVolumeSwitcher()
+          this.renderActiveVolume()
+        }
+      })
+      this.volumeButtons.push(btn)
+      vx += 186
+    }
+  }
+
+  private renderActiveVolume(): void {
+    this.tabButtons.forEach(b => b.destroy())
+    this.tabButtons = []
+    this.cardContainers = []
+    if (this.detailContainer) {
+      this.detailContainer.destroy()
+      this.detailContainer = null
+    }
+    if (this.bodyContainer) {
+      this.bodyContainer.destroy()
+      this.bodyContainer = null
+    }
+
+    this.bodyContainer = this.add.container(0, 0)
+
+    if (this.currentVolume === 'heroes') {
+      this.renderHeroesVolume()
+    } else if (this.currentVolume === 'weapons') {
+      this.renderWeaponsVolume()
+    } else if (this.currentVolume === 'gems') {
+      this.renderGemsVolume()
+    } else {
+      const height = this.cameras.main.height
+      this.renderTabs()
+      this.renderListPanel(height)
+      this.renderDetailPanel()
+      if (this.selectedAugmentId) {
+        this.selectAugment(this.selectedAugmentId)
+      }
+    }
   }
 
   private renderTabs(): void {
@@ -172,10 +246,11 @@ export default class AugmentCompendiumScene extends Phaser.Scene {
     const listH = height - listY - 24
 
     // 列表背衬底框
-    createPanel(this, listX, listY, listW, listH, {
+    const listPanel = createPanel(this, listX, listY, listW, listH, {
       alpha: 0.5,
       strokeWidth: 1.5
     })
+    if (this.bodyContainer) this.bodyContainer.add(listPanel)
 
     // 视口遮罩
     const maskG = this.make.graphics({ x: 0, y: 0 })
@@ -185,6 +260,7 @@ export default class AugmentCompendiumScene extends Phaser.Scene {
     // 内容容器
     this.listContainer = this.add.container(listX, listY)
     this.listContainer.setMask(mask)
+    if (this.bodyContainer) this.bodyContainer.add(this.listContainer)
 
     // 滚轮交互：使用场景级监听 + 手动边界检测，避免 Zone 遮挡卡片点击
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
@@ -627,4 +703,674 @@ export default class AugmentCompendiumScene extends Phaser.Scene {
     }
     return '兵法云：运筹帷幄之中，决胜千里之外。根据当前关卡敌军五行弱点审时度势，方显军师神算。'
   }
+
+  // ==================== 卷一：名将录（1★~5★北斗将星命盘 + 260×180px 四阶技能实时演武沙盒） ====================
+
+  private renderHeroesVolume(): void {
+    if (!this.bodyContainer) return
+    const height = this.cameras.main.height
+
+    // 左侧五虎上将名册
+    const listX = 32
+    const listY = 86
+    const listW = 320
+    const listH = height - listY - 24
+    const listPanel = createPanel(this, listX, listY, listW, listH, { alpha: 0.55, strokeWidth: 1.5 })
+    this.bodyContainer.add(listPanel)
+
+    const listTitle = inkText(this, listX + 16, listY + 14, '◈ 蜀汉五虎上将 · 命盘名册', {
+      size: 14,
+      color: InkText.strong,
+      bold: true
+    })
+    this.bodyContainer.add(listTitle)
+
+    let hy = listY + 46
+    for (const h of heroes) {
+      const isSel = h.id === this.selectedHeroId
+      const wx = INK_WUXING[h.wuXing]
+      const card = this.add.container(listX + 12, hy)
+      const cardW = listW - 24
+      const cardH = 82
+
+      const bg = this.add.rectangle(cardW / 2, cardH / 2, cardW, cardH, isSel ? 0xf4eee1 : InkColor.paperPanel, 0.95)
+      bg.setStrokeStyle(isSel ? 2.2 : 1, isSel ? InkColor.cinnabar : wx.border, isSel ? 1 : 0.65)
+      bg.setInteractive({ useHandCursor: true })
+      card.add(bg)
+
+      const badge = this.add.rectangle(26, cardH / 2, 34, 52, wx.fill, 0.95)
+      badge.setStrokeStyle(1.5, wx.border)
+      const badgeTxt = inkText(this, 26, cardH / 2, wx.label, {
+        size: 18,
+        color: wx.text,
+        bold: true,
+        originX: 0.5,
+        originY: 0.5
+      })
+      card.add([badge, badgeTxt])
+
+      const nameTxt = inkText(this, 56, 16, `${h.name} · 【${wx.label}系主将】`, {
+        size: 16,
+        color: InkText.strong,
+        bold: true
+      })
+      const roleTxt = inkText(this, 56, 40, `兵费: ${h.deploymentCost} 粮草 | 攻: ${h.baseStats.attack} | 射程: ${h.baseStats.attackRange}px`, {
+        size: 11,
+        color: InkText.faint
+      })
+      const activeSkillName = getSkill(h.activeSkillId)?.name || '本命战法'
+      const skillTxt = inkText(this, 56, 58, `本命战法：【${activeSkillName}】`, {
+        size: 11,
+        color: InkText.cinnabar,
+        bold: true
+      })
+      card.add([nameTxt, roleTxt, skillTxt])
+
+      bg.on('pointerdown', () => {
+        SoundFX.thud(0.2)
+        this.selectedHeroId = h.id
+        this.renderActiveVolume()
+      })
+
+      this.bodyContainer.add(card)
+      hy += cardH + 10
+    }
+
+    // 右侧详情 + 北斗将星命盘 + 260×180px 实时微缩演武沙盒
+    const detailX = 368
+    const detailY = 86
+    const detailW = 880
+    const detailH = height - detailY - 24
+    const detailPanel = createPanel(this, detailX, detailY, detailW, detailH, {
+      stroke: 0xa0782f,
+      strokeWidth: 2
+    })
+    this.bodyContainer.add(detailPanel)
+
+    const hero = getHeroConfig(this.selectedHeroId) || heroes[0]
+    const wx = INK_WUXING[hero.wuXing]
+    const recipe = DIVINE_FORGE_RECIPES.find(r => r.heroId === hero.id)
+
+    const headerTitle = inkText(this, detailX + 24, detailY + 18, `${hero.name} · 【${wx.label}灵将星】`, {
+      size: 26,
+      color: InkText.strong,
+      bold: true
+    })
+    const subInfo = inkText(
+      this,
+      detailX + 24,
+      detailY + 52,
+      `本命专属神兵：【${recipe?.artifactName || '专属神兵'}】（击败【${recipe?.bossName || '镇守统帅'}】必掉【${recipe?.materialName || '神兵主材'}】）`,
+      { size: 12, color: InkText.cinnabar, bold: true }
+    )
+    this.bodyContainer.add([headerTitle, subInfo])
+
+    // 1. 左侧子栏：1★~5★ 北斗将星命盘全节点解析 (宽 480px)
+    const leftBoxX = detailX + 24
+    let cy = detailY + 84
+    sectionHeader(this, this.bodyContainer, leftBoxX, cy, '◈ 北斗将星命盘（1★ ~ 5★ 全节点与普攻附着率）', 490)
+    cy += 28
+
+    const trait3Map: Record<string, string> = {
+      hero_guanyu: '【青龙饮血】木毒阵亡减青龙斩月 CD 1.6s，毒伤范围 +35%',
+      hero_huangzhong: '【百步穿杨】射程 +25%，对火灼目标暴击无视 20% 韧性',
+      hero_zhangfei: '【万人敌】射程内土重停止衰减，内震附带 85px 50% 溅射',
+      hero_machao: '【铁骑讨】场上每名金裂敌军使自身攻速 +6%（最高 +36%）',
+      hero_zhaoyun: '【七进七出】对水湿目标第 4 次攻击必暴击且减速翻倍 1.5s'
+    }
+
+    const starRows = [
+      { star: '1★ 少微初启', rate: '25%', desc: '解锁名将基础战法，开局全员无门槛出阵' },
+      { star: '2★ 天璇开阳', rate: '38%', desc: '解锁神兵【同源宝石槽】，激活同源五行技能强化' },
+      { star: '3★ 天玑本命', rate: '52%', desc: trait3Map[hero.id] || '解锁名将 3★ 本命特质' },
+      { star: '4★ 天权相生', rate: '66%', desc: '解锁神兵【相生宝石槽】，激活同源+相生三才共鸣' },
+      { star: '5★ 紫微极意', rate: '80%', desc: '双槽镶嵌 Lv.5 灵石觉醒【圣兽法相终极大招】，释放战法回 +8% 军令' }
+    ]
+
+    for (const row of starRows) {
+      const rBg = this.add.rectangle(leftBoxX + 245, cy + 20, 490, 36, InkColor.paperDeep, 0.45)
+      rBg.setStrokeStyle(1, InkColor.inkFaint, 0.3)
+      const sTxt = inkText(this, leftBoxX + 10, cy + 20, `${row.star} (附着 ${row.rate})`, {
+        size: 12,
+        color: '#8a5a14',
+        bold: true,
+        originY: 0.5
+      })
+      const dTxt = inkText(this, leftBoxX + 148, cy + 20, row.desc, {
+        size: 11,
+        color: InkText.ink,
+        wrapWidth: 334,
+        originY: 0.5
+      })
+      this.bodyContainer.add([rBg, sTxt, dTxt])
+      cy += 42
+    }
+
+    // 五大基础属性与局外上限说明
+    cy += 8
+    sectionHeader(this, this.bodyContainer, leftBoxX, cy, '◈ 五大基础面板与武道十境（局外单项上限 ≤ +50%）', 490)
+    cy += 28
+    const statPanel = this.add.rectangle(leftBoxX + 245, cy + 44, 490, 84, InkColor.paperDeep, 0.4)
+    statPanel.setStrokeStyle(1, InkColor.inkFaint, 0.3)
+    const statText = inkText(
+      this,
+      leftBoxX + 14,
+      cy + 14,
+      `• 攻击力: ${hero.baseStats.attack}   | 攻击范围: ${hero.baseStats.attackRange}px   | 攻击速度: ${hero.baseStats.attackSpeed}/s\n` +
+        `• 暴击几率: 10.0% | 暴击伤害: 150.0% | 1★~5★普攻五行附着: ${(STAR_ATTACHMENT_RATES[1] * 100).toFixed(0)}%→${(STAR_ATTACHMENT_RATES[5] * 100).toFixed(0)}%\n` +
+        `• 武道十境满级加成: 攻击 +36% / 射程 +18% / 攻速 +18%（配合双槽宝石严守 +50% 铁律）`,
+      { size: 12, color: InkText.ink }
+    )
+    this.bodyContainer.add([statPanel, statText])
+
+    // 2. 右侧子栏：260×180px 实时微缩演武沙盒（Mini Sandbox）
+    const sbX = detailX + 544
+    const sbY = detailY + 84
+    sectionHeader(this, this.bodyContainer, sbX, sbY, '◈ 四阶技能实时演武场 (Mini Sandbox)', 310)
+
+    const sandboxW = 280
+    const sandboxH = 185
+    const boxCenterX = sbX + 155
+    const boxCenterY = sbY + 32 + sandboxH / 2
+
+    const sbBg = this.add.rectangle(boxCenterX, boxCenterY, sandboxW, sandboxH, 0x1e1b16, 0.92)
+    sbBg.setStrokeStyle(2, 0xc89b3c, 0.95)
+    this.bodyContainer.add(sbBg)
+
+    // 演武场网格与木桩敌军
+    const sbContainer = this.add.container(boxCenterX, boxCenterY)
+    this.bodyContainer.add(sbContainer)
+
+    const gridG = this.add.graphics()
+    gridG.lineStyle(1, 0xd4af37, 0.15)
+    gridG.strokeCircle(-65, 10, 38)
+    gridG.lineBetween(-120, 10, 120, 10)
+    sbContainer.add(gridG)
+
+    // 左侧演武武将剪影 + 脚底器灵金环 + 环绕灵魄
+    const heroDummyX = -65
+    const heroDummyY = 10
+    if (this.sandboxTier >= 2) {
+      const goldRing = this.add.graphics()
+      goldRing.lineStyle(2, 0xffd700, 0.9)
+      goldRing.strokeCircle(heroDummyX, heroDummyY, 26)
+      goldRing.lineStyle(1, wx.border, 0.7)
+      goldRing.strokeCircle(heroDummyX, heroDummyY, 31)
+      sbContainer.add(goldRing)
+    }
+
+    const heroToken = this.add.circle(heroDummyX, heroDummyY, 18, wx.fill, 1)
+    heroToken.setStrokeStyle(2, 0xffffff, 0.9)
+    const heroTokTxt = inkText(this, heroDummyX, heroDummyY, hero.name[0], {
+      size: 15,
+      color: '#ffffff',
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    sbContainer.add([heroToken, heroTokTxt])
+
+    if (this.sandboxTier >= 3) {
+      const orb1 = this.add.circle(heroDummyX - 24, heroDummyY - 14, 5, wx.border, 1)
+      const orb2 = this.add.circle(heroDummyX + 24, heroDummyY + 14, 5, 0xffd700, 1)
+      sbContainer.add([orb1, orb2])
+    }
+
+    // 右侧机关木人靶
+    const targetX = 68
+    const targetY = 10
+    const dummyTarget = this.add.rectangle(targetX, targetY, 30, 44, 0x6d4c41, 1)
+    dummyTarget.setStrokeStyle(1.5, 0xffca28, 0.9)
+    const dummyLabel = inkText(this, targetX, targetY, '木人\n机关', {
+      size: 10,
+      color: '#fff8e1',
+      originX: 0.5,
+      originY: 0.5
+    })
+    sbContainer.add([dummyTarget, dummyLabel])
+
+    // 根据当前演武阶位播放水墨演武视效
+    const fxG = this.add.graphics()
+    sbContainer.add(fxG)
+    const tierColor = this.sandboxTier === 1 ? 0xb0bec5 : this.sandboxTier === 2 ? wx.border : this.sandboxTier === 3 ? 0xffb300 : 0xff5252
+    fxG.lineStyle(this.sandboxTier + 2, tierColor, 0.9)
+    fxG.beginPath()
+    fxG.moveTo(heroDummyX + 18, heroDummyY)
+    fxG.lineTo(targetX - 16, targetY)
+    fxG.strokePath()
+    fxG.fillStyle(tierColor, 0.35)
+    fxG.fillCircle(targetX, targetY, 16 + this.sandboxTier * 7)
+
+    const beastTitles: Record<string, string> = {
+      hero_guanyu: '🐉 东方青龙法相 · 青龙啸天',
+      hero_huangzhong: '🦅 南方朱雀法相 · 九日连珠',
+      hero_zhangfei: '⛰️ 中土玄岳法相 · 万夫莫开',
+      hero_machao: '🐅 西方白虎法相 · 万骑奔雷',
+      hero_zhaoyun: '🐢 北方玄武法相 · 龙胆惊鸿'
+    }
+    const heroSkillName = getSkill(hero.activeSkillId)?.name || '本命战法'
+    const tierLabels: Record<1 | 2 | 3 | 4, string> = {
+      1: `① 原始技能：【${heroSkillName}】基础水墨气劲`,
+      2: `② +专属神兵：脚底常驻器灵金环 + 八卦阵技能质变`,
+      3: `③ +同源/相生宝石：双色护体灵魄 + 三才共鸣流光`,
+      4: `④ 终极大招：0.35s 暗场诗号卷轴 + ${beastTitles[hero.id] || '圣兽法相'}`
+    }
+    const bannerTxt = inkText(this, 0, -sandboxH / 2 + 16, tierLabels[this.sandboxTier], {
+      size: 11,
+      color: '#ffe082',
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    sbContainer.add(bannerTxt)
+
+    if (this.sandboxTier === 4) {
+      const scrollBanner = this.add.rectangle(0, 62, sandboxW - 20, 26, 0x8e1e16, 0.95)
+      scrollBanner.setStrokeStyle(1.2, 0xffd700)
+      const scrollTxt = inkText(this, 0, 62, `📜 诗号切入 · ${beastTitles[hero.id] || '五行圣兽降临'}`, {
+        size: 11,
+        color: '#fff8e1',
+        bold: true,
+        originX: 0.5,
+        originY: 0.5
+      })
+      sbContainer.add([scrollBanner, scrollTxt])
+    }
+
+    // 4 阶切换按钮
+    const tierBtns: { tier: 1 | 2 | 3 | 4; label: string }[] = [
+      { tier: 1, label: '① 原始技能 (无神兵)' },
+      { tier: 2, label: '② +佩戴本命专属神兵' },
+      { tier: 3, label: '③ +镶嵌同源 & 相生宝石' },
+      { tier: 4, label: '④ 🐉 双 Lv.5 终极大招觉醒' }
+    ]
+
+    let btnY = sbY + 32 + sandboxH + 22
+    for (const tb of tierBtns) {
+      const active = this.sandboxTier === tb.tier
+      const btn = createInkButton(this, boxCenterX, btnY, sandboxW, 30, tb.label, {
+        fill: active ? InkColor.cinnabar : InkColor.paperDeep,
+        hoverFill: active ? 0xb53a32 : InkColor.paperPanel,
+        textColor: active ? InkText.paper : InkText.ink,
+        fontSize: 12,
+        stroke: active ? 0xd4af37 : InkColor.inkFaint,
+        onClick: () => {
+          SoundFX.stamp(0.25)
+          this.sandboxTier = tb.tier
+          this.renderActiveVolume()
+        }
+      })
+      this.bodyContainer.add(btn)
+      btnY += 36
+    }
+  }
+
+  // ==================== 卷二：神兵谱（专属认主朱砂印 + Lv.1~Lv.5 宝石等级实时交互游标） ====================
+
+  private renderWeaponsVolume(): void {
+    if (!this.bodyContainer) return
+    const height = this.cameras.main.height
+
+    const exclusiveArtifacts = artifacts.filter(a =>
+      ['artifact_qinglong', 'artifact_shemao', 'artifact_longdan', 'artifact_sherigong', 'artifact_zhanjin'].includes(a.id)
+    )
+
+    // 左侧五大本命神兵名录
+    const listX = 32
+    const listY = 86
+    const listW = 320
+    const listH = height - listY - 24
+    const listPanel = createPanel(this, listX, listY, listW, listH, { alpha: 0.55, strokeWidth: 1.5 })
+    this.bodyContainer.add(listPanel)
+
+    const listTitle = inkText(this, listX + 16, listY + 14, '◈ 五虎专属本命神兵谱（一生一铸）', {
+      size: 14,
+      color: InkText.strong,
+      bold: true
+    })
+    this.bodyContainer.add(listTitle)
+
+    let wy = listY + 46
+    for (const art of exclusiveArtifacts) {
+      const isSel = art.id === this.selectedArtifactId
+      const wx = INK_WUXING[art.gemSocket.requiredWuXing]
+      const card = this.add.container(listX + 12, wy)
+      const cardW = listW - 24
+      const cardH = 82
+
+      const bg = this.add.rectangle(cardW / 2, cardH / 2, cardW, cardH, isSel ? 0xf4eee1 : InkColor.paperPanel, 0.95)
+      bg.setStrokeStyle(isSel ? 2.2 : 1, isSel ? InkColor.cinnabar : wx.border, isSel ? 1 : 0.65)
+      bg.setInteractive({ useHandCursor: true })
+      card.add(bg)
+
+      const nameTxt = inkText(this, 16, 14, `⚔️ ${art.name}`, {
+        size: 16,
+        color: InkText.strong,
+        bold: true
+      })
+      const ownerTxt = inkText(this, 16, 38, `【认主 · ${art.exclusiveResonance?.heroName || '名将'}专属】`, {
+        size: 12,
+        color: InkText.cinnabar,
+        bold: true
+      })
+      const skillTxt = inkText(this, 16, 58, `神兵技：${art.exclusiveResonance?.hiddenSkillName || ''}`, {
+        size: 11,
+        color: InkText.faint
+      })
+      card.add([nameTxt, ownerTxt, skillTxt])
+
+      bg.on('pointerdown', () => {
+        SoundFX.thud(0.2)
+        this.selectedArtifactId = art.id
+        this.renderActiveVolume()
+      })
+
+      this.bodyContainer.add(card)
+      wy += cardH + 10
+    }
+
+    // 右侧神兵详情 + Lv.1~Lv.5 宝石等级实时游标
+    const detailX = 368
+    const detailY = 86
+    const detailW = 880
+    const detailH = height - detailY - 24
+    const detailPanel = createPanel(this, detailX, detailY, detailW, detailH, {
+      stroke: 0xa0782f,
+      strokeWidth: 2
+    })
+    this.bodyContainer.add(detailPanel)
+
+    const art = exclusiveArtifacts.find(a => a.id === this.selectedArtifactId) || exclusiveArtifacts[0]
+    const recipe = DIVINE_FORGE_RECIPES.find(r => r.artifactId === art.id)
+    const lv = this.weaponPreviewGemLevel
+    const scalePct = lv * 20 // Lv.1~Lv.5 对应 20% ~ 100% 满额共鸣幅度
+
+    // 标题与朱砂认主大印
+    const title = inkText(this, detailX + 24, detailY + 20, `【${art.name}】`, {
+      size: 28,
+      color: InkText.strong,
+      bold: true
+    })
+    const sealRect = this.add.rectangle(detailX + detailW - 120, detailY + 34, 180, 32, InkColor.cinnabar, 0.95)
+    sealRect.setStrokeStyle(1.5, 0xffd700)
+    const sealTxt = inkText(
+      this,
+      detailX + detailW - 120,
+      detailY + 34,
+      `認主 · ${art.exclusiveResonance?.heroName || ''}專屬`,
+      { size: 13, color: '#fff8e1', bold: true, originX: 0.5, originY: 0.5 }
+    )
+    const forgeTxt = inkText(
+      this,
+      detailX + 28,
+      detailY + 56,
+      `蒲元铸剑坊宿命定向锻造：消耗【${recipe?.materialName || '神兵主材'}】（击败【${recipe?.bossName || '统帅'}】100% 必掉，一生仅需铸造 1 把）`,
+      { size: 12, color: '#8a5a14', bold: true }
+    )
+    this.bodyContainer.add([title, sealRect, sealTxt, forgeTxt])
+
+    // Lv.1 ~ Lv.5 实时交互游标
+    let cy = detailY + 90
+    sectionHeader(this, this.bodyContainer, detailX + 24, cy, '◈ 镶嵌宝石等级游标预览（拖动/点击 Lv.1 ──●── Lv.5 实时对比共鸣数值）', detailW - 48)
+    cy += 32
+
+    for (let gLv = 1; gLv <= 5; gLv++) {
+      const isCur = this.weaponPreviewGemLevel === gLv
+      const bx = detailX + 90 + (gLv - 1) * 165
+      const btn = createInkButton(this, bx, cy + 12, 148, 32, `💎 镶嵌 Lv.${gLv} 灵石 (${gLv * 20}%效能)`, {
+        fill: isCur ? InkColor.cinnabar : InkColor.paperDeep,
+        hoverFill: isCur ? 0xb53a32 : InkColor.paperPanel,
+        textColor: isCur ? InkText.paper : InkText.ink,
+        fontSize: 12,
+        stroke: isCur ? 0xd4af37 : InkColor.inkFaint,
+        onClick: () => {
+          SoundFX.thud(0.2)
+          this.weaponPreviewGemLevel = gLv
+          this.renderActiveVolume()
+        }
+      })
+      this.bodyContainer.add(btn)
+    }
+
+    cy += 60
+    sectionHeader(this, this.bodyContainer, detailX + 24, cy, `◈ 神兵三才共鸣详案（当前预览：Lv.${lv} 宝石 · 发挥 ${scalePct}% 极意倍率）`, detailW - 48)
+    cy += 30
+
+    const cards = [
+      {
+        badge: '本命神兵质变（佩戴即激活）',
+        title: `${art.exclusiveResonance?.hiddenSkillName || ''}`,
+        desc: `${art.description || ''}（专属神兵基础技能形态质变，无需宝石即可生效）`,
+        color: '#8a5a14'
+      },
+      {
+        badge: `2★【同源槽】激活（Lv.${lv} 同源宝石 · 强度 ${scalePct}%）`,
+        title: art.exclusiveResonance?.sameEffectDesc || '',
+        desc: `当前 Lv.${lv} 同源宝石共鸣增幅：触发概率/范围系数提升至基准的 ${scalePct}%（Lv.1→Lv.5 对应 20%→100% 满额威力）`,
+        color: '#2e7d32'
+      },
+      {
+        badge: `4★【相生槽】激活（Lv.${lv} 相生宝石 · 强度 ${scalePct}%）`,
+        title: art.exclusiveResonance?.generatingEffectDesc || '',
+        desc: `当前 Lv.${lv} 相生宝石共鸣增幅：相生化学连锁与附加倍率提升至基准的 ${scalePct}%`,
+        color: '#1565c0'
+      },
+      {
+        badge: `5★【双槽 Lv.5 终极大招】（${lv === 5 ? '✅ 已满足双 Lv.5 觉醒条件！' : '🔒 需双槽均镶嵌 Lv.5 灵石激活'}）`,
+        title: art.exclusiveResonance?.ultimateDesc || '',
+        desc: '双槽同时镶嵌 Lv.5 传世灵石且名将达 5★ 时，释放主动战法触发 0.35s 暗场聚焦、名将诗号卷轴切入与五行圣兽法相降临！',
+        color: lv === 5 ? InkText.cinnabar : InkText.faint
+      }
+    ]
+
+    for (const c of cards) {
+      const box = this.add.rectangle(detailX + detailW / 2, cy + 34, detailW - 48, 62, InkColor.paperDeep, 0.45)
+      box.setStrokeStyle(1, InkColor.inkFaint, 0.35)
+      const bTxt = inkText(this, detailX + 38, cy + 12, c.badge, {
+        size: 12,
+        color: c.color,
+        bold: true
+      })
+      const tTxt = inkText(this, detailX + 38, cy + 30, c.title, {
+        size: 13,
+        color: InkText.strong,
+        bold: true
+      })
+      const dTxt = inkText(this, detailX + 38, cy + 48, c.desc, {
+        size: 11,
+        color: InkText.faint
+      })
+      this.bodyContainer.add([box, bTxt, tTxt, dTxt])
+      cy += 70
+    }
+  }
+
+  // ==================== 卷三：灵石鉴（5×5 五行灵石矩阵 + [Min ~ Max] 随机区间表 + 适配神兵跳转） ====================
+
+  private renderGemsVolume(): void {
+    if (!this.bodyContainer) return
+    const height = this.cameras.main.height
+
+    // 左侧 5×5 五行灵石矩阵
+    const matX = 32
+    const matY = 86
+    const matW = 470
+    const matH = height - matY - 24
+    const matPanel = createPanel(this, matX, matY, matW, matH, { alpha: 0.55, strokeWidth: 1.5 })
+    this.bodyContainer.add(matPanel)
+
+    const matTitle = inkText(this, matX + 16, matY + 14, '◈ 五行灵石 5×5 典藏矩阵（点击检视词条区间与适配神兵）', {
+      size: 14,
+      color: InkText.strong,
+      bold: true
+    })
+    this.bodyContainer.add(matTitle)
+
+    const elements: WuXing[] = ['metal', 'wood', 'water', 'fire', 'earth']
+    let rowY = matY + 52
+    for (const el of elements) {
+      const wx = INK_WUXING[el]
+      const elLabel = inkText(this, matX + 16, rowY + 34, `【${wx.label}】`, {
+        size: 15,
+        color: wx.text,
+        bold: true,
+        originY: 0.5
+      })
+      this.bodyContainer.add(elLabel)
+
+      for (let lv = 1; lv <= 5; lv++) {
+        const gemId = `gem_${el}_${lv}`
+        const isSel = this.selectedGemId === gemId
+        const cellX = matX + 74 + (lv - 1) * 76
+        const cellW = 70
+        const cellH = 68
+
+        const cell = this.add.rectangle(cellX + cellW / 2, rowY + cellH / 2, cellW, cellH, isSel ? 0xf4eee1 : InkColor.paperPanel, 0.95)
+        cell.setStrokeStyle(isSel ? 2.2 : 1, isSel ? InkColor.cinnabar : wx.border, isSel ? 1 : 0.65)
+        cell.setInteractive({ useHandCursor: true })
+
+        const gemDot = this.add.circle(cellX + cellW / 2, rowY + 20, 8 + lv * 1.2, wx.border, 0.9)
+        const lvTxt = inkText(this, cellX + cellW / 2, rowY + 40, `Lv.${lv}`, {
+          size: 11,
+          color: InkText.strong,
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
+        })
+        const gName = gemNames[el]?.[lv] || `Lv.${lv}灵石`
+        const nmTxt = inkText(this, cellX + cellW / 2, rowY + 56, gName, {
+          size: 10,
+          color: InkText.faint,
+          originX: 0.5,
+          originY: 0.5
+        })
+
+        cell.on('pointerdown', () => {
+          SoundFX.thud(0.18)
+          this.selectedGemId = gemId
+          this.renderActiveVolume()
+        })
+
+        this.bodyContainer.add([cell, gemDot, lvTxt, nmTxt])
+      }
+      rowY += 80
+    }
+
+    // 右侧宝石 [Min ~ Max] 随机区间透视表 + 适配神兵一键跳转
+    const detailX = 518
+    const detailY = 86
+    const detailW = 730
+    const detailH = height - detailY - 24
+    const detailPanel = createPanel(this, detailX, detailY, detailW, detailH, {
+      stroke: 0xa0782f,
+      strokeWidth: 2
+    })
+    this.bodyContainer.add(detailPanel)
+
+    const selGem = gems.find(g => g.id === this.selectedGemId) || gems[0]
+    const wx = INK_WUXING[selGem.wuXing]
+    const gName = gemNames[selGem.wuXing]?.[selGem.level] || '五行灵石'
+
+    const title = inkText(this, detailX + 24, detailY + 18, `💎 【${gName}】 (Lv.${selGem.level} · ${wx.label}系灵石)`, {
+      size: 24,
+      color: InkText.strong,
+      bold: true
+    })
+    const ruleDesc = inkText(
+      this,
+      detailX + 24,
+      detailY + 50,
+      '词条铁律：每颗灵石固定生成 2 条随机基础属性；三合一升阶时由【主石】100% 定向继承词条类型；灵砂淬炼永不降级！',
+      { size: 12, color: InkText.cinnabar, bold: true }
+    )
+    this.bodyContainer.add([title, ruleDesc])
+
+    let cy = detailY + 82
+    sectionHeader(
+      this,
+      this.bodyContainer,
+      detailX + 24,
+      cy,
+      `◈ Lv.${selGem.level} 灵石五大基础属性 [Min ~ Max] 随机上下限区间全表`,
+      detailW - 48
+    )
+    cy += 30
+
+    const statKeys: Array<keyof typeof GEM_STAT_RANGES> = ['attack', 'attackRange', 'attackSpeed', 'critRate', 'critDamage']
+    for (const sk of statKeys) {
+      const r = GEM_STAT_RANGES[sk][selGem.level]
+      const rowBg = this.add.rectangle(detailX + detailW / 2, cy + 17, detailW - 48, 32, InkColor.paperDeep, 0.4)
+      rowBg.setStrokeStyle(1, InkColor.inkFaint, 0.28)
+
+      const rangeText = r.isPercentage
+        ? `[ +${(r.min * 100).toFixed(1)}%  ~  +${(r.max * 100).toFixed(1)}% ]`
+        : `[ +${r.min}px  ~  +${r.max}px ]`
+
+      const lTxt = inkText(this, detailX + 38, cy + 17, `• ${r.label} (${sk})`, {
+        size: 13,
+        color: InkText.strong,
+        bold: true,
+        originY: 0.5
+      })
+      const rTxt = inkText(this, detailX + detailW - 38, cy + 17, `Lv.${selGem.level} 随机区间：${rangeText}`, {
+        size: 13,
+        color: '#8a5a14',
+        bold: true,
+        originX: 1,
+        originY: 0.5
+      })
+      this.bodyContainer.add([rowBg, lTxt, rTxt])
+      cy += 38
+    }
+
+    // 适配神兵与一键跳转
+    cy += 12
+    sectionHeader(this, this.bodyContainer, detailX + 24, cy, '◈ 同源 / 相生适配本命神兵（点击直接跳转【神兵谱】）', detailW - 48)
+    cy += 32
+
+    const matchingArtifacts = artifacts.filter(
+      a =>
+        ['artifact_qinglong', 'artifact_shemao', 'artifact_longdan', 'artifact_sherigong', 'artifact_zhanjin'].includes(a.id) &&
+        Boolean(a.gemSocket.allowedWuXings?.includes(selGem.wuXing))
+    )
+
+    for (const ma of matchingArtifacts) {
+      const isSameOrigin = ma.gemSocket.requiredWuXing === selGem.wuXing
+      const slotTag = isSameOrigin ? '【2★ 同源槽本命适配】' : '【4★ 相生槽共鸣适配】'
+      const effectText = isSameOrigin ? ma.exclusiveResonance?.sameEffectDesc : ma.exclusiveResonance?.generatingEffectDesc
+
+      const box = this.add.rectangle(detailX + detailW / 2, cy + 32, detailW - 48, 58, InkColor.paperDeep, 0.5)
+      box.setStrokeStyle(1.2, isSameOrigin ? 0x2e7d32 : 0x1565c0, 0.7)
+
+      const tTxt = inkText(this, detailX + 36, cy + 18, `⚔️ ${ma.name} (${ma.exclusiveResonance?.heroName || ''}) · ${slotTag}`, {
+        size: 13,
+        color: isSameOrigin ? '#2e7d32' : '#1565c0',
+        bold: true
+      })
+      const dTxt = inkText(this, detailX + 36, cy + 40, effectText || '', {
+        size: 11,
+        color: InkText.ink,
+        wrapWidth: detailW - 220
+      })
+
+      const jumpBtn = createInkButton(this, detailX + detailW - 96, cy + 32, 128, 30, '跳转神兵谱 →', {
+        fill: InkColor.cinnabar,
+        hoverFill: 0xb53a32,
+        textColor: InkText.paper,
+        fontSize: 11,
+        onClick: () => {
+          SoundFX.stamp(0.25)
+          this.selectedArtifactId = ma.id
+          this.weaponPreviewGemLevel = selGem.level
+          this.currentVolume = 'weapons'
+          this.renderVolumeSwitcher()
+          this.renderActiveVolume()
+        }
+      })
+
+      this.bodyContainer.add([box, tTxt, dTxt, jumpBtn])
+      cy += 68
+    }
+  }
 }
+

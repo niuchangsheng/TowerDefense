@@ -568,6 +568,238 @@ export class EquipmentManager {
     return true
   }
 
+  // =========================================================
+  // 蒲元铸剑坊（神兵宿命主材与 100% 定向锻造 · 一生仅需铸造 1 把）
+  // =========================================================
+
+  private divineMaterials: Map<string, number> = new Map([
+    ['mat_qinglong_scale', 1],
+    ['mat_bailian_iron', 1],
+    ['mat_xuanwu_jade', 1],
+    ['mat_xiliang_gold', 1],
+    ['mat_chitu_crystal', 1]
+  ])
+
+  private spiritDust: number = 60
+
+  public static readonly DIVINE_FORGE_RECIPES: ReadonlyArray<{
+    materialId: string
+    materialName: string
+    bossName: string
+    artifactId: string
+    artifactName: string
+    heroId: string
+    heroName: string
+    wuXing: WuXing
+    goldCost: number
+  }> = [
+    {
+      materialId: 'mat_qinglong_scale',
+      materialName: '青龙逆鳞',
+      bossName: '天公将军·张角',
+      artifactId: 'artifact_qinglong',
+      artifactName: '青龙偃月刀',
+      heroId: 'hero_guanyu',
+      heroName: '关羽',
+      wuXing: 'wood',
+      goldCost: 800
+    },
+    {
+      materialId: 'mat_bailian_iron',
+      materialName: '百炼陨铁',
+      bossName: '天人铁壁·曹仁',
+      artifactId: 'artifact_sherigong',
+      artifactName: '射日万石弓',
+      heroId: 'hero_huangzhong',
+      heroName: '黄忠',
+      wuXing: 'fire',
+      goldCost: 800
+    },
+    {
+      materialId: 'mat_xuanwu_jade',
+      materialName: '玄武寒玉',
+      bossName: '威震逍遥·张辽',
+      artifactId: 'artifact_shemao',
+      artifactName: '丈八蛇矛',
+      heroId: 'hero_zhangfei',
+      heroName: '张飞',
+      wuXing: 'earth',
+      goldCost: 800
+    },
+    {
+      materialId: 'mat_xiliang_gold',
+      materialName: '西凉精金',
+      bossName: '暴虐魔王·董卓',
+      artifactId: 'artifact_zhanjin',
+      artifactName: '虎头湛金枪',
+      heroId: 'hero_machao',
+      heroName: '马超',
+      wuXing: 'metal',
+      goldCost: 800
+    },
+    {
+      materialId: 'mat_chitu_crystal',
+      materialName: '赤兔火晶',
+      bossName: '无双战神·吕布',
+      artifactId: 'artifact_longdan',
+      artifactName: '龙胆亮银枪',
+      heroId: 'hero_zhaoyun',
+      heroName: '赵云',
+      wuXing: 'water',
+      goldCost: 800
+    }
+  ]
+
+  public getDivineMaterialCount(materialId: string): number {
+    return this.divineMaterials.get(materialId) || 0
+  }
+
+  public addDivineMaterial(materialId: string, count: number = 1): void {
+    const cur = this.getDivineMaterialCount(materialId)
+    this.divineMaterials.set(materialId, cur + count)
+  }
+
+  public hasOwnedEquipmentId(equipmentId: string): boolean {
+    for (const inst of this.ownedEquipment.values()) {
+      if (inst.equipmentId === equipmentId) return true
+    }
+    return false
+  }
+
+  /**
+   * 蒲元铸剑坊：消耗 1 个统帅宿命主材，100% 定向锻造对应五虎本命神兵（一生仅需铸造 1 把）
+   */
+  public forgeExclusiveArtifact(materialId: string): {
+    success: boolean
+    alreadyOwned?: boolean
+    instance?: EquipmentInstance
+    message: string
+  } {
+    const recipe = EquipmentManager.DIVINE_FORGE_RECIPES.find(r => r.materialId === materialId)
+    if (!recipe) {
+      return { success: false, message: '未知的神兵锻造图谱' }
+    }
+    if (this.hasOwnedEquipmentId(recipe.artifactId)) {
+      return {
+        success: false,
+        alreadyOwned: true,
+        message: `《${recipe.artifactName}》已认主铸成（神兵一生仅需铸造 1 把）`
+      }
+    }
+    const count = this.getDivineMaterialCount(materialId)
+    if (count < 1) {
+      return {
+        success: false,
+        message: `缺少宿命主材【${recipe.materialName}】（击败【${recipe.bossName}】必掉）`
+      }
+    }
+
+    this.divineMaterials.set(materialId, count - 1)
+    const inst = this.addEquipment(recipe.artifactId)
+    if (inst) {
+      this.equipToHero(inst.instanceId, recipe.heroId, recipe.heroName)
+      return {
+        success: true,
+        instance: inst,
+        message: `蒲元神工！成功铸造《${recipe.artifactName}》并认主【${recipe.heroName}】！`
+      }
+    }
+    return { success: false, message: '铸造失败' }
+  }
+
+  // =========================================================
+  // 灵砂保底淬炼（分解溢出宝石 -> 五行灵砂 -> 保底不降级重随词条）
+  // =========================================================
+
+  public getSpiritDust(): number {
+    return this.spiritDust
+  }
+
+  public addSpiritDust(amount: number): void {
+    this.spiritDust = Math.max(0, this.spiritDust + amount)
+  }
+
+  /**
+   * 分解未镶嵌的溢出宝石为【五行灵砂】（按宝石等级返还 level * 15 灵砂）
+   */
+  public salvageGemToDust(gemId: string): { success: boolean; dustGained: number; message: string } {
+    const gem = this.ownedGems.get(gemId)
+    if (!gem) {
+      return { success: false, dustGained: 0, message: '未找到该宝石' }
+    }
+    // 检查是否已镶嵌在神器上
+    for (const inst of this.ownedEquipment.values()) {
+      if (inst.type !== 'artifact') continue
+      const art = getArtifact(inst.equipmentId)
+      if (
+        art?.gemSocket?.currentGem === gemId ||
+        art?.gemSocket?.sameGem === gemId ||
+        art?.gemSocket?.generatingGem === gemId
+      ) {
+        return { success: false, dustGained: 0, message: '该宝石正镶嵌于神兵之上，请先卸下' }
+      }
+    }
+
+    const dustGained = gem.level * 15
+    this.ownedGems.delete(gemId)
+    this.addSpiritDust(dustGained)
+    return {
+      success: true,
+      dustGained,
+      message: `分解 Lv.${gem.level} ${WuXingNames[gem.wuXing]}灵石，获得【五行灵砂】+${dustGained}`
+    }
+  }
+
+  /**
+   * 消耗 20 点【五行灵砂】为指定宝石的第 affixIndex 条词条生成一条新候选词条（支持保留原词条或替换为新词条，100% 不降级）
+   */
+  public previewReforgeGemAffix(
+    gemId: string,
+    affixIndex: 0 | 1 = 0
+  ): {
+    success: boolean
+    oldAffix?: NonNullable<Gem['affixes']>[number]
+    newAffix?: NonNullable<Gem['affixes']>[number]
+    message: string
+  } {
+    const gem = this.ownedGems.get(gemId)
+    if (!gem || !gem.affixes || !gem.affixes[affixIndex]) {
+      return { success: false, message: '未找到可淬炼的宝石词条' }
+    }
+    const cost = 20
+    if (this.spiritDust < cost) {
+      return { success: false, message: `五行灵砂不足（需 ${cost} 灵砂，当前 ${this.spiritDust}）` }
+    }
+
+    this.spiritDust -= cost
+    const oldAffix = { ...gem.affixes[affixIndex] }
+    const otherStat = gem.affixes[affixIndex === 0 ? 1 : 0]?.stat
+    // 生成一条不与另一条词条重复的新候选词条（保底分位 0.35 提高淬炼品质）
+    const rolled = rollGemAffixes(gem.level, 0.35)
+    const candidate = rolled.find(a => a.stat !== otherStat) || rolled[0]
+
+    return {
+      success: true,
+      oldAffix,
+      newAffix: candidate,
+      message: `消耗 ${cost} 灵砂淬炼完成！可选择【保留原词条】或【替换为新词条】`
+    }
+  }
+
+  /**
+   * 玩家在淬炼对比中选择【替换为新词条】（若选保留原词条则无需调用，绝不负向降级）
+   */
+  public applyReforgedGemAffix(
+    gemId: string,
+    affixIndex: 0 | 1,
+    newAffix: NonNullable<Gem['affixes']>[number]
+  ): boolean {
+    const gem = this.ownedGems.get(gemId)
+    if (!gem || !gem.affixes || !gem.affixes[affixIndex]) return false
+    gem.affixes[affixIndex] = { ...newAffix }
+    return true
+  }
+
   /**
    * 重置
    */
@@ -575,6 +807,9 @@ export class EquipmentManager {
     this.ownedEquipment.clear()
     this.ownedGems.clear()
     this.equipmentCounter = 0
+    this.spiritDust = 60
     this.initDefaultEquipment()
   }
 }
+
+export const DIVINE_FORGE_RECIPES = EquipmentManager.DIVINE_FORGE_RECIPES

@@ -35,6 +35,22 @@ export function getStarAegisBreakBonus(star: number): number {
   return star >= 4 ? 0.50 : 0
 }
 
+export interface StarDestinyNode {
+  star: number
+  title: string
+  attachRatePct: number
+  attachmentRate: number
+  unlockDesc: string
+}
+
+export const STAR_DESTINY_NODES: StarDestinyNode[] = [
+  { star: 1, title: '1★ 命星初亮', attachRatePct: 25, attachmentRate: 0.25, unlockDesc: '开局全员无门槛上阵，解锁基础主动战法' },
+  { star: 2, title: '2★ 同源器眼', attachRatePct: 40, attachmentRate: 0.40, unlockDesc: '解锁专属神兵【同源宝石槽】，部署军费 -2' },
+  { star: 3, title: '3★ 本命武魂', attachRatePct: 50, attachmentRate: 0.50, unlockDesc: '觉醒名将 3★ 专属本命特质（机制质变）' },
+  { star: 4, title: '4★ 相生器眼', attachRatePct: 65, attachmentRate: 0.65, unlockDesc: '解锁专属神兵【相生宝石槽】，破 Boss 铁壁效率 1.5x' },
+  { star: 5, title: '5★ 紫微极意', attachRatePct: 80, attachmentRate: 0.80, unlockDesc: '双槽 Lv.5 宝石觉醒【圣兽法相终极大招】，战法回 +8% 军令' }
+]
+
 /**
  * 五虎上将配置（一期核心：开局全员平权解锁，五大基础属性齐备）
  * - 关羽（木·毒 / 武圣）

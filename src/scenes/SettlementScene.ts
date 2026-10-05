@@ -4,6 +4,7 @@ import { SaveManager } from '@/core/save/SaveManager'
 import { EquipmentManager } from '@/core/equipment/EquipmentManager'
 import { EndlessModeManager } from '@/core/level/EndlessModeManager'
 import { getHeroConfig } from '@/data/heroes'
+import { getBattlefieldMapMeta } from '@/data/levels'
 import {
   InkColor,
   InkText,
@@ -25,6 +26,7 @@ interface SettlementReward {
   equipment: { id: string; name: string; rarity: Rarity }[]
   gems: { wuXing: string; level: number }[]
   soulStones: { heroId: string; heroName: string; amount: number }[]
+  divineMaterial?: { id: string; name: string; weaponName: string; heroName: string }
 }
 
 /**
@@ -54,6 +56,7 @@ export default class SettlementScene extends Phaser.Scene {
    */
   private calculateRewards(): SettlementReward {
     const isEndless = Boolean(this.battleResult.stats?.isEndless || this.battleResult.levelId.includes('endless'))
+    const mapMeta = getBattlefieldMapMeta(this.battleResult.levelId)
 
     if (isEndless) {
       const waves = this.battleResult.wavesCompleted || 0
@@ -65,7 +68,15 @@ export default class SettlementScene extends Phaser.Scene {
         experience,
         equipment: [],
         gems: [],
-        soulStones: []
+        soulStones: [],
+        divineMaterial: mapMeta
+          ? {
+              id: mapMeta.divineMaterialId,
+              name: mapMeta.divineMaterialName,
+              weaponName: mapMeta.exclusiveWeaponName,
+              heroName: mapMeta.targetHeroName
+            }
+          : undefined
       }
 
       // 每 5 波获 1 件装备（高波次掉落高阶）
@@ -83,11 +94,14 @@ export default class SettlementScene extends Phaser.Scene {
         }
       }
 
-      // 每 4 波获 1 颗宝石
-      const gemCount = Math.floor(waves / 4)
-      const wuXings = ['metal', 'wood', 'water', 'fire', 'earth']
+      // 每 4 波获 1 颗宝石（70% 顺天本命五行 / 30% 异行奇石）
+      const gemCount = Math.max(1, Math.floor(waves / 4))
+      const wuXings: WuXing[] = ['metal', 'wood', 'water', 'fire', 'earth']
       for (let i = 0; i < gemCount; i++) {
-        const gemWuXing = wuXings[Math.floor(Math.random() * wuXings.length)]
+        const useTargetElement = mapMeta && Math.random() < 0.70
+        const gemWuXing = useTargetElement
+          ? mapMeta.guardianBossElement
+          : wuXings[Math.floor(Math.random() * wuXings.length)]
         let maxLvl = 1
         if (waves >= 25) maxLvl = 3
         else if (waves >= 12) maxLvl = 2
@@ -95,21 +109,16 @@ export default class SettlementScene extends Phaser.Scene {
         endlessRewards.gems.push({ wuXing: gemWuXing, level: gemLevel })
       }
 
-      // 每 10 波获指定武将将魂
-      const heroStoneCount = Math.floor(waves / 10)
-      if (heroStoneCount > 0) {
-        const heroes = ['hero_guanyu', 'hero_huangzhong', 'hero_zhangfei', 'hero_machao', 'hero_zhaoyun']
-        for (let i = 0; i < heroStoneCount; i++) {
-          const heroId = heroes[i % heroes.length]
-          const heroConfig = getHeroConfig(heroId)
-          if (heroConfig) {
-            endlessRewards.soulStones.push({
-              heroId,
-              heroName: heroConfig.name,
-              amount: 3 + Math.floor(waves / 10) * 2
-            })
-          }
-        }
+      // 每 5 波获本图对应武将将魂（定向刷取，无废品）
+      const heroStoneCount = Math.max(1, Math.floor(waves / 5))
+      const targetHeroId = mapMeta ? mapMeta.targetHeroId : 'hero_guanyu'
+      const heroConfig = getHeroConfig(targetHeroId)
+      if (heroConfig) {
+        endlessRewards.soulStones.push({
+          heroId: targetHeroId,
+          heroName: heroConfig.name,
+          amount: heroStoneCount
+        })
       }
 
       return endlessRewards
@@ -126,43 +135,42 @@ export default class SettlementScene extends Phaser.Scene {
       soulStones: []
     }
 
-    // 随机装备奖励（30%概率）
-    if (Math.random() < 0.3) {
-      const rarities: Rarity[] = ['common', 'rare', 'epic', 'legendary']
-      const weights = [0.5, 0.35, 0.13, 0.02]
-      const rarity = this.weightedRandom(rarities, weights)
-
-      // 根据稀有度随机装备
-      const equipPool = this.getEquipmentPool(rarity)
-      if (equipPool.length > 0) {
-        const equip = equipPool[Math.floor(Math.random() * equipPool.length)]
-        rewards.equipment.push({
-          id: equip.id,
-          name: equip.name,
-          rarity: equip.rarity
-        })
-      }
-    }
-
-    // 随机宝石奖励（35%概率）
-    if (Math.random() < 0.35) {
-      const wuXings = ['metal', 'wood', 'water', 'fire', 'earth']
-      const gemWuXing = wuXings[Math.floor(Math.random() * wuXings.length)]
-      const gemLevel = Math.ceil(Math.random() * 2) // 1-2级宝石
+    // 70% 顺天本命五行 / 30% 异行奇石掉落规则（第6章 §3）
+    if (this.battleResult.isVictory || Math.random() < 0.5) {
+      const wuXings: WuXing[] = ['metal', 'wood', 'water', 'fire', 'earth']
+      const useTargetElement = mapMeta && Math.random() < 0.70
+      const gemWuXing = useTargetElement
+        ? mapMeta.guardianBossElement
+        : wuXings[Math.floor(Math.random() * wuXings.length)]
+      const gemLevel = this.battleResult.isVictory ? 2 : 1
       rewards.gems.push({ wuXing: gemWuXing, level: gemLevel })
     }
 
-    // 武将碎片奖励（通关15波Boss战役必有）
+    // 通关 15 波战役：100% 必掉本卷镇守统帅对应的【宿命神兵主材】与【专属将魂】（第4章§6 & 第5章§3）
     if (this.battleResult.isVictory) {
-      const heroes = ['hero_guanyu', 'hero_huangzhong', 'hero_zhangfei', 'hero_machao', 'hero_zhaoyun']
-      const heroId = heroes[Math.floor(Math.random() * heroes.length)]
-      const heroConfig = getHeroConfig(heroId)
-      if (heroConfig) {
+      if (mapMeta) {
+        rewards.divineMaterial = {
+          id: mapMeta.divineMaterialId,
+          name: mapMeta.divineMaterialName,
+          weaponName: mapMeta.exclusiveWeaponName,
+          heroName: mapMeta.targetHeroName
+        }
         rewards.soulStones.push({
-          heroId,
-          heroName: heroConfig.name,
-          amount: Math.ceil(Math.random() * 5) + 3
+          heroId: mapMeta.targetHeroId,
+          heroName: mapMeta.targetHeroName,
+          amount: 1
         })
+      } else {
+        const heroes = ['hero_guanyu', 'hero_huangzhong', 'hero_zhangfei', 'hero_machao', 'hero_zhaoyun']
+        const heroId = heroes[Math.floor(Math.random() * heroes.length)]
+        const heroConfig = getHeroConfig(heroId)
+        if (heroConfig) {
+          rewards.soulStones.push({
+            heroId,
+            heroName: heroConfig.name,
+            amount: 1
+          })
+        }
       }
     }
 
@@ -192,7 +200,6 @@ export default class SettlementScene extends Phaser.Scene {
    * 获取装备池
    */
   private getEquipmentPool(rarity: Rarity): { id: string; name: string; rarity: Rarity }[] {
-    // 简化的装备池
     const pool: Record<Rarity, { id: string; name: string; rarity: Rarity }[]> = {
       common: [
         { id: 'weapon_common_1', name: '铁剑', rarity: 'common' },
@@ -214,18 +221,10 @@ export default class SettlementScene extends Phaser.Scene {
   }
 
   /**
-   * 检查是否有Boss波次
-   */
-  private hasBossWave(): boolean {
-    // 简化：检查关卡ID是否包含level3
-    return this.battleResult.levelId.includes('_level3')
-  }
-
-  /**
-   * 检查是否是章节最后一关
+   * 检查是否是章节最后一关（五大古战场共 5 卷）
    */
   private isLastLevelOfChapter(): boolean {
-    return this.battleResult.levelId.includes('_level3')
+    return this.battleResult.levelId.includes('_level5')
   }
 
   /**
@@ -554,7 +553,20 @@ export default class SettlementScene extends Phaser.Scene {
     this.createRewardRow(panel, itemY, w, '军饷金币', `💰 +${this.rewards.gold} 钱`, InkText.gold)
     itemY += itemSpacing
 
-    // 2. 装备
+    // 2. 宿命神兵主材（击败关底统帅 100% 必掉）
+    if (this.rewards.divineMaterial) {
+      this.createRewardRow(
+        panel,
+        itemY,
+        w,
+        '宿命主材',
+        `🛠️ 【${this.rewards.divineMaterial.name}】（铸 ${this.rewards.divineMaterial.heroName}${this.rewards.divineMaterial.weaponName}）`,
+        InkText.cinnabar
+      )
+      itemY += itemSpacing
+    }
+
+    // 3. 装备
     if (this.rewards.equipment.length > 0) {
       for (const equip of this.rewards.equipment) {
         if (itemY > h - 40) break
@@ -564,7 +576,7 @@ export default class SettlementScene extends Phaser.Scene {
       }
     }
 
-    // 3. 宝石
+    // 4. 宝石
     if (this.rewards.gems.length > 0) {
       for (const gem of this.rewards.gems) {
         if (itemY > h - 40) break
@@ -575,11 +587,11 @@ export default class SettlementScene extends Phaser.Scene {
       }
     }
 
-    // 4. 武将碎片
+    // 5. 武将将魂
     if (this.rewards.soulStones.length > 0) {
       for (const stone of this.rewards.soulStones) {
         if (itemY > h - 40) break
-        this.createRewardRow(panel, itemY, w, '将魂精魄', `⭐ ${stone.heroName}碎片 ×${stone.amount}`, InkText.wash)
+        this.createRewardRow(panel, itemY, w, '专属将魂', `⭐ ${stone.heroName}将魂 ×${stone.amount}`, InkText.wash)
         itemY += itemSpacing
       }
     }
@@ -603,8 +615,8 @@ export default class SettlementScene extends Phaser.Scene {
       originY: 0.5
     }))
 
-    panel.add(inkText(this, 150, y, value, {
-      size: 14,
+    panel.add(inkText(this, 140, y, value, {
+      size: 13,
       color,
       bold: true,
       originY: 0.5
@@ -642,7 +654,7 @@ export default class SettlementScene extends Phaser.Scene {
     }))
 
     panel.add(inkText(this, w / 2, 240,
-      '孙子曰：知己知彼，百战不殆。\n\n敌众五行偏向各有其道。请至战役沙盘查阅《军机密报》，布设相生相克之名将与兵种，方可反败为胜！',
+      '孙子曰：知己知彼，百战不殆。\n\n敌众五行偏向各有其道。请至战役沙盘查阅《军机密报》，布设相生之名将触发五行连环，方可反败为胜！',
       {
         size: 13,
         color: InkText.wash,
@@ -686,9 +698,14 @@ export default class SettlementScene extends Phaser.Scene {
       saveData.inventory.equipment.push(equip.id)
     }
 
+    // 添加宿命神兵主材到蒲元铸剑坊
+    const eqMgr = EquipmentManager.getInstance()
+    if (this.rewards.divineMaterial) {
+      eqMgr.addDivineMaterial(this.rewards.divineMaterial.id, 1)
+    }
+
     // 添加宝石（支持无尽北伐 Wave 16+ 词条 Min Roll 保底分位跃升）
     const minRollPct = EndlessModeManager.getGemMinRollPercentile(this.battleResult.wavesCompleted || 0)
-    const eqMgr = EquipmentManager.getInstance()
     for (const gem of this.rewards.gems) {
       const createdGem = eqMgr.addGem(gem.wuXing as WuXing, gem.level, minRollPct)
       saveData.inventory.gems.push({
