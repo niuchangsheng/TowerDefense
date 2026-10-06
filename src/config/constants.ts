@@ -61,8 +61,8 @@ export const COST_CONFIG = {
   retreatReturnRate: 0.5      // 撤退返还比例（50%）
 }
 
-// 部署冷却（毫秒）：每次成功部署后，需等待冷却才能继续部署下一个单位
-export const DEPLOY_COOLDOWN_MS = 3000
+// 部署冷却（毫秒）：无冷却时间
+export const DEPLOY_COOLDOWN_MS = 0
 
 // 英雄等级配置
 export const HERO_LEVEL_CONFIG = {

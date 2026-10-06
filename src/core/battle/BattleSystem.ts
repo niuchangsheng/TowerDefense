@@ -23,7 +23,7 @@ import { HeroFactory } from '@/core/hero/HeroFactory'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { TroopEntity } from '@/entities/TroopEntity'
 import { EnemyEntity } from '@/entities/EnemyEntity'
-import { COST_CONFIG, DEPLOY_COOLDOWN_MS, GridCell, cellCenter } from '@/config/constants'
+import { COST_CONFIG, GridCell, cellCenter } from '@/config/constants'
 import { getEnemyConfig } from '@/data/enemies'
 import { getTroopConfig } from '@/data/troops'
 import { getStarDeploymentCostReduction } from '@/data/heroes'
@@ -249,13 +249,6 @@ export class BattleSystem {
       }
     }
 
-    if (this.deployCooldownRemaining > 0) {
-      return {
-        success: false,
-        reason: 'deployCooling'
-      }
-    }
-
     const effectiveCost = this.getEffectiveHeroDeploymentCost(heroConfig)
     if (!this.costManager.hasEnoughCost(effectiveCost)) {
       return {
@@ -288,7 +281,7 @@ export class BattleSystem {
     this.battleState.currentCost = this.costManager.getCurrentCost()
     this.battleState.deployedHeroes.push(deployedData)
 
-    this.deployCooldownRemaining = DEPLOY_COOLDOWN_MS
+    this.deployCooldownRemaining = 0
 
     this.onHeroPlacedCallback?.(heroEntity)
 
@@ -331,13 +324,6 @@ export class BattleSystem {
       }
     }
 
-    if (this.deployCooldownRemaining > 0) {
-      return {
-        success: false,
-        reason: 'deployCooling'
-      }
-    }
-
     if (!this.costManager.hasEnoughCost(troopConfig.deploymentCost)) {
       return {
         success: false,
@@ -372,7 +358,7 @@ export class BattleSystem {
     this.troopBattleManager.addTroop(troopEntity)
 
     this.battleState.currentCost = this.costManager.getCurrentCost()
-    this.deployCooldownRemaining = DEPLOY_COOLDOWN_MS
+    this.deployCooldownRemaining = 0
 
     this.onTroopPlacedCallback?.(troopEntity)
 

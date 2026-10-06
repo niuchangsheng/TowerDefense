@@ -270,37 +270,41 @@ export default class SettlementScene extends Phaser.Scene {
 
     // 结果标题：胜利 = 印章红（大捷），失败 = 浓墨（折戟）
     const titleText = this.battleResult.isVictory ? '大捷 · 战役凯旋' : '折戟 · 战局失利'
-    const title = inkText(this, width / 2, 48, titleText, {
-      size: 40,
+    const title = inkText(this, width / 2, 42, titleText, {
+      size: 36,
       color: this.battleResult.isVictory ? InkText.cinnabar : InkText.strong,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     })
     if (this.battleResult.isVictory) {
-      this.add.rectangle(width / 2 + title.width / 2 + 20, 48, 16, 16, InkColor.cinnabar)
+      this.add.rectangle(width / 2 + title.width / 2 + 20, 42, 16, 16, InkColor.cinnabar)
     }
 
-    // 关卡信息
-    inkText(this, width / 2, 90, `战况评定 · 关卡: ${this.battleResult.levelId}`, {
+    // 关卡信息（优先展示古战场卷名）
+    const mapMeta = getBattlefieldMapMeta(this.battleResult.levelId)
+    const mapName = mapMeta ? `${mapMeta.scrollTitle} · ${mapMeta.guardianBossName}` : this.battleResult.levelId
+    inkText(this, width / 2, 82, `战况评定 · 战场：${mapName}`, {
       size: InkFontSize.md,
       color: InkText.faint,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     })
 
     if (this.battleResult.isVictory) {
       // 胜利：左右双栏并列布局（杜绝上下层叠覆盖）
-      // 左栏：战局考绩面板 + 参战良将功勋面板
-      this.createBattleStats(140, 126, 460, 120)
-      this.createHeroExperiencePanel(140, 262, 460, 320)
+      // 左栏：战局考绩面板 + 参战良将功勋面板（支持最多 5 将同列不溢出）
+      this.createBattleStats(130, 114, 480, 116)
+      this.createHeroExperiencePanel(130, 244, 480, 356)
 
       // 右栏：战利封赏面板
-      this.createRewardsPanel(630, 126, 510, 456)
+      this.createRewardsPanel(630, 114, 520, 486)
 
       // 保存奖励
       this.saveRewards()
     } else {
       // 失败：居中战损总结与兵法建言，并触发结算存档
-      this.createDefeatSummary(width / 2 - 260, 130, 520, 440)
+      this.createDefeatSummary(width / 2 - 270, 114, 540, 486)
       this.saveRewards()
     }
 
@@ -319,19 +323,20 @@ export default class SettlementScene extends Phaser.Scene {
     const beacon = EndlessModeManager.getBeaconTierInfo(waves)
 
     // 标题：百战无尽 · 烽火结算
-    inkText(this, width / 2, 46, `${beacon.icon} 百战无尽 · 烽火结算`, {
-      size: 38,
+    const title = inkText(this, width / 2, 42, `${beacon.icon} 百战无尽 · 烽火结算`, {
+      size: 34,
       color: InkText.cinnabar,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     })
 
     // 新纪录印章
     if (stats?.isNewRecord) {
       const sealW = 96
       const sealH = 26
-      const sealX = width / 2 + 235
-      const sealY = 46
+      const sealX = width / 2 + title.width / 2 + 62
+      const sealY = 42
       const seal = this.add.rectangle(sealX, sealY, sealW, sealH, InkColor.cinnabar)
       seal.setStrokeStyle(1.5, 0x6e1b15)
       inkText(this, sealX, sealY, '【百战新篇】', {
@@ -349,21 +354,22 @@ export default class SettlementScene extends Phaser.Scene {
     inkText(
       this,
       width / 2,
-      88,
+      82,
       `【${mapTitle}】止步于第 ${waves} 波 · 境界：${beacon.title}（灵石保底 +${minRollPct}%）`,
       {
         size: InkFontSize.md,
         color: InkText.faint,
-        originX: 0.5
+        originX: 0.5,
+        originY: 0.5
       }
     )
 
-    // 左栏：无尽试炼考绩 (140, 126, 460, 145) + 诸将历练 (140, 285, 460, 295)
-    this.createEndlessStatsPanel(140, 126, 460, 145)
-    this.createHeroExperiencePanel(140, 285, 460, 295)
+    // 左栏：无尽试炼考绩 (130, 114, 480, 136) + 诸将历练 (130, 264, 480, 336)
+    this.createEndlessStatsPanel(130, 114, 480, 136)
+    this.createHeroExperiencePanel(130, 264, 480, 336)
 
-    // 右栏：试炼无尽丰赏 (630, 126, 510, 454)
-    this.createRewardsPanel(630, 126, 510, 454)
+    // 右栏：试炼无尽丰赏 (630, 114, 520, 486)
+    this.createRewardsPanel(630, 114, 520, 486)
 
     // 保存奖励到存档
     this.saveRewards()
@@ -382,40 +388,47 @@ export default class SettlementScene extends Phaser.Scene {
     panel.add(inkText(this, 20, 22, `◈ 百战考绩 · ${beacon.icon} ${beacon.title}`, {
       size: 15,
       color: InkText.wash,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
 
     // 第一行：止步波数与斩敌总数
     panel.add(inkText(this, 24, 52, `止步波次: 第 ${waveReached} 波`, {
       size: 13,
       color: InkText.cinnabar,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
-    panel.add(inkText(this, 240, 52, `斩敌总数: ⚔️ ${stats?.totalKills ?? 0} 众`, {
+    panel.add(inkText(this, 250, 52, `斩敌总数: ⚔️ ${stats?.totalKills ?? 0} 众`, {
       size: 13,
-      color: InkText.ink
+      color: InkText.ink,
+      originY: 0.5
     }))
 
     // 第二行：斩杀精英与降服统帅
     panel.add(inkText(this, 24, 82, `斩杀精英: 🔱 ${stats?.eliteKills ?? 0} 名`, {
       size: 13,
-      color: InkText.ink
+      color: InkText.ink,
+      originY: 0.5
     }))
-    panel.add(inkText(this, 240, 82, `降服统帅: 👑 ${stats?.bossKills ?? 0} 尊`, {
+    panel.add(inkText(this, 250, 82, `降服统帅: 👑 ${stats?.bossKills ?? 0} 尊`, {
       size: 13,
-      color: InkText.ink
+      color: InkText.ink,
+      originY: 0.5
     }))
 
     // 第三行：历战耗时与历史最佳
     const timeStr = this.formatTime(this.battleResult.elapsedTime)
     panel.add(inkText(this, 24, 112, `历战耗时: ${timeStr}`, {
       size: 13,
-      color: InkText.faint
+      color: InkText.faint,
+      originY: 0.5
     }))
-    panel.add(inkText(this, 240, 112, `百战纪录: 第 ${record?.highestWave ?? waveReached} 波`, {
+    panel.add(inkText(this, 250, 112, `百战纪录: 第 ${record?.highestWave ?? waveReached} 波`, {
       size: 13,
       color: InkText.gold,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
   }
 
@@ -428,37 +441,42 @@ export default class SettlementScene extends Phaser.Scene {
     panel.add(inkText(this, 20, 24, '◈ 战局考绩', {
       size: 15,
       color: InkText.wash,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
 
     // 第一行：波次完成与剩余生命
     panel.add(inkText(this, 24, 56, `破阵波次: ${this.battleResult.wavesCompleted} 波`, {
       size: 13,
-      color: InkText.ink
+      color: InkText.ink,
+      originY: 0.5
     }))
-    panel.add(inkText(this, 240, 56, `帅营防务: ❤️ ${this.battleResult.remainingHealth} 点`, {
+    panel.add(inkText(this, 250, 56, `帅营防务: ❤️ ${this.battleResult.remainingHealth} 点`, {
       size: 13,
       color: InkText.cinnabar,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
 
     // 第二行：战斗耗时与战勋星级
     const timeStr = this.formatTime(this.battleResult.elapsedTime)
     panel.add(inkText(this, 24, 88, `历战耗时: ${timeStr}`, {
       size: 13,
-      color: InkText.faint
+      color: InkText.faint,
+      originY: 0.5
     }))
 
     const stars = this.calculateStars()
-    panel.add(inkText(this, 240, 88, `战勋星级: ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
+    panel.add(inkText(this, 250, 88, `战勋星级: ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
       size: 15,
       color: InkText.gold,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
   }
 
   /**
-   * 创建上场英雄功勋历练面板（左栏下方）
+   * 创建上场英雄功勋历练面板（左栏下方，自适应容纳最多 5 位参战武将不溢出）
    */
   private createHeroExperiencePanel(x: number, y: number, w: number, h: number): void {
     const deployedHeroIds = this.battleResult.deployedHeroIds || []
@@ -467,7 +485,8 @@ export default class SettlementScene extends Phaser.Scene {
     panel.add(inkText(this, 20, 24, '◈ 参战诸将历练', {
       size: 15,
       color: InkText.wash,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
 
     if (deployedHeroIds.length === 0) {
@@ -480,7 +499,9 @@ export default class SettlementScene extends Phaser.Scene {
       return
     }
 
-    let rowY = 64
+    const rowStartY = 66
+    const rowGap = 52
+    const cardH = 44
     const expPerHero = this.rewards.experience
 
     for (let i = 0; i < deployedHeroIds.length; i++) {
@@ -488,33 +509,50 @@ export default class SettlementScene extends Phaser.Scene {
       const heroConfig = getHeroConfig(heroId)
       if (!heroConfig) continue
 
-      const cardY = rowY + i * 72
-      const cardBg = this.add.rectangle(w / 2, cardY, w - 36, 56, InkColor.paperDeep, 0.45)
+      const cardY = rowStartY + i * rowGap
+      const cardBg = this.add.rectangle(w / 2, cardY, w - 36, cardH, InkColor.paperDeep, 0.45)
       cardBg.setStrokeStyle(1, InkColor.inkFaint, 0.4)
       panel.add(cardBg)
 
-      // 头像
-      const imgKey = heroConfig.id
-      if (this.textures.exists(imgKey)) {
-        const avatar = this.add.image(48, cardY, imgKey)
-        avatar.setDisplaySize(40, 40)
+      const wxStyle = INK_WUXING[heroConfig.wuXing]
+
+      // 武将水墨剪影或五行徽章
+      const silhouetteKey = `ink_${heroConfig.id}`
+      if (this.textures.exists(silhouetteKey)) {
+        const avatar = this.add.image(44, cardY, silhouetteKey)
+        avatar.setDisplaySize(32, 32)
         panel.add(avatar)
+      } else {
+        const badge = this.add.rectangle(44, cardY, 26, 26, wxStyle?.fill ?? InkColor.paperPanel)
+        badge.setStrokeStyle(1.2, wxStyle?.border ?? InkColor.ink)
+        panel.add(badge)
+        panel.add(inkText(this, 44, cardY, wxStyle?.label || '将', {
+          size: 12,
+          color: wxStyle?.text || InkText.ink,
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
+        }))
       }
 
-      // 名称与五行
-      const wxStyle = INK_WUXING[heroConfig.wuXing]
-      panel.add(inkText(this, 82, cardY - 10, heroConfig.name, {
+      // 名称与五行属性同行排布（杜绝上下两行紧贴重叠）
+      const nameTxt = inkText(this, 72, cardY, heroConfig.name, {
         size: 14,
         color: InkText.strong,
-        bold: true
-      }))
-      panel.add(inkText(this, 82, cardY + 12, `属性: 【${wxStyle?.label || '无'}】`, {
-        size: 11,
-        color: wxStyle?.text || InkText.faint
+        bold: true,
+        originY: 0.5
+      })
+      panel.add(nameTxt)
+
+      panel.add(inkText(this, 72 + nameTxt.width + 12, cardY, `【${wxStyle?.label || '无'}系】`, {
+        size: 12,
+        color: wxStyle?.text || InkText.faint,
+        bold: true,
+        originY: 0.5
       }))
 
       // 获得经验
-      panel.add(inkText(this, w - 36, cardY, `+${expPerHero} 功勋`, {
+      panel.add(inkText(this, w - 32, cardY, `+${expPerHero} 功勋`, {
         size: 14,
         color: InkText.green,
         bold: true,
@@ -522,6 +560,101 @@ export default class SettlementScene extends Phaser.Scene {
         originY: 0.5
       }))
     }
+  }
+
+  /**
+   * 汇总结算奖励条目（同名同阶物品合并为单行并附带 “× 数字”）
+   */
+  private getGroupedRewardRows(): { label: string; value: string; color: string }[] {
+    const rows: { label: string; value: string; color: string }[] = []
+
+    // 1. 军饷金币
+    if (this.rewards.gold > 0) {
+      rows.push({
+        label: '军饷金币',
+        value: `💰 军饷铜钱 ×${this.rewards.gold}`,
+        color: InkText.gold
+      })
+    }
+
+    // 2. 宿命神兵主材（击败关底统帅 100% 必掉）
+    if (this.rewards.divineMaterial) {
+      rows.push({
+        label: '宿命主材',
+        value: `🛠️ 【${this.rewards.divineMaterial.name}】（铸 ${this.rewards.divineMaterial.heroName}·${this.rewards.divineMaterial.weaponName}） ×1`,
+        color: InkText.cinnabar
+      })
+    }
+
+    // 3. 破阵军械（按装备 id 合并同行 + × 数字）
+    if (this.rewards.equipment.length > 0) {
+      const groupedEquip = new Map<string, { name: string; rarity: Rarity; count: number }>()
+      for (const equip of this.rewards.equipment) {
+        const existing = groupedEquip.get(equip.id)
+        if (existing) {
+          existing.count += 1
+        } else {
+          groupedEquip.set(equip.id, { name: equip.name, rarity: equip.rarity, count: 1 })
+        }
+      }
+      for (const item of groupedEquip.values()) {
+        const rColor = INK_RARITY[item.rarity]?.text || InkText.ink
+        rows.push({
+          label: '破阵军械',
+          value: `🗡️ ${item.name} ×${item.count}`,
+          color: rColor
+        })
+      }
+    }
+
+    // 4. 五行宝石（按 五行+等级 合并同行 + × 数字）
+    if (this.rewards.gems.length > 0) {
+      const minRollPct = Math.round(
+        EndlessModeManager.getGemMinRollPercentile(this.battleResult.wavesCompleted || 0) * 100
+      )
+      const minRollTag = minRollPct > 0 ? `（保底 +${minRollPct}%）` : ''
+      const groupedGems = new Map<string, { wuXing: WuXing; level: number; count: number }>()
+      for (const gem of this.rewards.gems) {
+        const key = `${gem.wuXing}_${gem.level}`
+        const existing = groupedGems.get(key)
+        if (existing) {
+          existing.count += 1
+        } else {
+          groupedGems.set(key, { wuXing: gem.wuXing as WuXing, level: gem.level, count: 1 })
+        }
+      }
+      for (const item of groupedGems.values()) {
+        const style = INK_WUXING[item.wuXing]
+        const gemName = `💎 ${style?.label ?? '?'}系灵石 Lv.${item.level}${minRollTag} ×${item.count}`
+        rows.push({
+          label: '五行宝石',
+          value: gemName,
+          color: style?.text ?? InkText.faint
+        })
+      }
+    }
+
+    // 5. 专属将魂（按 heroId 合并同行 + × 数字）
+    if (this.rewards.soulStones.length > 0) {
+      const groupedStones = new Map<string, { heroName: string; amount: number }>()
+      for (const stone of this.rewards.soulStones) {
+        const existing = groupedStones.get(stone.heroId)
+        if (existing) {
+          existing.amount += stone.amount
+        } else {
+          groupedStones.set(stone.heroId, { heroName: stone.heroName, amount: stone.amount })
+        }
+      }
+      for (const item of groupedStones.values()) {
+        rows.push({
+          label: '专属将魂',
+          value: `⭐ ${item.heroName}将魂 ×${item.amount}`,
+          color: InkText.wash
+        })
+      }
+    }
+
+    return rows
   }
 
   /**
@@ -537,7 +670,8 @@ export default class SettlementScene extends Phaser.Scene {
     panel.add(inkText(this, 24, 26, '◈ 凯旋战利封赏', {
       size: 18,
       color: InkText.gold,
-      bold: true
+      bold: true,
+      originY: 0.5
     }))
 
     // 金币印章
@@ -555,61 +689,19 @@ export default class SettlementScene extends Phaser.Scene {
     // 分隔线
     const rule = this.add.graphics()
     rule.lineStyle(1, InkColor.ink, 0.2)
-    rule.lineBetween(20, 52, w - 20, 52)
+    rule.lineBetween(20, 50, w - 20, 50)
     panel.add(rule)
 
-    let itemY = 80
-    const itemSpacing = 42
+    const rows = this.getGroupedRewardRows()
+    const availableH = h - 76
+    const itemSpacing = rows.length > 0 ? Math.min(44, Math.floor(availableH / rows.length)) : 42
+    const cardH = Math.min(36, Math.max(26, itemSpacing - 6))
+    let itemY = 58 + Math.floor(itemSpacing / 2)
 
-    // 1. 金币
-    this.createRewardRow(panel, itemY, w, '军饷金币', `💰 +${this.rewards.gold} 钱`, InkText.gold)
-    itemY += itemSpacing
-
-    // 2. 宿命神兵主材（击败关底统帅 100% 必掉）
-    if (this.rewards.divineMaterial) {
-      this.createRewardRow(
-        panel,
-        itemY,
-        w,
-        '宿命主材',
-        `🛠️ 【${this.rewards.divineMaterial.name}】（铸 ${this.rewards.divineMaterial.heroName}${this.rewards.divineMaterial.weaponName}）`,
-        InkText.cinnabar
-      )
+    for (const row of rows) {
+      if (itemY + cardH / 2 > h - 10) break
+      this.createRewardRow(panel, itemY, w, row.label, row.value, row.color, cardH)
       itemY += itemSpacing
-    }
-
-    // 3. 装备
-    if (this.rewards.equipment.length > 0) {
-      for (const equip of this.rewards.equipment) {
-        if (itemY > h - 40) break
-        const rColor = INK_RARITY[equip.rarity]?.text || InkText.ink
-        this.createRewardRow(panel, itemY, w, '破阵军械', `🗡️ ${equip.name}`, rColor)
-        itemY += itemSpacing
-      }
-    }
-
-    // 4. 宝石（显示百战无尽词条保底分位）
-    if (this.rewards.gems.length > 0) {
-      const minRollPct = Math.round(
-        EndlessModeManager.getGemMinRollPercentile(this.battleResult.wavesCompleted || 0) * 100
-      )
-      const minRollTag = minRollPct > 0 ? `（词条保底 +${minRollPct}%）` : ''
-      for (const gem of this.rewards.gems) {
-        if (itemY > h - 40) break
-        const style = INK_WUXING[gem.wuXing as WuXing]
-        const gemName = `💎 ${style?.label ?? '?'}系灵石 Lv.${gem.level}${minRollTag}`
-        this.createRewardRow(panel, itemY, w, '五行宝石', gemName, style?.text ?? InkText.faint)
-        itemY += itemSpacing
-      }
-    }
-
-    // 5. 武将将魂
-    if (this.rewards.soulStones.length > 0) {
-      for (const stone of this.rewards.soulStones) {
-        if (itemY > h - 40) break
-        this.createRewardRow(panel, itemY, w, '专属将魂', `⭐ ${stone.heroName}将魂 ×${stone.amount}`, InkText.wash)
-        itemY += itemSpacing
-      }
     }
   }
 
@@ -619,19 +711,20 @@ export default class SettlementScene extends Phaser.Scene {
     w: number,
     label: string,
     value: string,
-    color: string
+    color: string,
+    cardH: number = 34
   ): void {
-    const cardBg = this.add.rectangle(w / 2, y, w - 40, 34, InkColor.paperDeep, 0.35)
+    const cardBg = this.add.rectangle(w / 2, y, w - 40, cardH, InkColor.paperDeep, 0.35)
     cardBg.setStrokeStyle(1, InkColor.inkFaint, 0.3)
     panel.add(cardBg)
 
-    panel.add(inkText(this, 36, y, label, {
+    panel.add(inkText(this, 34, y, label, {
       size: 13,
       color: InkText.faint,
       originY: 0.5
     }))
 
-    panel.add(inkText(this, 140, y, value, {
+    panel.add(inkText(this, 122, y, value, {
       size: 13,
       color,
       bold: true,
@@ -645,40 +738,61 @@ export default class SettlementScene extends Phaser.Scene {
       strokeWidth: 2
     })
 
-    panel.add(inkText(this, w / 2, 40, '◈ 败局复盘', {
+    panel.add(inkText(this, w / 2, 36, '◈ 败局复盘', {
       size: 20,
       color: InkText.strong,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     }))
 
-    panel.add(inkText(this, w / 2, 90, `推进波次: ${this.battleResult.wavesCompleted} 波`, {
+    panel.add(inkText(this, w / 2, 74, `推进波次: 第 ${this.battleResult.wavesCompleted} 波`, {
       size: 15,
       color: InkText.ink,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     }))
 
-    const adviceBox = this.add.rectangle(w / 2, 230, w - 48, 160, InkColor.paperDeep, 0.6)
+    const adviceBox = this.add.rectangle(w / 2, 184, w - 48, 136, InkColor.paperDeep, 0.6)
     adviceBox.setStrokeStyle(1, InkColor.inkFaint, 0.5)
     panel.add(adviceBox)
 
-    panel.add(inkText(this, w / 2, 170, '【兵法建言】', {
+    panel.add(inkText(this, w / 2, 138, '【兵法建言】', {
       size: 14,
       color: InkText.cinnabar,
       bold: true,
-      originX: 0.5
+      originX: 0.5,
+      originY: 0.5
     }))
 
-    panel.add(inkText(this, w / 2, 240,
-      '孙子曰：知己知彼，百战不殆。\n\n敌众五行偏向各有其道。请至战役沙盘查阅《军机密报》，布设相生之名将触发五行连环，方可反败为胜！',
+    panel.add(inkText(this, w / 2, 196,
+      '孙子曰：知己知彼，百战不殆。\n敌众五行偏向各有其道。请至战役沙盘查阅《军机密报》，布设相生之名将触发五行连环，方可反败为胜！',
       {
         size: 13,
         color: InkText.wash,
         wrapWidth: w - 80,
+        lineSpacing: 6,
         originX: 0.5,
         originY: 0.5
       }
     ))
+
+    // 战败抚恤战利品（同名同阶合并显示 × 数字）
+    const rows = this.getGroupedRewardRows()
+    if (rows.length > 0) {
+      panel.add(inkText(this, 24, 282, '◈ 历战抚恤封赏', {
+        size: 15,
+        color: InkText.gold,
+        bold: true,
+        originY: 0.5
+      }))
+      let itemY = 320
+      for (const row of rows) {
+        if (itemY > h - 28) break
+        this.createRewardRow(panel, itemY, w, row.label, row.value, row.color, 34)
+        itemY += 42
+      }
+    }
   }
 
   /**

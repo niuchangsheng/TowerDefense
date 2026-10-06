@@ -17,8 +17,8 @@ export class EnergyGaugeBar extends Phaser.GameObjects.Container {
   private pulseTween?: Phaser.Tweens.Tween
   private spaceKey?: Phaser.Input.Keyboard.Key
 
-  private readonly barWidth = 140
-  private readonly barHeight = 12
+  private readonly barWidth = 118
+  private readonly barHeight = 14
 
   constructor(
     scene: Phaser.Scene,
@@ -40,8 +40,8 @@ export class EnergyGaugeBar extends Phaser.GameObjects.Container {
     this.add(this.barFill)
 
     // 3. 标签
-    this.labelText = inkText(scene, -this.barWidth / 2 - 8, 0, '军令', {
-      size: 13,
+    this.labelText = inkText(scene, -this.barWidth / 2 - 6, 0, '军令', {
+      size: 12,
       color: InkText.strong,
       bold: true,
       originX: 1,
@@ -51,7 +51,7 @@ export class EnergyGaugeBar extends Phaser.GameObjects.Container {
 
     // 4. 状态/按键提示
     this.statusText = inkText(scene, 0, 0, '0%', {
-      size: 11,
+      size: 10,
       color: InkText.ink,
       originX: 0.5,
       originY: 0.5
@@ -59,7 +59,7 @@ export class EnergyGaugeBar extends Phaser.GameObjects.Container {
     this.add(this.statusText)
 
     // 点击交互
-    this.setSize(this.barWidth + 60, 32)
+    this.setSize(this.barWidth + 40, 30)
     this.setInteractive({ useHandCursor: true })
     this.on('pointerdown', () => {
       if (this.augmentManager.getReadyCount() > 0) {
@@ -112,16 +112,16 @@ export class EnergyGaugeBar extends Phaser.GameObjects.Container {
       this.barFill.fillStyle(InkColor.cinnabar, 0.9)
       this.barFill.fillRoundedRect(-w / 2, -h / 2, w, h, InkRadius.sm)
 
-      this.statusText.setText(`【锦囊就绪 ×${readyCount}】空格开启`)
+      this.statusText.setText(`锦囊×${readyCount} [空格]`)
       this.statusText.setColor(InkText.paper)
-      this.statusText.setFontSize(11)
+      this.statusText.setFontSize(10)
 
       // 启动呼吸律动提示
       if (!this.pulseTween) {
         this.pulseTween = this.scene.tweens.add({
           targets: this,
-          scaleX: 1.06,
-          scaleY: 1.06,
+          scaleX: 1.04,
+          scaleY: 1.04,
           duration: 450,
           yoyo: true,
           repeat: -1,
