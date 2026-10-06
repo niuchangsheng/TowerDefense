@@ -1,3 +1,21 @@
+import { Gem, GemAffix } from './equipment.types'
+
+export interface SavedEquipmentInstance {
+  instanceId: string
+  equipmentId: string
+  type: 'weapon' | 'artifact'
+  rarity: string
+  isEquipped: boolean
+  equippedHeroId: string | null
+  statAffixes?: GemAffix[]
+}
+
+export interface SavedArtifactSocketState {
+  sameGem?: string | null
+  generatingGem?: string | null
+  currentGem?: string | null
+}
+
 // 存档数据结构
 export interface SaveData {
   version: string              // 存档版本
@@ -20,10 +38,18 @@ export interface SaveData {
   // 库存数据
   inventory: {
     soulStones: { heroId: string; amount: number }[]
-    equipment: string[]        // 装备ID列表
-    gems: { id: string; wuXing: string; level: number }[]
+    equipment: string[]        // 装备ID列表（兼容旧版）
+    equipmentInstances?: SavedEquipmentInstance[] // 完整装备实例（含穿戴状态与神兵洗练词条）
+    artifactSockets?: Record<string, SavedArtifactSocketState> // 神兵灵石镶嵌状态
+    gems: (Gem | { id: string; wuXing: string; level: number; affixes?: GemAffix[] })[]
     gold: number
+    spiritDust?: number        // 五行灵砂（灵石淬炼与5级开槽）
+    refinedIron?: number       // 百炼玄铁（神兵洗练与蒲元锻造）
+    divineMaterials?: Record<string, number> // 统帅宿命神兵主材
   }
+
+  // 已领取的名将传记试炼ID列表
+  claimedBioTrials?: string[]
 
   // 关卡进度（合并记录 15 波破关与百战无尽最高波次）
   levelProgress: {
@@ -68,9 +94,15 @@ export function createDefaultSaveData(slotId: number = 0): SaveData {
     inventory: {
       soulStones: [],
       equipment: [],
+      equipmentInstances: [],
+      artifactSockets: {},
       gems: [],
-      gold: 0
+      gold: 0,
+      spiritDust: 60,
+      refinedIron: 120,
+      divineMaterials: {}
     },
+    claimedBioTrials: [],
     levelProgress: [],
     chapterProgress: []
   }

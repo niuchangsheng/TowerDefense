@@ -81,6 +81,7 @@ export default class EquipmentScene extends Phaser.Scene {
   }
 
   create(): void {
+    SaveManager.getInstance().ensureSaveInitialized()
     drawPaperBackground(this)
     renderPageHeader(this, '神兵宝甲', '· 铸剑炼石坊')
 
@@ -110,7 +111,7 @@ export default class EquipmentScene extends Phaser.Scene {
   }
 
   /**
-   * 顶部右侧极简资材条 + 蒲元铸剑入口
+   * 顶部右侧极简资材条 + 灵石升阶 + 蒲元铸剑独立入口
    */
   private renderHeaderResources(): void {
     if (this.headerResourceContainer) {
@@ -124,7 +125,7 @@ export default class EquipmentScene extends Phaser.Scene {
 
     const resText = inkText(
       this,
-      1010,
+      904,
       40,
       `玄铁 ${iron}   ·   神材 ${matCount}/5   ·   灵砂 ${dust}`,
       {
@@ -135,6 +136,16 @@ export default class EquipmentScene extends Phaser.Scene {
       }
     )
     this.headerResourceContainer.add(resText)
+
+    const synthBtn = createInkButton(this, 968, 40, 96, 32, '灵石升阶', {
+      fill: InkColor.paperPanel,
+      hoverFill: InkColor.paperDeep,
+      textColor: InkText.cinnabar,
+      fontSize: 13,
+      stroke: InkColor.cinnabar,
+      onClick: () => this.showGemSynthesisPanel()
+    })
+    this.headerResourceContainer.add(synthBtn)
 
     const forgeBtn = createInkButton(this, 1076, 40, 96, 32, '蒲元铸剑', {
       fill: InkColor.paperPanel,
@@ -283,6 +294,33 @@ export default class EquipmentScene extends Phaser.Scene {
         )
         this.listContainer.add(salvageBtn)
         cursorY += 46
+      } else if (this.currentTab === 'artifact') {
+        const tipBox = this.add.graphics()
+        tipBox.fillStyle(InkColor.paperDeep, 0.78)
+        tipBox.fillRoundedRect(L, cursorY, EquipmentScene.LEFT_W, 56, 6)
+        tipBox.lineStyle(1, 0xa0782f, 0.45)
+        tipBox.strokeRoundedRect(L, cursorY, EquipmentScene.LEFT_W, 56, 6)
+
+        const tipTitle = inkText(this, L + 10, cursorY + 8, '💡 本命神兵获取途径', {
+          size: 12,
+          color: InkText.gold,
+          bold: true,
+          originY: 0
+        })
+        const tipDesc = inkText(
+          this,
+          L + 10,
+          cursorY + 26,
+          '击败战役第15波守关统帅必掉对应宿命主材，于顶部【蒲元铸剑】定向铸造（一生仅需1把）。',
+          {
+            size: 11,
+            color: InkText.wash,
+            originY: 0,
+            wrapWidth: EquipmentScene.LEFT_W - 20
+          }
+        )
+        this.listContainer.add([tipBox, tipTitle, tipDesc])
+        cursorY += 66
       }
     } else {
       const filterItems: { key: WuXing | 'all'; label: string }[] = [
@@ -329,25 +367,6 @@ export default class EquipmentScene extends Phaser.Scene {
 
       const gemRows = Math.max(1, Math.ceil(gems.length / EquipmentScene.GEM_COLS))
       cursorY += gemRows * (EquipmentScene.GEM_H + EquipmentScene.GEM_GAP) + 10
-
-      const synthBtn = createInkButton(
-        this,
-        L + EquipmentScene.LEFT_W / 2,
-        cursorY + 18,
-        EquipmentScene.LEFT_W,
-        36,
-        '三合一合成',
-        {
-          fill: InkColor.paperDeep,
-          hoverFill: InkColor.paper,
-          textColor: InkText.cinnabar,
-          fontSize: 14,
-          stroke: InkColor.cinnabar,
-          onClick: () => this.showGemSynthesisPanel()
-        }
-      )
-      this.listContainer.add(synthBtn)
-      cursorY += 46
     }
 
     this.maxScrollY = Math.max(0, cursorY - 560)
@@ -1364,18 +1383,18 @@ export default class EquipmentScene extends Phaser.Scene {
     const wxStyle = INK_WUXING[gem.wuXing]
     const quality = getGemQualityRating(gem)
     const socketLoc = this.equipmentManager.getGemSocketLocation(gem.id)
-    let y = 20
+    let y = 18
 
     // 1. 顶部名片
     const iconKey = `gem_icon_${gem.wuXing}_${gem.level}`
     if (this.textures.exists(iconKey)) {
-      this.detailPanel.add(this.add.image(pad + 28, y + 26, iconKey).setScale(1.05))
+      this.detailPanel.add(this.add.image(pad + 28, y + 24, iconKey).setScale(1.05))
     }
 
     const rarityLabel = GEM_RARITY_LABELS[gem.level] || `Lv.${gem.level}`
     this.detailPanel.add(
-      inkText(this, pad + 68, y + 14, `${getGemName(gem)}  (Lv.${gem.level})`, {
-        size: 22,
+      inkText(this, pad + 68, y + 12, `${getGemName(gem)}  (Lv.${gem.level})`, {
+        size: 21,
         color: gem.level === 5 ? InkText.cinnabar : InkText.strong,
         bold: true,
         originX: 0,
@@ -1387,7 +1406,7 @@ export default class EquipmentScene extends Phaser.Scene {
       inkText(
         this,
         pad + 68,
-        y + 40,
+        y + 38,
         `${wxStyle.label}系 · ${rarityLabel}   |   品相：${quality.label}`,
         {
           size: 13,
@@ -1403,61 +1422,64 @@ export default class EquipmentScene extends Phaser.Scene {
       ? `已嵌于：${socketLoc.artifactName}（${socketLoc.slotLabel}）`
       : '闲置（可在【武将】页镶嵌）'
     this.detailPanel.add(
-      inkText(this, pad + contentW, y + 26, statusStr, {
-        size: 13,
-        color: socketLoc ? InkText.cinnabar : InkText.faint,
-        bold: !!socketLoc,
-        originX: 1,
-        originY: 0.5
-      })
+      inkText(
+        this,
+        gem.level < 5 ? pad + contentW - 156 : pad + contentW,
+        y + 24,
+        statusStr,
+        {
+          size: 12.5,
+          color: socketLoc ? InkText.cinnabar : InkText.faint,
+          bold: !!socketLoc,
+          originX: 1,
+          originY: 0.5
+        }
+      )
     )
 
-    y += 68
+    // Lv.1 ~ Lv.4 灵石：分解按钮直接置于右上角（灵石升阶已独立为全局入口，不再放入单颗灵石内）
+    if (gem.level < 5) {
+      const salvageBtn = createInkButton(
+        this,
+        pad + contentW - 72,
+        y + 24,
+        144,
+        30,
+        `分解为灵砂 (+${gem.level * 15})`,
+        {
+          fill: InkColor.paperPanel,
+          hoverFill: InkColor.paper,
+          textColor: socketLoc ? InkText.faint : InkText.ink,
+          fontSize: 12,
+          stroke: InkColor.inkFaint,
+          onClick: () => {
+            const res = this.equipmentManager.salvageGemToDust(gem.id)
+            this.showMessage(res.message)
+            if (res.success) {
+              SoundFX.bowSnap(0.25)
+              const remain = this.equipmentManager.getOwnedGems()
+              if (remain.length > 0) this.selectGem(remain[0])
+              else {
+                this.refreshListContent()
+                this.clearDetailDynamic()
+              }
+            }
+          }
+        }
+      )
+      this.detailPanel.add(salvageBtn)
+    }
 
-    // 2. 灵石本身属性总览条（所有武将通用生效，不在此处展示本命隐藏技能）
+    y += 58
+
+    // 2. 灵石总属性条（采用 5 等分固定列宽排布，即使 5 种属性全开也严格锁定在同一行框内，绝不溢出）
     const affixes = gem.affixes || []
     const statTotals = new Map<GemStatType, number>()
     for (const af of affixes) {
       statTotals.set(af.stat, (statTotals.get(af.stat) || 0) + af.value)
     }
-    const totalParts: string[] = []
-    statTotals.forEach((val, stat) => {
-      totalParts.push(`${GEM_STAT_LABELS[stat]} +${(val * 100).toFixed(1)}%`)
-    })
-    const totalTextStr =
-      totalParts.length > 0 ? totalParts.join('  ·  ') : '暂无属性'
 
-    const totalTextObj = inkText(
-      this,
-      pad + 16,
-      y + 10,
-      `💎 灵石总属性：${totalTextStr}`,
-      {
-        size: 13,
-        color: wxStyle.text,
-        bold: true,
-        originX: 0,
-        originY: 0,
-        wrapWidth: contentW - 32,
-        lineSpacing: 4
-      }
-    )
-
-    const subTipY = y + 10 + totalTextObj.height + 6
-    const subTipObj = inkText(
-      this,
-      pad + 16,
-      subTipY,
-      '镶嵌于任意神兵槽位时，为佩带武将直接提供以上基础属性加成（不限本命武将，全武将通用生效）',
-      {
-        size: 11.5,
-        color: InkText.wash,
-        originX: 0,
-        originY: 0
-      }
-    )
-
-    const summaryH = Math.max(52, totalTextObj.height + subTipObj.height + 24)
+    const summaryH = 42
     const summaryBg = this.add.rectangle(
       pad + contentW / 2,
       y + summaryH / 2,
@@ -1467,7 +1489,57 @@ export default class EquipmentScene extends Phaser.Scene {
       0.85
     )
     summaryBg.setStrokeStyle(1.5, wxStyle.border, 0.85)
-    this.detailPanel.add([summaryBg, totalTextObj, subTipObj])
+    this.detailPanel.add(summaryBg)
+
+    this.detailPanel.add(
+      inkText(this, pad + 14, y + summaryH / 2, '💎 灵石总属性：', {
+        size: 13,
+        color: wxStyle.text,
+        bold: true,
+        originX: 0,
+        originY: 0.5
+      })
+    )
+
+    const entries = Array.from(statTotals.entries())
+    if (entries.length === 0) {
+      this.detailPanel.add(
+        inkText(this, pad + 124, y + summaryH / 2, '暂无属性', {
+          size: 13,
+          color: InkText.faint,
+          originX: 0,
+          originY: 0.5
+        })
+      )
+    } else {
+      const slotW = 132
+      entries.forEach(([stat, val], idx) => {
+        const sx = pad + 124 + idx * slotW
+        const itemBg = this.add.rectangle(
+          sx + (slotW - 8) / 2,
+          y + summaryH / 2,
+          slotW - 8,
+          26,
+          InkColor.paper,
+          0.75
+        )
+        itemBg.setStrokeStyle(1, wxStyle.border, 0.45)
+        const itemTxt = inkText(
+          this,
+          sx + (slotW - 8) / 2,
+          y + summaryH / 2,
+          `${GEM_STAT_LABELS[stat]} +${(val * 100).toFixed(1)}%`,
+          {
+            size: 12,
+            color: InkText.strong,
+            bold: true,
+            originX: 0.5,
+            originY: 0.5
+          }
+        )
+        this.detailPanel!.add([itemBg, itemTxt])
+      })
+    }
 
     y += summaryH + 14
 
@@ -1496,10 +1568,10 @@ export default class EquipmentScene extends Phaser.Scene {
     )
     this.detailPanel.add(rangeBtn)
 
-    y += 34
+    y += 32
 
-    const rowH = gem.level === 5 ? 58 : 66
-    const rowGap = gem.level === 5 ? 8 : 10
+    const rowH = gem.level === 5 ? 54 : 64
+    const rowGap = gem.level === 5 ? 7 : 10
 
     for (let idx = 0; idx < maxSlots; idx++) {
       const ry = y + idx * (rowH + rowGap)
@@ -1535,7 +1607,7 @@ export default class EquipmentScene extends Phaser.Scene {
           inkText(
             this,
             pad + 18,
-            ry + rowH / 2 - 10,
+            ry + rowH / 2 - 9,
             `${GEM_STAT_LABELS[affix.stat]}  ${valStr}`,
             {
               size: 15,
@@ -1548,7 +1620,7 @@ export default class EquipmentScene extends Phaser.Scene {
         )
 
         this.detailPanel!.add(
-          inkText(this, pad + 18, ry + rowH / 2 + 12, rangeStr, {
+          inkText(this, pad + 18, ry + rowH / 2 + 11, rangeStr, {
             size: 11,
             color: InkText.wash,
             originX: 0,
@@ -1576,7 +1648,13 @@ export default class EquipmentScene extends Phaser.Scene {
           isHigh ? InkColor.cinnabar : 0x5f7a4a,
           0.9
         )
-        const knob = this.add.circle(barX + fillW, ry + rowH / 2, 5, isHigh ? InkColor.cinnabar : 0x5f7a4a, 1)
+        const knob = this.add.circle(
+          barX + fillW,
+          ry + rowH / 2,
+          5,
+          isHigh ? InkColor.cinnabar : 0x5f7a4a,
+          1
+        )
         knob.setStrokeStyle(1.5, 0xf4efe6)
         this.detailPanel!.add([barBg, barFill, knob])
 
@@ -1585,7 +1663,7 @@ export default class EquipmentScene extends Phaser.Scene {
           pad + contentW - 76,
           ry + rowH / 2,
           116,
-          30,
+          28,
           '淬炼 (20灵砂)',
           {
             fill: InkColor.paper,
@@ -1617,7 +1695,11 @@ export default class EquipmentScene extends Phaser.Scene {
           InkColor.paperPanel,
           isNextUnlock ? 0.72 : 0.4
         )
-        lockBg.setStrokeStyle(1, isNextUnlock ? InkColor.cinnabar : InkColor.inkFaint, isNextUnlock ? 0.75 : 0.45)
+        lockBg.setStrokeStyle(
+          1,
+          isNextUnlock ? InkColor.cinnabar : InkColor.inkFaint,
+          isNextUnlock ? 0.75 : 0.45
+        )
         this.detailPanel!.add(lockBg)
 
         this.detailPanel!.add(
@@ -1642,7 +1724,7 @@ export default class EquipmentScene extends Phaser.Scene {
             pad + contentW - 76,
             ry + rowH / 2,
             116,
-            30,
+            28,
             '✨ 开槽 (25灵砂)',
             {
               fill: InkColor.paperDeep,
@@ -1673,87 +1755,6 @@ export default class EquipmentScene extends Phaser.Scene {
           )
         }
       }
-    }
-
-    y += maxSlots * (rowH + rowGap) + 12
-
-    // 4. 灵石升阶与分解（仅 Lv.1 ~ Lv.4 灵石可三合一升阶与分解；5级灵石已满级且不可分解）
-    if (gem.level < 5) {
-      sectionHeader(this, this.detailPanel, pad, y, '灵石升阶与分解', contentW)
-      y += 34
-
-      const sameCount = this.equipmentManager.getGemCountByWuXingAndLevel(gem.wuXing, gem.level)
-      const canSynth = sameCount >= 3
-
-      const synthBtn = createInkButton(
-        this,
-        pad + 110,
-        y + 20,
-        220,
-        36,
-        `三合一升阶 (${sameCount}/3)`,
-        {
-          fill: canSynth ? InkColor.paperDeep : InkColor.paperPanel,
-          hoverFill: InkColor.paper,
-          textColor: canSynth ? InkText.cinnabar : InkText.faint,
-          fontSize: 13,
-          stroke: canSynth ? InkColor.cinnabar : InkColor.inkFaint,
-          onClick: () => {
-            if (!canSynth) {
-              this.showMessage(`需 3 颗同级${wxStyle.label}灵石（当前 ${sameCount}/3）`)
-              return
-            }
-            SoundFX.thud(0.3)
-            this.showGemSynthesizeAffixSelectDialog(gem)
-          }
-        }
-      )
-      this.detailPanel.add(synthBtn)
-
-      const salvageBtn = createInkButton(
-        this,
-        pad + 310,
-        y + 20,
-        160,
-        36,
-        `分解为灵砂 (+${gem.level * 15})`,
-        {
-          fill: InkColor.paperPanel,
-          hoverFill: InkColor.paper,
-          textColor: socketLoc ? InkText.faint : InkText.ink,
-          fontSize: 13,
-          stroke: InkColor.inkFaint,
-          onClick: () => {
-            const res = this.equipmentManager.salvageGemToDust(gem.id)
-            this.showMessage(res.message)
-            if (res.success) {
-              SoundFX.bowSnap(0.25)
-              const remain = this.equipmentManager.getOwnedGems()
-              if (remain.length > 0) this.selectGem(remain[0])
-              else {
-                this.refreshListContent()
-                this.clearDetailDynamic()
-              }
-            }
-          }
-        }
-      )
-      this.detailPanel.add(salvageBtn)
-    } else {
-      this.detailPanel.add(
-        inkText(
-          this,
-          pad + contentW / 2,
-          y + 8,
-          '✦ 5级传世神品灵石已达最高品阶（不可分解 · 最多可开槽拥有 5 个属性词条） ✦',
-          {
-            size: 12,
-            color: InkText.wash,
-            originX: 0.5,
-            originY: 0.5
-          }
-        )
-      )
     }
   }
 
@@ -2212,18 +2213,8 @@ export default class EquipmentScene extends Phaser.Scene {
   }
 
   private showGemSynthesisPanel(): void {
-    const wuXings: WuXing[] = ['metal', 'wood', 'water', 'fire', 'earth']
-    const groups: { wuXing: WuXing; level: number; gems: Gem[] }[] = []
-
-    wuXings.forEach(wx => {
-      for (let lv = 1; lv < 5; lv++) {
-        const g = this.equipmentManager.getGemsByWuXingAndLevel(wx, lv)
-        if (g.length >= 3) groups.push({ wuXing: wx, level: lv, gems: g })
-      }
-    })
-
-    const dialogW = 520
-    const dialogH = 380
+    const dialogW = 620
+    const dialogH = 440
     const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
       stroke: InkColor.ink,
       strokeWidth: 2
@@ -2234,106 +2225,176 @@ export default class EquipmentScene extends Phaser.Scene {
       panel.destroy()
     }
 
-    panel.add(
-      inkText(this, dialogW / 2, 28, '灵石三合一（自由选择保留词条）', {
-        size: 18,
-        color: InkText.cinnabar,
-        bold: true,
-        originX: 0.5
-      })
-    )
+    let filterWx: WuXing | 'all' = 'all'
+    const dynamicGroup = this.add.container(0, 0)
+    panel.add(dynamicGroup)
 
-    if (groups.length === 0) {
-      panel.add(
-        inkText(this, dialogW / 2, dialogH / 2, '暂无满 3 颗的同系同级灵石可供合成', {
-          size: 14,
-          color: InkText.faint,
+    const renderModal = () => {
+      dynamicGroup.removeAll(true)
+
+      dynamicGroup.add(
+        inkText(this, dialogW / 2, 26, '灵石升阶（三合一 · 自选保留词条）', {
+          size: 18,
+          color: InkText.cinnabar,
+          bold: true,
           originX: 0.5
         })
       )
-    } else {
-      const startY = 72
-      const rowH = 76
-      groups.slice(0, 3).forEach((grp, idx) => {
-        const ry = startY + idx * (rowH + 10)
-        const wxStyle = INK_WUXING[grp.wuXing]
 
-        const rowBg = this.add.rectangle(
-          dialogW / 2,
-          ry + rowH / 2,
-          dialogW - 40,
-          rowH,
-          wxStyle.fill,
-          0.9
-        )
-        rowBg.setStrokeStyle(1, wxStyle.border)
-        panel.add(rowBg)
+      // 五行筛选按钮条
+      const filterItems: { key: WuXing | 'all'; label: string }[] = [
+        { key: 'all', label: '全部' },
+        { key: 'metal', label: '金系' },
+        { key: 'wood', label: '木系' },
+        { key: 'water', label: '水系' },
+        { key: 'fire', label: '火系' },
+        { key: 'earth', label: '土系' }
+      ]
+      const pillW = 76
+      const pillGap = 10
+      const filterStartX = (dialogW - (filterItems.length * pillW + (filterItems.length - 1) * pillGap)) / 2
+      filterItems.forEach((f, idx) => {
+        const px = filterStartX + idx * (pillW + pillGap) + pillW / 2
+        const active = filterWx === f.key
+        const btn = createInkButton(this, px, 60, pillW, 24, f.label, {
+          fill: active ? InkColor.paperDeep : InkColor.paperPanel,
+          hoverFill: InkColor.paperDeep,
+          stroke: active ? InkColor.cinnabar : InkColor.inkFaint,
+          textColor: active ? InkText.cinnabar : InkText.ink,
+          fontSize: 12,
+          onClick: () => {
+            filterWx = f.key
+            renderModal()
+          }
+        })
+        dynamicGroup.add(btn)
+      })
 
-        panel.add(
-          inkText(
-            this,
-            36,
-            ry + 22,
-            `${wxStyle.label}系 Lv.${grp.level} → Lv.${grp.level + 1}（当前拥有 ${grp.gems.length} 颗）`,
-            {
-              size: 14,
-              color: InkText.strong,
-              bold: true,
-              originX: 0,
-              originY: 0.5
-            }
-          )
-        )
+      const wuXings: WuXing[] =
+        filterWx === 'all' ? ['metal', 'wood', 'water', 'fire', 'earth'] : [filterWx]
+      const groups: { wuXing: WuXing; level: number; gems: Gem[] }[] = []
 
-        const allStatsPreview = grp.gems
-          .slice(0, 3)
-          .map(
-            (g, gIdx) =>
-              `#${gIdx + 1}[${g.affixes?.map(a => GEM_STAT_LABELS[a.stat].replace('攻击', '攻').replace('暴击', '暴')).join('+') || ''}]`
-          )
-          .join('  ')
+      wuXings.forEach(wx => {
+        for (let lv = 1; lv < 5; lv++) {
+          const g = this.equipmentManager.getGemsByWuXingAndLevel(wx, lv)
+          if (g.length > 0) groups.push({ wuXing: wx, level: lv, gems: g })
+        }
+      })
 
-        panel.add(
-          inkText(this, 36, ry + 50, `候选词条池：${allStatsPreview}`, {
-            size: 11.5,
-            color: InkText.wash,
-            originX: 0,
-            originY: 0.5
+      // 优先展示满 3 颗可立即升阶的组合，其次按数量与等级排序
+      groups.sort((a, b) => {
+        const canA = a.gems.length >= 3 ? 1 : 0
+        const canB = b.gems.length >= 3 ? 1 : 0
+        if (canA !== canB) return canB - canA
+        if (b.gems.length !== a.gems.length) return b.gems.length - a.gems.length
+        return b.level - a.level
+      })
+
+      if (groups.length === 0) {
+        dynamicGroup.add(
+          inkText(this, dialogW / 2, dialogH / 2, '当前筛选下暂无 Lv.1 ~ Lv.4 灵石', {
+            size: 14,
+            color: InkText.faint,
+            originX: 0.5
           })
         )
+      } else {
+        const startY = 86
+        const rowH = 68
+        const rowGap = 8
+        groups.slice(0, 4).forEach((grp, idx) => {
+          const ry = startY + idx * (rowH + rowGap)
+          const wxStyle = INK_WUXING[grp.wuXing]
+          const canSynth = grp.gems.length >= 3
 
-        const synthBtn = createInkButton(
-          this,
-          dialogW - 88,
-          ry + rowH / 2,
-          116,
-          32,
-          '选词条合成',
-          {
-            fill: InkColor.paper,
-            hoverFill: InkColor.paperDeep,
-            textColor: InkText.cinnabar,
-            fontSize: 12.5,
-            stroke: InkColor.cinnabar,
-            onClick: () => {
-              closeAll()
-              this.showGemSynthesizeAffixSelectDialog(grp.gems[0])
-            }
+          const rowBg = this.add.rectangle(
+            dialogW / 2,
+            ry + rowH / 2,
+            dialogW - 40,
+            rowH,
+            canSynth ? wxStyle.fill : InkColor.paperPanel,
+            canSynth ? 0.92 : 0.6
+          )
+          rowBg.setStrokeStyle(canSynth ? 1.5 : 1, canSynth ? wxStyle.border : InkColor.inkFaint)
+          dynamicGroup.add(rowBg)
+
+          const iconKey = `gem_icon_${grp.wuXing}_${grp.level}`
+          if (this.textures.exists(iconKey)) {
+            dynamicGroup.add(this.add.image(46, ry + rowH / 2, iconKey).setScale(0.75))
           }
-        )
-        panel.add(synthBtn)
-      })
+
+          dynamicGroup.add(
+            inkText(
+              this,
+              76,
+              ry + 22,
+              `${wxStyle.label}系 · ${getGemName(grp.gems[0])}   Lv.${grp.level} → Lv.${grp.level + 1}   （拥有 ${grp.gems.length}/3 颗）`,
+              {
+                size: 14,
+                color: canSynth ? InkText.strong : InkText.wash,
+                bold: true,
+                originX: 0,
+                originY: 0.5
+              }
+            )
+          )
+
+          const allStatsPreview = grp.gems
+            .slice(0, 3)
+            .map(
+              (g, gIdx) =>
+                `#${gIdx + 1}[${g.affixes?.map(a => GEM_STAT_LABELS[a.stat].replace('攻击', '攻').replace('暴击', '暴')).join('+') || ''}]`
+            )
+            .join('  ')
+
+          dynamicGroup.add(
+            inkText(this, 76, ry + 46, `候选属性：${allStatsPreview}`, {
+              size: 11.5,
+              color: InkText.wash,
+              originX: 0,
+              originY: 0.5
+            })
+          )
+
+          const synthBtn = createInkButton(
+            this,
+            dialogW - 88,
+            ry + rowH / 2,
+            116,
+            32,
+            canSynth ? '选词条升阶' : `差 ${3 - grp.gems.length} 颗`,
+            {
+              fill: canSynth ? InkColor.paper : InkColor.paperDeep,
+              hoverFill: InkColor.paperDeep,
+              textColor: canSynth ? InkText.cinnabar : InkText.faint,
+              fontSize: 12.5,
+              stroke: canSynth ? InkColor.cinnabar : InkColor.inkFaint,
+              onClick: () => {
+                if (!canSynth) {
+                  this.showMessage(`需满 3 颗同系同级灵石方可升阶（当前 ${grp.gems.length}/3）`)
+                  return
+                }
+                closeAll()
+                this.showGemSynthesizeAffixSelectDialog(grp.gems[0])
+              }
+            }
+          )
+          dynamicGroup.add(synthBtn)
+        })
+      }
+
+      dynamicGroup.add(
+        createInkButton(this, dialogW / 2, dialogH - 26, 96, 30, '关闭', {
+          fill: InkColor.paperDeep,
+          hoverFill: InkColor.paper,
+          textColor: InkText.ink,
+          fontSize: 13,
+          onClick: closeAll
+        })
+      )
     }
 
-    panel.add(
-      createInkButton(this, dialogW / 2, dialogH - 26, 88, 28, '关闭', {
-        fill: InkColor.paperDeep,
-        hoverFill: InkColor.paper,
-        textColor: InkText.ink,
-        fontSize: 12,
-        onClick: closeAll
-      })
-    )
+    renderModal()
   }
 
   private showPuyuanForgeDialog(): void {
@@ -2461,14 +2522,6 @@ export default class EquipmentScene extends Phaser.Scene {
   }
 
   private autoSave(): void {
-    const saveManager = SaveManager.getInstance()
-    const saveData = saveManager.getCurrentSave()
-    if (!saveData || !saveData.inventory) return
-
-    saveData.inventory.equipment = this.equipmentManager
-      .getOwnedEquipment()
-      .map(e => e.equipmentId)
-    saveData.inventory.gems = this.equipmentManager.getOwnedGems()
-    saveManager.saveCurrent()
+    SaveManager.getInstance().saveCurrent()
   }
 }

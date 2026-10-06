@@ -20,6 +20,7 @@ import {
   getExpToNextLevel,
   getExpProgress,
   getExpRequiredForLevel,
+  getTotalInvestedExp,
   getLevelStatBonus,
   calculateLevelFromExp
 } from '@/data/heroes/levelConfig'
@@ -81,6 +82,8 @@ export default class HeroListScene extends Phaser.Scene {
   private initialHeroId: string | null = null
   private inspectedStar: number | null = null
   private sandboxTier: 1 | 2 | 3 | 4 = 1
+  private activeSkillExpanded = false
+  private passiveSkillExpanded = false
   private heroCards: Phaser.GameObjects.Container[] = []
   private detailPanel: Phaser.GameObjects.Container | null = null
   private equipmentManager: EquipmentManager
@@ -93,10 +96,14 @@ export default class HeroListScene extends Phaser.Scene {
 
   init(data?: { heroId?: string }): void {
     const saveManager = SaveManager.getInstance()
+    const currentSave = saveManager.getCurrentSave()
+    this.claimedBioTrials = new Set(currentSave?.claimedBioTrials || [])
     this.heroes = saveManager.loadHeroes()
     this.initialHeroId = data?.heroId || null
     this.selectedHeroId = null
     this.inspectedStar = null
+    this.activeSkillExpanded = false
+    this.passiveSkillExpanded = false
     this.heroCards = []
     this.detailPanel = null
   }
@@ -278,6 +285,8 @@ export default class HeroListScene extends Phaser.Scene {
   private selectHero(heroId: string): void {
     if (this.selectedHeroId !== heroId) {
       this.inspectedStar = null
+      this.activeSkillExpanded = false
+      this.passiveSkillExpanded = false
     }
     this.selectedHeroId = heroId
     this.updateCardSelection()
@@ -413,7 +422,7 @@ export default class HeroListScene extends Phaser.Scene {
     const actualCost = baseCost - getStarDeploymentCostReduction(hero.star)
     const attachPct = Math.round(getStarAttachmentRate(hero.star) * 100)
     panel.add(
-      inkText(this, 824, lvPillY, `军费 ${actualCost}   ·   附着 ${attachPct}%`, {
+      inkText(this, 824, lvPillY, `军费 ${actualCost}   ·   普攻附着 ${attachPct}%`, {
         size: 13.5,
         color: InkText.wash,
         bold: true,
@@ -544,24 +553,14 @@ export default class HeroListScene extends Phaser.Scene {
 
   /**
    * 第二区：一眼看清【当前装备与宝石】（兵械 | 神兵 | 2★同源宝石 | 4★相生宝石）
-   * 卡片仅展示名称、等级与核心数值，点击槽位可更换/镶嵌或查看获取途径
+   * 卡片仅展示名称、等级与核心数值，点击槽位可更换/镶嵌
    */
   private renderEquipmentAndGemSection(
     panel: Phaser.GameObjects.Container,
     hero: Hero,
     y: number
   ): number {
-    y += sectionHeader(this, panel, 24, y, '当前装备与宝石', 610)
-
-    const guideBtn = createInkButton(this, 756, y - 12, 136, 22, '🔍 获取途径与共鸣', {
-      fill: InkColor.paperDeep,
-      hoverFill: 0xc5b795,
-      textColor: InkText.ink,
-      fontSize: 11,
-      stroke: InkColor.inkFaint,
-      onClick: () => this.showArtifactAndResonanceModal(hero)
-    })
-    panel.add(guideBtn)
+    y += sectionHeader(this, panel, 24, y, '当前装备与宝石', HeroListScene.CONTENT_WIDTH)
 
     const heroEquip = this.equipmentManager.getHeroEquipment(hero.id)
     const artifact = heroEquip.artifact
@@ -699,36 +698,44 @@ export default class HeroListScene extends Phaser.Scene {
       )
 
       panel.add(
-        inkText(this, x + 10, y + 36, detail?.name || '已佩装备', {
-          size: 15,
-          color: isExclusive ? InkText.cinnabar : InkText.strong,
-          bold: true
-        })
+        inkText(
+          this,
+          x + 10,
+          type === 'artifact' ? y + 46 : y + 36,
+          detail?.name || '已佩装备',
+          {
+            size: 15,
+            color: isExclusive ? InkText.cinnabar : InkText.strong,
+            bold: true
+          }
+        )
       )
 
-      const parts: string[] = []
-      if (detail?.bonus) {
-        if (detail.bonus.attackPercent)
-          parts.push(`攻+${Math.round(detail.bonus.attackPercent * 100)}%`)
-        if (detail.bonus.attackSpeedPercent)
-          parts.push(`速+${Math.round(detail.bonus.attackSpeedPercent * 100)}%`)
-        if (detail.bonus.attackRangePercent)
-          parts.push(`距+${Math.round(detail.bonus.attackRangePercent * 100)}%`)
-        if (detail.bonus.critRateBonus)
-          parts.push(`暴+${Math.round(detail.bonus.critRateBonus * 100)}%`)
-        if (detail.bonus.critDamageBonus)
-          parts.push(`伤+${Math.round(detail.bonus.critDamageBonus * 100)}%`)
-      } else if (detail?.bonuses) {
-        if (detail.bonuses.attack) parts.push(`攻+${detail.bonuses.attack}`)
-        if (detail.bonuses.attackSpeed) parts.push(`速+${detail.bonuses.attackSpeed.toFixed(1)}`)
+      if (type === 'weapon') {
+        const parts: string[] = []
+        if (detail?.bonus) {
+          if (detail.bonus.attackPercent)
+            parts.push(`攻+${Math.round(detail.bonus.attackPercent * 100)}%`)
+          if (detail.bonus.attackSpeedPercent)
+            parts.push(`速+${Math.round(detail.bonus.attackSpeedPercent * 100)}%`)
+          if (detail.bonus.attackRangePercent)
+            parts.push(`距+${Math.round(detail.bonus.attackRangePercent * 100)}%`)
+          if (detail.bonus.critRateBonus)
+            parts.push(`暴+${Math.round(detail.bonus.critRateBonus * 100)}%`)
+          if (detail.bonus.critDamageBonus)
+            parts.push(`伤+${Math.round(detail.bonus.critDamageBonus * 100)}%`)
+        } else if (detail?.bonuses) {
+          if (detail.bonuses.attack) parts.push(`攻+${detail.bonuses.attack}`)
+          if (detail.bonuses.attackSpeed) parts.push(`速+${detail.bonuses.attackSpeed.toFixed(1)}`)
+        }
+
+        panel.add(
+          inkText(this, x + 10, y + 56, parts.slice(0, 2).join('  '), {
+            size: 11.5,
+            color: InkText.ink
+          })
+        )
       }
-
-      panel.add(
-        inkText(this, x + 10, y + 56, parts.slice(0, 2).join('  '), {
-          size: 11.5,
-          color: InkText.ink
-        })
-      )
 
       const btnY = y + h - 16
       const changeBtn = createInkButton(this, x + 52, btnY, 74, 21, '更换', {
@@ -768,7 +775,7 @@ export default class HeroListScene extends Phaser.Scene {
         y + h - 18,
         142,
         22,
-        idleCount > 0 ? `＋ 佩带 (${idleCount}件可用)` : '＋ 佩带 / 获取途径',
+        idleCount > 0 ? `＋ 佩带 (${idleCount}件可用)` : '＋ 佩带',
         {
           fill: idleCount > 0 ? InkColor.cinnabar : InkColor.paperDeep,
           hoverFill: idleCount > 0 ? 0xb2362e : InkColor.paper,
@@ -819,7 +826,7 @@ export default class HeroListScene extends Phaser.Scene {
     )
 
     panel.add(
-      inkText(this, x + w - 10, y + 14, isStarUnlocked ? `${requiredStar}★已开` : `🔒${requiredStar}★`, {
+      inkText(this, x + w - 10, y + 14, isStarUnlocked ? `${requiredStar}★已开` : '🔒', {
         size: 10.5,
         color: isStarUnlocked ? InkText.green : '#b26a00',
         bold: true,
@@ -909,6 +916,7 @@ export default class HeroListScene extends Phaser.Scene {
         stroke: InkColor.inkFaint,
         onClick: () => {
           this.equipmentManager.unsocketGemSlotFromArtifact(artifact.instanceId, slotType)
+          this.autoSave()
           this.renderRoster()
           this.updateCardSelection()
           this.updateDetailPanel(hero.id)
@@ -1268,7 +1276,7 @@ export default class HeroListScene extends Phaser.Scene {
       unlocked: hasSameResonance,
       isCurrentTier: currentStage === 3 && hasSameResonance,
       accentColor: InkColor.cinnabar,
-      onClick: () => this.showArtifactAndResonanceModal(hero)
+      onClick: () => this.showSkillDetailDialog(hero, 'sameResonance')
     })
 
     // 节点 3B（中支）：3★本命特质（被动）
@@ -1276,7 +1284,7 @@ export default class HeroListScene extends Phaser.Scene {
       box: n3MidBox,
       sealChar: '魂',
       title: '3★本命特质',
-      sub: hasStar3Trait ? `✓ ${traitShortName}` : `需升至3★(差${Math.max(0, 3 - hero.star)}★)`,
+      sub: hasStar3Trait ? `✓ ${traitShortName}` : '需3★',
       unlocked: hasStar3Trait,
       accentColor: 0x8e24aa,
       onClick: () => this.showSkillDetailDialog(hero, 'trait3')
@@ -1291,7 +1299,7 @@ export default class HeroListScene extends Phaser.Scene {
       unlocked: hasGenResonance,
       isCurrentTier: currentStage === 3 && !hasSameResonance && hasGenResonance,
       accentColor: 0x0277bd,
-      onClick: () => this.showArtifactAndResonanceModal(hero)
+      onClick: () => this.showSkillDetailDialog(hero, 'genResonance')
     })
 
     // 节点 4（终极汇流）：5★圣兽大招
@@ -1307,7 +1315,7 @@ export default class HeroListScene extends Phaser.Scene {
       onClick: () => this.showSkillDetailDialog(hero, 'ultimate')
     })
 
-    // ==================== 下半部：当前技能状态（左：主动技能 | 右：被动技能） ====================
+    // ==================== 下半部：当前技能状态（左：主动技能 | 右：被动技能，无弹窗 + 超长内容内联展开/收起） ====================
     const activeSkill = getSkill(hero.activeSkillId) as any
     const passiveSkill = getSkill(hero.passiveSkillId) as any
 
@@ -1318,27 +1326,34 @@ export default class HeroListScene extends Phaser.Scene {
 
     // ---------- 左卡：【⚔️ 主动技能】 ----------
     const actX = 24
+    let currentActiveEffect = (activeSkill?.description || '造成五行战法伤害').replace(/\n/g, ' ')
+    if (ultUnlocked && resCfg?.dualLv5UltimateDescription) {
+      currentActiveEffect = resCfg.dualLv5UltimateDescription.replace(/\n/g, ' ')
+    } else if (isExclusiveEquipped && resCfg?.baseEffectDescription) {
+      currentActiveEffect = resCfg.baseEffectDescription.replace(/\n/g, ' ')
+    }
+    const isActiveLong = currentActiveEffect.length > 44
+    const actExpandDelta = this.activeSkillExpanded && isActiveLong ? 62 : 0
+    const actTopY = statusY - actExpandDelta
+    const actCardH = statusH + actExpandDelta
+
     const actBg = this.add.rectangle(
       actX + statusW / 2,
-      statusY + statusH / 2,
+      actTopY + actCardH / 2,
       statusW,
-      statusH,
-      InkColor.paperDeep,
-      0.88
+      actCardH,
+      this.activeSkillExpanded ? InkColor.paper : InkColor.paperDeep,
+      this.activeSkillExpanded ? 0.98 : 0.88
     )
-    actBg.setStrokeStyle(1.5, isExclusiveEquipped ? InkColor.cinnabar : InkColor.ink)
-    actBg.setInteractive({ useHandCursor: true })
-    actBg.on('pointerover', () => actBg.setFillStyle(0xe2d7bc, 0.96))
-    actBg.on('pointerout', () => actBg.setFillStyle(InkColor.paperDeep, 0.88))
-    actBg.on('pointerdown', () => {
-      SoundFX.stamp(0.2)
-      this.showSkillDetailDialog(hero, ultUnlocked ? 'ultimate' : 'active')
-    })
+    actBg.setStrokeStyle(
+      this.activeSkillExpanded ? 2 : 1.5,
+      isExclusiveEquipped || this.activeSkillExpanded ? InkColor.cinnabar : InkColor.ink
+    )
     panel.add(actBg)
 
     // 第 1 行（y=15）：标题 + 品阶 + 冷却
     panel.add(
-      inkText(this, actX + 12, statusY + 15, '⚔️ 主动技能', {
+      inkText(this, actX + 12, actTopY + 15, '⚔️ 主动技能', {
         size: 12.5,
         color: InkText.cinnabar,
         bold: true
@@ -1356,7 +1371,7 @@ export default class HeroListScene extends Phaser.Scene {
       inkText(
         this,
         actX + statusW - 12,
-        statusY + 15,
+        actTopY + 15,
         `${activeTierBadge} · CD ${activeSkill?.cooldown || 8}s`,
         {
           size: 11,
@@ -1367,47 +1382,64 @@ export default class HeroListScene extends Phaser.Scene {
       )
     )
 
-    // 第 2 行（y=37）：主动技能名称
+    // 第 2 行（y=37）：主动技能名称 + 超长展开/收起按钮
     const displayActiveName = ultUnlocked
       ? `${activeSkill?.name || '主动技'} · 【${ultShortName}】`
       : isExclusiveEquipped
         ? `${activeSkill?.name || '主动技'}（神兵觉醒）`
         : `${activeSkill?.name || '主动战法'}（原始战法）`
     panel.add(
-      inkText(this, actX + 12, statusY + 37, displayActiveName, {
-        size: 15,
+      inkText(this, actX + 12, actTopY + 37, displayActiveName, {
+        size: 14.5,
         color: InkText.strong,
         bold: true
       })
     )
 
-    // 第 3 行（y=52 起，originY=0 顶部对齐，最多两行，绝不向上覆盖技能名或向下触碰提示条）
-    let currentActiveEffect = (activeSkill?.description || '造成五行战法伤害').replace(/\n/g, ' ')
-    if (ultUnlocked && resCfg?.dualLv5UltimateDescription) {
-      currentActiveEffect = resCfg.dualLv5UltimateDescription.replace(/\n/g, ' ')
-    } else if (isExclusiveEquipped && resCfg?.baseEffectDescription) {
-      currentActiveEffect = resCfg.baseEffectDescription.replace(/\n/g, ' ')
+    if (isActiveLong) {
+      const expandActBtn = createInkButton(
+        this,
+        actX + statusW - 38,
+        actTopY + 37,
+        54,
+        20,
+        this.activeSkillExpanded ? '收起 ▴' : '展开 ▾',
+        {
+          fill: InkColor.paperPanel,
+          hoverFill: 0xc5b795,
+          textColor: InkText.cinnabar,
+          fontSize: 10.5,
+          stroke: InkColor.cinnabar,
+          onClick: () => {
+            this.activeSkillExpanded = !this.activeSkillExpanded
+            this.updateDetailPanel(hero.id)
+          }
+        }
+      )
+      panel.add(expandActBtn)
     }
-    const shortActiveDesc =
-      currentActiveEffect.length > 48
-        ? `${currentActiveEffect.slice(0, 47)}…`
-        : currentActiveEffect
+
+    // 第 3 行（y=52 起，originY=0 顶部对齐）
+    const shownActiveDesc =
+      this.activeSkillExpanded || !isActiveLong
+        ? currentActiveEffect
+        : `${currentActiveEffect.slice(0, 43)}…`
 
     panel.add(
-      inkText(this, actX + 12, statusY + 52, shortActiveDesc, {
+      inkText(this, actX + 12, actTopY + 52, shownActiveDesc, {
         size: 11.5,
         color: InkText.ink,
         originX: 0,
         originY: 0,
         wrapWidth: statusW - 24,
-        lineSpacing: 2
+        lineSpacing: 3
       })
     )
 
-    // 第 4 行（底部 y=114）：下一阶解锁提示条
+    // 第 4 行（底部）：下一阶解锁提示条（无弹窗提示文案）
     const nextHintBg = this.add.rectangle(
       actX + statusW / 2,
-      statusY + statusH - 16,
+      actTopY + actCardH - 16,
       statusW - 16,
       22,
       InkColor.paperPanel,
@@ -1416,14 +1448,14 @@ export default class HeroListScene extends Phaser.Scene {
     panel.add(nextHintBg)
 
     const nextActiveStepText = !isExclusiveEquipped
-      ? `▶ 下一阶：佩带【${artShortName}】觉醒神兵战法（点击查看）`
+      ? `▶ 下一阶：佩带【${artShortName}】觉醒神兵战法`
       : !hasGemResonance
-        ? '▶ 下一阶：神兵槽镶嵌 2★同源 / 4★相生宝石（点击查看）'
+        ? '▶ 下一阶：神兵槽镶嵌 2★同源 / 4★相生宝石'
         : !ultUnlocked
-          ? '▶ 下一阶：升至 5★ 并嵌双 Lv.5 宝石解锁大招（点击查看）'
-          : '★ 已达最高境界 · 点击查看四阶完整技能效果'
+          ? '▶ 下一阶：升至 5★ 并嵌双 Lv.5 宝石解锁大招'
+          : '★ 已达最高境界 · 四阶圣兽大招已激活'
     panel.add(
-      inkText(this, actX + 14, statusY + statusH - 16, nextActiveStepText, {
+      inkText(this, actX + 14, actTopY + actCardH - 16, nextActiveStepText, {
         size: 10.5,
         color: ultUnlocked ? InkText.green : '#a66300',
         bold: true
@@ -1432,37 +1464,65 @@ export default class HeroListScene extends Phaser.Scene {
 
     // ---------- 右卡：【🛡️ 被动技能（基础被动 + 3★本命特质）】 ----------
     const pasX = 24 + statusW + statusGap
+    const pas1Desc = (passiveSkill?.description || '常驻增益').replace(/\n/g, ' ')
+    const traitName = (cfg?.star3TraitName || '本命特质').replace(/[【】]/g, '')
+    const traitDesc = (cfg?.star3TraitDesc || '3★觉醒专属机制').replace(/\n/g, ' ')
+    const isPassiveLong = pas1Desc.length > 27 || traitDesc.length > 27
+    const pasExpandDelta = this.passiveSkillExpanded && isPassiveLong ? 68 : 0
+    const pasTopY = statusY - pasExpandDelta
+    const pasCardH = statusH + pasExpandDelta
+
     const pasBg = this.add.rectangle(
       pasX + statusW / 2,
-      statusY + statusH / 2,
+      pasTopY + pasCardH / 2,
       statusW,
-      statusH,
-      InkColor.paperDeep,
-      0.88
+      pasCardH,
+      this.passiveSkillExpanded ? InkColor.paper : InkColor.paperDeep,
+      this.passiveSkillExpanded ? 0.98 : 0.88
     )
-    pasBg.setStrokeStyle(1.5, hasStar3Trait ? 0x8e24aa : InkColor.ink)
-    pasBg.setInteractive({ useHandCursor: true })
-    pasBg.on('pointerover', () => pasBg.setFillStyle(0xe2d7bc, 0.96))
-    pasBg.on('pointerout', () => pasBg.setFillStyle(InkColor.paperDeep, 0.88))
-    pasBg.on('pointerdown', () => {
-      SoundFX.stamp(0.2)
-      this.showSkillDetailDialog(hero, 'passive')
-    })
+    pasBg.setStrokeStyle(
+      this.passiveSkillExpanded ? 2 : 1.5,
+      hasStar3Trait || this.passiveSkillExpanded ? 0x8e24aa : InkColor.ink
+    )
     panel.add(pasBg)
 
     panel.add(
-      inkText(this, pasX + 12, statusY + 15, '🛡️ 被动技能', {
+      inkText(this, pasX + 12, pasTopY + 15, '🛡️ 被动技能', {
         size: 12.5,
         color: '#6a1b9a',
         bold: true
       })
     )
+
+    if (isPassiveLong) {
+      const expandPasBtn = createInkButton(
+        this,
+        pasX + 124,
+        pasTopY + 15,
+        54,
+        20,
+        this.passiveSkillExpanded ? '收起 ▴' : '展开 ▾',
+        {
+          fill: InkColor.paperPanel,
+          hoverFill: 0xc5b795,
+          textColor: '#6a1b9a',
+          fontSize: 10.5,
+          stroke: 0x8e24aa,
+          onClick: () => {
+            this.passiveSkillExpanded = !this.passiveSkillExpanded
+            this.updateDetailPanel(hero.id)
+          }
+        }
+      )
+      panel.add(expandPasBtn)
+    }
+
     panel.add(
       inkText(
         this,
         pasX + statusW - 12,
-        statusY + 15,
-        hasStar3Trait ? '双被动全部激活  ▾' : '1/2 已激活  ▾',
+        pasTopY + 15,
+        hasStar3Trait ? '双被动全部激活' : '1/2 已激活',
         {
           size: 11,
           color: hasStar3Trait ? InkText.green : InkText.wash,
@@ -1472,35 +1532,41 @@ export default class HeroListScene extends Phaser.Scene {
       )
     )
 
-    // 被动一：基础固有被动（y=39 标题，y=59 单行摘要）
-    const pas1Desc = (passiveSkill?.description || '常驻增益').replace(/\n/g, ' ')
-    const shortPas1 = pas1Desc.length > 27 ? `${pas1Desc.slice(0, 26)}…` : pas1Desc
+    // 被动一：基础固有被动
+    const shownPas1 =
+      this.passiveSkillExpanded || pas1Desc.length <= 27
+        ? pas1Desc
+        : `${pas1Desc.slice(0, 26)}…`
     panel.add(
-      inkText(this, pasX + 12, statusY + 39, `① 【${passiveSkill?.name || '基础被动'}】`, {
+      inkText(this, pasX + 12, pasTopY + 38, `① 【${passiveSkill?.name || '基础被动'}】`, {
         size: 13,
         color: InkText.strong,
         bold: true
       })
     )
     panel.add(
-      inkText(this, pasX + statusW - 12, statusY + 39, '✓ 常驻生效', {
+      inkText(this, pasX + statusW - 12, pasTopY + 38, '✓ 常驻生效', {
         size: 10.5,
         color: InkText.green,
         bold: true,
         originX: 1
       })
     )
-    panel.add(
-      inkText(this, pasX + 14, statusY + 59, shortPas1, {
-        size: 11,
-        color: InkText.ink
-      })
-    )
+    const pas1TextObj = inkText(this, pasX + 14, pasTopY + 49, shownPas1, {
+      size: 11,
+      color: InkText.ink,
+      originX: 0,
+      originY: 0,
+      wrapWidth: statusW - 28,
+      lineSpacing: 2
+    })
+    panel.add(pas1TextObj)
 
-    // 分隔线（y=75）
+    // 分隔线與被动二起始高度（展开时自适应下移）
+    const divOffsetY = this.passiveSkillExpanded ? Math.max(82, 54 + pas1TextObj.height + 6) : 75
     const divLine = this.add.rectangle(
       pasX + statusW / 2,
-      statusY + 75,
+      pasTopY + divOffsetY,
       statusW - 24,
       1,
       InkColor.inkFaint,
@@ -1508,13 +1574,15 @@ export default class HeroListScene extends Phaser.Scene {
     )
     panel.add(divLine)
 
-    // 被动二：3★本命特质（y=91 标题，y=111 单行摘要）
-    const traitName = (cfg?.star3TraitName || '本命特质').replace(/[【】]/g, '')
-    const traitDesc = (cfg?.star3TraitDesc || '3★觉醒专属机制').replace(/\n/g, ' ')
-    const shortTrait = traitDesc.length > 27 ? `${traitDesc.slice(0, 26)}…` : traitDesc
+    // 被动二：3★本命特质
+    const shownTrait =
+      this.passiveSkillExpanded || traitDesc.length <= 27
+        ? traitDesc
+        : `${traitDesc.slice(0, 26)}…`
 
+    const traitTitleY = divOffsetY + 16
     panel.add(
-      inkText(this, pasX + 12, statusY + 91, `② 【${traitName}】`, {
+      inkText(this, pasX + 12, pasTopY + traitTitleY, `② 【${traitName}】`, {
         size: 13,
         color: hasStar3Trait ? InkText.cinnabar : InkText.wash,
         bold: true
@@ -1524,8 +1592,8 @@ export default class HeroListScene extends Phaser.Scene {
       inkText(
         this,
         pasX + statusW - 12,
-        statusY + 91,
-        hasStar3Trait ? '✓ 3★已觉醒' : `🔒 需3★ (差${Math.max(0, 3 - hero.star)}★)`,
+        pasTopY + traitTitleY,
+        hasStar3Trait ? '✓ 3★已觉醒' : '🔒 需3★',
         {
           size: 10.5,
           color: hasStar3Trait ? InkText.cinnabar : '#a66300',
@@ -1535,9 +1603,13 @@ export default class HeroListScene extends Phaser.Scene {
       )
     )
     panel.add(
-      inkText(this, pasX + 14, statusY + 111, shortTrait, {
+      inkText(this, pasX + 14, pasTopY + traitTitleY + 11, shownTrait, {
         size: 11,
-        color: hasStar3Trait ? InkText.ink : InkText.faint
+        color: hasStar3Trait ? InkText.ink : InkText.faint,
+        originX: 0,
+        originY: 0,
+        wrapWidth: statusW - 28,
+        lineSpacing: 2
       })
     )
   }
@@ -1545,11 +1617,11 @@ export default class HeroListScene extends Phaser.Scene {
   // ==================== 按需详情弹窗集（等级经验 / 将星碎片 / 属性拆解 / 神兵共鸣 / 战法全解） ====================
 
   /**
-   * 按需弹窗 0：武道等级经验进度、获取方式与无损传功
+   * 按需弹窗 0：武道十境 · 人体经脉穴位图（选取 10 个重要穴位，点击学习贯通经脉以提升武道等级）
    */
-  private showLevelDetailDialog(hero: Hero): void {
-    const dialogW = 520
-    const dialogH = 310
+  private showLevelDetailDialog(hero: Hero, initialSelectedLv?: number): void {
+    const dialogW = 840
+    const dialogH = 548
     const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
       stroke: InkColor.ink,
       strokeWidth: 2
@@ -1559,66 +1631,655 @@ export default class HeroListScene extends Phaser.Scene {
       panel.destroy()
     }
 
+    const defaultLv =
+      initialSelectedLv ?? (hero.level < MAX_HERO_LEVEL ? hero.level + 1 : MAX_HERO_LEVEL)
+    let selectedLv = Math.max(1, Math.min(MAX_HERO_LEVEL, defaultLv))
+
+    // 十大武道要穴定义（沿人体奇经八脉周天运行：Lv.1 气海筑基 -> Lv.10 百会大圆满）
+    const ACUPOINTS: {
+      lv: number
+      name: string
+      realm: string
+      meridian: string
+      x: number
+      y: number
+      labelDx: number
+      labelDy: number
+      desc: string
+      effectText: string
+    }[] = [
+      {
+        lv: 1,
+        name: '气海穴',
+        realm: '初阵',
+        meridian: '任脉 · 下丹田正中',
+        x: 215,
+        y: 314,
+        labelDx: -58,
+        labelDy: -6,
+        desc: '先天元气汇聚之海，武者吐纳筑基之始。真气自丹田生发，四肢百骸初具战阵威仪。',
+        effectText: '武道初境筑基 · 解锁武将出战与基础面板（攻击加成 +0%）'
+      },
+      {
+        lv: 2,
+        name: '关元穴',
+        realm: '淬体',
+        meridian: '任脉 · 丹田下三寸',
+        x: 215,
+        y: 356,
+        labelDx: 58,
+        labelDy: -4,
+        desc: '男子藏精、女子蓄血之处。冲开此穴可培元固本，淬炼筋骨皮膜，挥刃力道倍增。',
+        effectText: '淬炼筋骨皮膜 · 武将基础攻击力永久提升至 +4%'
+      },
+      {
+        lv: 3,
+        name: '涌泉穴',
+        realm: '凝气',
+        meridian: '足少阴肾经 · 足底正中',
+        x: 156,
+        y: 418,
+        labelDx: -62,
+        labelDy: -6,
+        desc: '肾出于涌泉，如源泉自地底喷薄而出。贯通此穴可引大地厚重之气入体，下盘稳如泰山。',
+        effectText: '引地脉精气凝练内息 · 武将基础攻击力永久提升至 +8%'
+      },
+      {
+        lv: 4,
+        name: '命门穴',
+        realm: '破锋',
+        meridian: '督脉 · 后腰脊柱正中',
+        x: 272,
+        y: 292,
+        labelDx: 60,
+        labelDy: -6,
+        desc: '生命之门，督脉阳气生发之枢。真气由腹转背直透脊梁，腰马合一，破阵摧锋无坚不摧。',
+        effectText: '腰马合一气透脊梁 · 武将基础攻击力永久提升至 +12%'
+      },
+      {
+        lv: 5,
+        name: '膻中穴',
+        realm: '贯通',
+        meridian: '任脉 · 胸堂两乳之间',
+        x: 215,
+        y: 234,
+        labelDx: -62,
+        labelDy: -6,
+        desc: '中丹田宗气之所聚，心肺气机之枢纽。冲开膻中则胸中豪气干云，周身内息回环贯通。',
+        effectText: '中丹田宗气大成 · 武将基础攻击力永久提升至 +16%'
+      },
+      {
+        lv: 6,
+        name: '肩井穴',
+        realm: '宗师',
+        meridian: '足少阳胆经 · 右肩脊枢',
+        x: 282,
+        y: 184,
+        labelDx: 58,
+        labelDy: -10,
+        desc: '手足三阳经交会之要冲。气冲肩井，肩背劲力直达双臂，开合之间已具一代宗师气象。',
+        effectText: '贯通肩臂三阳经脉 · 武将基础攻击力永久提升至 +20%'
+      },
+      {
+        lv: 7,
+        name: '曲池穴',
+        realm: '止水',
+        meridian: '手阳明大肠经 · 右肘弯处',
+        x: 314,
+        y: 244,
+        labelDx: 56,
+        labelDy: 0,
+        desc: '经气至此如水入池。贯通曲池可令肘腕发劲圆转如意，沙场挽弓挥戈皆心如止水。',
+        effectText: '气贯肘腕收放自如 · 武将基础攻击力永久提升至 +24%'
+      },
+      {
+        lv: 8,
+        name: '劳宫穴',
+        realm: '天人',
+        meridian: '手厥阴心包经 · 左掌中心',
+        x: 118,
+        y: 256,
+        labelDx: -56,
+        labelDy: -6,
+        desc: '心包经之火穴，掌心吐劲之门户。真气透掌而出，与天地五行交感共鸣，臻至天人合一。',
+        effectText: '掌心吐劲五行共鸣 · 武将基础攻击力永久提升至 +28%'
+      },
+      {
+        lv: 9,
+        name: '玉枕穴',
+        realm: '无双',
+        meridian: '足太阳膀胱经 · 后脑枕骨',
+        x: 164,
+        y: 146,
+        labelDx: -60,
+        labelDy: -6,
+        desc: '督脉与太阳经上脑之天关。冲破玉枕铁壁，神识清明敏锐，纵横疆场国士无双。',
+        effectText: '冲破脑后天关神识无双 · 武将基础攻击力永久提升至 +32%'
+      },
+      {
+        lv: 10,
+        name: '百会穴',
+        realm: '化境',
+        meridian: '督脉 · 头顶正中天灵',
+        x: 215,
+        y: 104,
+        labelDx: 58,
+        labelDy: -8,
+        desc: '手足三阳与督脉之巅，百脉朝宗之会。贯通百会则三花聚顶、五气朝元，臻至武道十境大圆满！',
+        effectText: '十境大圆满 · 武将基础攻击力达到局外武道上限 +36%！'
+      }
+    ]
+
+    const learnAcupoint = (targetLv: number) => {
+      if (hero.level >= MAX_HERO_LEVEL) {
+        this.showMessage(`${hero.name} 已贯通全部十大要穴，臻至武道十境大圆满！`)
+        return
+      }
+      const nextLv = hero.level + 1
+      const pt = ACUPOINTS.find(a => a.lv === nextLv)!
+      hero.level = nextLv
+      hero.experience = Math.max(hero.experience, getTotalInvestedExp(nextLv))
+      selectedLv = nextLv < MAX_HERO_LEVEL ? nextLv + 1 : MAX_HERO_LEVEL
+
+      SoundFX.thud(0.45)
+      this.autoSave()
+      this.renderRoster()
+      this.updateCardSelection()
+      this.updateDetailPanel(hero.id)
+
+      const bonusPct = Math.round(getLevelStatBonus(hero.level) * 100)
+      this.showMessage(
+        `冲穴成功！${hero.name} 贯通第 ${nextLv} 穴【${pt.name}】，晋升武道 Lv.${nextLv}（攻击 +${bonusPct}%）`
+      )
+      closeAll()
+      this.showLevelDetailDialog(hero, targetLv > nextLv ? targetLv : selectedLv)
+    }
+
     const lvBonusPct = Math.round(getLevelStatBonus(hero.level) * 100)
-    const expToNext =
-      hero.level < MAX_HERO_LEVEL ? getExpToNextLevel(hero.level, hero.experience) : 0
-    const curExp = Math.max(0, Math.floor(hero.experience))
-    const diffExp = Math.max(0, expToNext - curExp)
+
+    // 标题栏
+    panel.add(
+      inkText(
+        this,
+        dialogW / 2,
+        26,
+        `【⚡ ${hero.name} · 武道十境人体经脉图（已贯通 ${hero.level}/${MAX_HERO_LEVEL} 穴 · 基础攻击 +${lvBonusPct}%）】`,
+        {
+          size: 18,
+          color: InkText.strong,
+          bold: true,
+          originX: 0.5
+        }
+      )
+    )
+    panel.add(
+      inkText(
+        this,
+        dialogW / 2,
+        46,
+        '点击经脉图上的穴位或右侧【冲穴学习】按钮，依次打通奇经八脉十大要穴以提升武道等级',
+        {
+          size: 11.5,
+          color: InkText.wash,
+          originX: 0.5
+        }
+      )
+    )
+
+    // ==================== 左侧：水墨人体经脉穴位图 ====================
+    const chartX = 22
+    const chartY = 64
+    const chartW = 386
+    const chartH = 424
+    const cx = 215
+
+    const chartBg = this.add.graphics()
+    chartBg.fillStyle(InkColor.paperDeep, 0.85)
+    chartBg.fillRoundedRect(chartX, chartY, chartW, chartH, 6)
+    chartBg.lineStyle(1.5, InkColor.ink, 0.65)
+    chartBg.strokeRoundedRect(chartX, chartY, chartW, chartH, 6)
+
+    // 内框古籍折角装饰与背后的八卦太极水墨暗纹
+    chartBg.lineStyle(1, InkColor.inkFaint, 0.28)
+    chartBg.strokeRoundedRect(chartX + 6, chartY + 6, chartW - 12, chartH - 12, 4)
+    chartBg.strokeCircle(cx, 268, 138)
+    chartBg.strokeCircle(cx, 268, 102)
+    for (let i = 0; i < 8; i++) {
+      const ang = (i * Math.PI) / 4
+      chartBg.lineBetween(
+        cx + Math.cos(ang) * 102,
+        268 + Math.sin(ang) * 102,
+        cx + Math.cos(ang) * 138,
+        268 + Math.sin(ang) * 138
+      )
+    }
+
+    // 绘制水墨人体盘坐/立姿武者轮廓（头颅、颈肩、躯干、双臂双掌、盘腿下盘、任督中脉）
+    chartBg.fillStyle(InkColor.paperPanel, 0.72)
+    chartBg.lineStyle(1.8, InkColor.inkWash, 0.55)
+
+    // 1. 头颅与发髻
+    chartBg.fillRoundedRect(cx - 10, 86, 20, 12, 4)
+    chartBg.strokeRoundedRect(cx - 10, 86, 20, 12, 4)
+    chartBg.fillCircle(cx, 126, 24)
+    chartBg.strokeCircle(cx, 126, 24)
+
+    // 2. 颈部与双肩躯干
+    chartBg.fillRect(cx - 10, 148, 20, 18)
+    chartBg.fillRoundedRect(cx - 56, 166, 112, 168, 22)
+    chartBg.strokeRoundedRect(cx - 56, 166, 112, 168, 22)
+
+    // 3. 左臂与左掌（对应劳宫穴 x=118, y=256）
+    chartBg.lineStyle(16, InkColor.paperPanel, 0.85)
+    chartBg.lineBetween(cx - 52, 184, 132, 226)
+    chartBg.lineBetween(132, 226, 118, 256)
+    chartBg.lineStyle(1.6, InkColor.inkWash, 0.55)
+    chartBg.strokeCircle(118, 256, 12)
+
+    // 4. 右肩、右肘与右掌（对应肩井 x=282,y=184 与曲池 x=314,y=244）
+    chartBg.lineStyle(16, InkColor.paperPanel, 0.85)
+    chartBg.lineBetween(cx + 52, 184, 314, 244)
+    chartBg.lineBetween(314, 244, 294, 286)
+    chartBg.lineStyle(1.6, InkColor.inkWash, 0.55)
+    chartBg.strokeCircle(294, 286, 11)
+
+    // 5. 盘坐下盘与足底（对应关元 x=215,y=356 与涌泉 x=156,y=418）
+    chartBg.fillRoundedRect(cx - 88, 330, 176, 62, 26)
+    chartBg.strokeRoundedRect(cx - 88, 330, 176, 62, 26)
+    chartBg.fillRoundedRect(130, 392, 64, 34, 14)
+    chartBg.strokeRoundedRect(130, 392, 64, 34, 14)
+    chartBg.fillRoundedRect(236, 392, 64, 34, 14)
+    chartBg.strokeRoundedRect(236, 392, 64, 34, 14)
+
+    // 6. 体内任督二脉中轴线（水墨暗脉）
+    chartBg.lineStyle(1.2, InkColor.inkFaint, 0.45)
+    chartBg.lineBetween(cx, 104, cx, 366)
+    panel.add(chartBg)
+
+    // 绘制经脉真气运行连线（1 -> 2 -> 3 -> ... -> 10）
+    const meridianGraphics = this.add.graphics()
+    for (let i = 0; i < ACUPOINTS.length - 1; i++) {
+      const a = ACUPOINTS[i]
+      const b = ACUPOINTS[i + 1]
+      const isChannelOpen = hero.level >= b.lv
+      const isNextChannel = hero.level + 1 === b.lv
+
+      if (isChannelOpen) {
+        meridianGraphics.lineStyle(5, 0xa0782f, 0.25)
+        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
+        meridianGraphics.lineStyle(2.4, InkColor.cinnabar, 0.92)
+        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
+      } else if (isNextChannel) {
+        meridianGraphics.lineStyle(2, 0xa0782f, 0.85)
+        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
+      } else {
+        meridianGraphics.lineStyle(1.3, InkColor.inkFaint, 0.45)
+        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
+      }
+    }
+    panel.add(meridianGraphics)
+
+    // 绘制 10 个穴位节点与旁注名牌
+    for (const pt of ACUPOINTS) {
+      const isUnlocked = hero.level >= pt.lv
+      const isNext = hero.level + 1 === pt.lv
+      const isSelected = selectedLv === pt.lv
+
+      const nodeG = this.add.graphics()
+      if (isSelected) {
+        nodeG.fillStyle(InkColor.cinnabar, 0.18)
+        nodeG.fillCircle(pt.x, pt.y, 17)
+        nodeG.lineStyle(1.8, InkColor.cinnabar, 0.95)
+        nodeG.strokeCircle(pt.x, pt.y, 17)
+      }
+
+      if (isUnlocked) {
+        nodeG.fillStyle(0xa0782f, 0.3)
+        nodeG.fillCircle(pt.x, pt.y, 12)
+        nodeG.fillStyle(InkColor.cinnabar, 1)
+        nodeG.fillCircle(pt.x, pt.y, 8)
+        nodeG.lineStyle(1.5, 0xf6e7c1, 0.95)
+        nodeG.strokeCircle(pt.x, pt.y, 8)
+      } else if (isNext) {
+        nodeG.fillStyle(0xa0782f, 0.25)
+        nodeG.fillCircle(pt.x, pt.y, 13)
+        nodeG.fillStyle(InkColor.paperPanel, 1)
+        nodeG.fillCircle(pt.x, pt.y, 8)
+        nodeG.lineStyle(2, 0xa0782f, 1)
+        nodeG.strokeCircle(pt.x, pt.y, 8)
+        nodeG.fillStyle(InkColor.cinnabar, 0.9)
+        nodeG.fillCircle(pt.x, pt.y, 3.5)
+      } else {
+        nodeG.fillStyle(InkColor.paperPanel, 0.9)
+        nodeG.fillCircle(pt.x, pt.y, 7.5)
+        nodeG.lineStyle(1.2, InkColor.inkFaint, 0.8)
+        nodeG.strokeCircle(pt.x, pt.y, 7.5)
+      }
+      panel.add(nodeG)
+
+      // 穴位引线与标签胶囊
+      const lx = pt.x + pt.labelDx
+      const ly = pt.y + pt.labelDy
+      const leaderG = this.add.graphics()
+      leaderG.lineStyle(
+        1,
+        isUnlocked ? InkColor.cinnabar : isNext ? 0xa0782f : InkColor.inkFaint,
+        0.65
+      )
+      leaderG.lineBetween(pt.x, pt.y, lx, ly)
+      panel.add(leaderG)
+
+      const tagW = 72
+      const tagH = 20
+      const tagBg = this.add.rectangle(
+        lx,
+        ly,
+        tagW,
+        tagH,
+        isSelected ? InkColor.paper : InkColor.paperPanel,
+        0.95
+      )
+      tagBg.setStrokeStyle(
+        isSelected ? 1.5 : 1,
+        isUnlocked ? InkColor.cinnabar : isNext ? 0xa0782f : InkColor.inkFaint
+      )
+      tagBg.setInteractive({ useHandCursor: true })
+      panel.add(tagBg)
+
+      const dotHit = this.add.circle(pt.x, pt.y, 15, 0x000000, 0.001)
+      dotHit.setInteractive({ useHandCursor: true })
+      panel.add(dotHit)
+
+      panel.add(
+        inkText(this, lx, ly, `${pt.lv}·${pt.name.replace('穴', '')}`, {
+          size: 11,
+          color: isUnlocked ? InkText.cinnabar : isNext ? InkText.gold : InkText.wash,
+          bold: isUnlocked || isNext || isSelected,
+          originX: 0.5,
+          originY: 0.5
+        })
+      )
+
+      const onSelectOrLearn = () => {
+        if (pt.lv === hero.level + 1 && selectedLv === pt.lv) {
+          learnAcupoint(pt.lv)
+          return
+        }
+        closeAll()
+        this.showLevelDetailDialog(hero, pt.lv)
+      }
+      tagBg.on('pointerdown', onSelectOrLearn)
+      dotHit.on('pointerdown', onSelectOrLearn)
+    }
 
     panel.add(
-      inkText(this, dialogW / 2, 28, `【📈 ${hero.name} · 武道等级与经验详情】`, {
-        size: 19,
-        color: InkText.strong,
+      inkText(
+        this,
+        chartX + chartW / 2,
+        chartY + chartH - 16,
+        '● 朱砂已贯通    ◎ 金环可冲穴（再次点击直接冲穴）    ○ 未贯通',
+        {
+          size: 10.5,
+          color: InkText.wash,
+          originX: 0.5
+        }
+      )
+    )
+
+    // ==================== 右侧：选中穴位详解 + 一键学习冲穴 + 十大穴位总览 ====================
+    const rightX = 424
+    const rightW = 394
+    const curPt = ACUPOINTS.find(a => a.lv === selectedLv) || ACUPOINTS[0]
+    const isCurUnlocked = hero.level >= curPt.lv
+    const isCurNext = hero.level + 1 === curPt.lv
+
+    // 1. 选中穴位详情卡
+    const detailCardH = 226
+    const detailBg = this.add.rectangle(
+      rightX + rightW / 2,
+      chartY + detailCardH / 2,
+      rightW,
+      detailCardH,
+      InkColor.paperDeep,
+      0.85
+    )
+    detailBg.setStrokeStyle(1.5, isCurUnlocked ? InkColor.cinnabar : 0xa0782f)
+    panel.add(detailBg)
+
+    const statusBadge = isCurUnlocked
+      ? '✓ 已贯通'
+      : isCurNext
+        ? '✨ 当前可冲穴修习'
+        : `🔒 需先贯通前序穴位`
+
+    panel.add(
+      inkText(
+        this,
+        rightX + 16,
+        chartY + 14,
+        `第 ${curPt.lv} 穴 · 【${curPt.name}】（武道${curPt.realm}境 · Lv.${curPt.lv}）`,
+        {
+          size: 15.5,
+          color: InkText.strong,
+          bold: true
+        }
+      )
+    )
+    panel.add(
+      inkText(this, rightX + rightW - 16, chartY + 16, statusBadge, {
+        size: 11.5,
+        color: isCurUnlocked ? InkText.green : isCurNext ? InkText.cinnabar : InkText.faint,
         bold: true,
-        originX: 0.5
+        originX: 1
       })
     )
 
-    const infoBox = this.add.rectangle(dialogW / 2, 138, dialogW - 48, 156, InkColor.paperDeep, 0.75)
-    infoBox.setStrokeStyle(1, InkColor.inkFaint, 0.6)
-    panel.add(infoBox)
+    panel.add(
+      inkText(this, rightX + 16, chartY + 42, `经脉部位：${curPt.meridian}`, {
+        size: 12,
+        color: InkText.gold,
+        bold: true
+      })
+    )
 
-    const lines = [
-      `• 当前境界：武道 Lv.${hero.level} / ${MAX_HERO_LEVEL}（提供基础攻击力 +${lvBonusPct}%）`,
-      hero.level < MAX_HERO_LEVEL
-        ? `• 当前修为：${curExp} / ${expToNext}（距离升至 Lv.${hero.level + 1} 还差 ${diffExp} 点经验）`
-        : '• 当前修为：已达武道十境大圆满（满级 +18% 基础攻击加成）',
-      '• 经验获取：派遣武将参与战役波次与通关结算即可自动获得修为经验',
-      '• 无损传功：随时可将当前武将已投入的修为 100% 无损传授给其他五虎将'
-    ]
+    panel.add(
+      inkText(this, rightX + 16, chartY + 68, curPt.desc, {
+        size: 12,
+        color: InkText.ink,
+        wrapWidth: rightW - 32
+      })
+    )
 
-    lines.forEach((line, i) => {
+    const effectBox = this.add.rectangle(
+      rightX + rightW / 2,
+      chartY + 138,
+      rightW - 32,
+      34,
+      InkColor.paperPanel,
+      0.92
+    )
+    effectBox.setStrokeStyle(1, InkColor.inkFaint, 0.5)
+    panel.add(effectBox)
+    panel.add(
+      inkText(this, rightX + 26, chartY + 138, `⚡ 冲穴效果：${curPt.effectText}`, {
+        size: 11.5,
+        color: InkText.cinnabar,
+        bold: true,
+        originY: 0.5
+      })
+    )
+
+    // 学习/冲穴主按钮
+    if (hero.level >= MAX_HERO_LEVEL) {
       panel.add(
-        inkText(this, 40, 82 + i * 34, line, {
-          size: 13,
-          color: i === 1 ? InkText.cinnabar : InkText.ink,
-          bold: i <= 1
+        inkText(
+          this,
+          rightX + rightW / 2,
+          chartY + 190,
+          '★ 奇经八脉十大要穴已全部贯通（武道十境大圆满）',
+          {
+            size: 13,
+            color: InkText.cinnabar,
+            bold: true,
+            originX: 0.5,
+            originY: 0.5
+          }
+        )
+      )
+    } else {
+      const nextPt = ACUPOINTS.find(a => a.lv === hero.level + 1)!
+      const btnLabel = isCurNext
+        ? `⚡ 点击学习 · 冲开【${curPt.name}】(升至 Lv.${curPt.lv})`
+        : `⚡ 点击学习 · 冲开下一穴【${nextPt.name}】(升至 Lv.${nextPt.lv})`
+
+      const learnBtn = createInkButton(
+        this,
+        rightX + rightW / 2,
+        chartY + 190,
+        rightW - 32,
+        36,
+        btnLabel,
+        {
+          fill: InkColor.cinnabar,
+          hoverFill: 0xb2362e,
+          textColor: InkText.paper,
+          fontSize: 13.5,
+          stroke: 0xa0782f,
+          onClick: () => learnAcupoint(curPt.lv)
+        }
+      )
+      panel.add(learnBtn)
+    }
+
+    // 2. 十大要穴快捷总览矩阵（5列 × 2行）
+    const gridTop = chartY + detailCardH + 14
+    const gridH = 184
+    const gridBg = this.add.rectangle(
+      rightX + rightW / 2,
+      gridTop + gridH / 2,
+      rightW,
+      gridH,
+      InkColor.paperDeep,
+      0.72
+    )
+    gridBg.setStrokeStyle(1, InkColor.inkFaint, 0.55)
+    panel.add(gridBg)
+
+    panel.add(
+      inkText(this, rightX + 14, gridTop + 10, '【奇经八脉 · 十大要穴修习进度（点击可切换查看或直接学习）】', {
+        size: 12,
+        color: InkText.strong,
+        bold: true
+      })
+    )
+
+    const cellW = 70
+    const cellH = 62
+    const cellGapX = 6
+    const cellGapY = 8
+    const startCellX = rightX + 13
+    const startCellY = gridTop + 36
+
+    ACUPOINTS.forEach((pt, idx) => {
+      const col = idx % 5
+      const row = Math.floor(idx / 5)
+      const cxCell = startCellX + col * (cellW + cellGapX) + cellW / 2
+      const cyCell = startCellY + row * (cellH + cellGapY) + cellH / 2
+      const unlocked = hero.level >= pt.lv
+      const isNext = hero.level + 1 === pt.lv
+      const isSel = selectedLv === pt.lv
+
+      const cBg = this.add.rectangle(
+        cxCell,
+        cyCell,
+        cellW,
+        cellH,
+        isSel ? InkColor.paper : unlocked ? InkColor.paperDeep : InkColor.paperPanel,
+        0.95
+      )
+      cBg.setStrokeStyle(
+        isSel ? 2 : 1,
+        unlocked ? InkColor.cinnabar : isNext ? 0xa0782f : InkColor.inkFaint
+      )
+      cBg.setInteractive({ useHandCursor: true })
+      panel.add(cBg)
+
+      panel.add(
+        inkText(this, cxCell, cyCell - 17, `Lv.${pt.lv} ${pt.realm}`, {
+          size: 10,
+          color: unlocked ? InkText.cinnabar : isNext ? InkText.gold : InkText.faint,
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
         })
       )
-    })
+      panel.add(
+        inkText(this, cxCell, cyCell + 1, pt.name, {
+          size: 12,
+          color: unlocked ? InkText.strong : InkText.wash,
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
+        })
+      )
+      panel.add(
+        inkText(
+          this,
+          cxCell,
+          cyCell + 18,
+          unlocked ? `✓ +${(pt.lv - 1) * 4}%` : isNext ? '可学习' : `+${(pt.lv - 1) * 4}%`,
+          {
+            size: 10,
+            color: unlocked ? InkText.green : isNext ? InkText.cinnabar : InkText.faint,
+            bold: unlocked || isNext,
+            originX: 0.5,
+            originY: 0.5
+          }
+        )
+      )
 
-    const hasInvestedExp = hero.level > 1 || hero.experience > 0
-    if (hasInvestedExp) {
-      const resetBtn = createInkButton(this, dialogW / 2 - 74, dialogH - 32, 132, 30, '🔄 无损传功', {
-        fill: InkColor.cinnabar,
-        hoverFill: 0xb2362e,
-        textColor: InkText.paper,
-        fontSize: 13,
-        onClick: () => {
+      cBg.on('pointerdown', () => {
+        if (isNext && isSel) {
+          learnAcupoint(pt.lv)
+        } else {
           closeAll()
-          this.handleLosslessReset(hero)
+          this.showLevelDetailDialog(hero, pt.lv)
         }
       })
+    })
+
+    // 底部操作栏：无损传功 & 关闭
+    const hasInvestedExp = hero.level > 1 || hero.experience > 0
+    if (hasInvestedExp) {
+      const resetBtn = createInkButton(
+        this,
+        dialogW / 2 - 86,
+        dialogH - 28,
+        148,
+        30,
+        '🔄 无损传功/散功',
+        {
+          fill: InkColor.paperDeep,
+          hoverFill: 0xc5b795,
+          textColor: InkText.cinnabar,
+          fontSize: 12.5,
+          stroke: InkColor.cinnabar,
+          onClick: () => {
+            closeAll()
+            this.handleLosslessReset(hero)
+          }
+        }
+      )
       panel.add(resetBtn)
     }
 
     const closeBtn = createInkButton(
       this,
-      hasInvestedExp ? dialogW / 2 + 74 : dialogW / 2,
-      dialogH - 32,
-      112,
+      hasInvestedExp ? dialogW / 2 + 76 : dialogW / 2,
+      dialogH - 28,
+      120,
       30,
-      '知道了',
+      '关闭经脉图',
       {
         fill: InkColor.paperDeep,
         hoverFill: InkColor.paper,
@@ -1631,11 +2292,11 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   /**
-   * 按需弹窗 1：北斗将星命盘（1★ ~ 5★ 完整机制节点与升星交互）
+   * 按需弹窗 1：北斗将星命盘（北斗七星图，每颗星下方直接展示效果描述，支持点亮命星与传记领将魂）
    */
-  private showStarDestinyDetailDialog(hero: Hero): void {
-    const dialogW = 660
-    const dialogH = 440
+  private showStarDestinyDetailDialog(hero: Hero, inspectedStarIdx?: number): void {
+    const dialogW = 880
+    const dialogH = 556
     const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
       stroke: InkColor.cinnabar,
       strokeWidth: 2
@@ -1649,87 +2310,407 @@ export default class HeroListScene extends Phaser.Scene {
     const soulStones = this.getSoulStones(hero.id)
     const required = hero.star < 5 ? hero.starUpgradeRequirements[hero.star - 1] || 1 : 0
     const canUpgrade = hero.star < 5 && soulStones >= required
+    const activeIdx = inspectedStarIdx ?? Math.min(4, Math.max(0, hero.star - 1))
 
     panel.add(
       inkText(
         this,
         dialogW / 2,
-        28,
-        `【⭐ ${hero.name} · 北斗将星命盘（当前 ${hero.star}★ · 将魂 ${soulStones}/${hero.star < 5 ? required : '已满'}）】`,
+        25,
+        `【⭐ ${hero.name} · 北斗七星命盘（当前 ${hero.star}★ · 专属将魂 ${soulStones}/${hero.star < 5 ? required : '已满'}）】`,
         {
-          size: 19,
+          size: 18.5,
           color: InkText.strong,
           bold: true,
           originX: 0.5
         }
       )
     )
-
-    const startY = 66
-    const rowH = 58
-    const rowGap = 6
-
-    STAR_DESTINY_NODES.forEach((node, idx) => {
-      const ry = startY + idx * (rowH + rowGap)
-      const unlocked = hero.star >= node.star
-      const isCurrent = hero.star === node.star
-
-      const bg = this.add.rectangle(
+    panel.add(
+      inkText(
+        this,
         dialogW / 2,
-        ry + rowH / 2,
-        dialogW - 44,
-        rowH,
-        unlocked ? InkColor.paperDeep : InkColor.paperPanel,
-        unlocked ? 0.9 : 0.55
+        45,
+        '斗魁四星掌神兵与特质，斗柄三星定天命与列传 —— 点击任意星辰可查看详解或点亮命星',
+        {
+          size: 11.5,
+          color: InkText.wash,
+          originX: 0.5
+        }
       )
-      bg.setStrokeStyle(
-        isCurrent ? 2 : 1,
-        isCurrent ? InkColor.cinnabar : unlocked ? InkColor.ink : InkColor.inkFaint
+    )
+
+    // 星图画布外框
+    const skyX = 20
+    const skyY = 62
+    const skyW = 840
+    const skyH = 368
+    const skyG = this.add.graphics()
+    skyG.fillStyle(InkColor.paperDeep, 0.9)
+    skyG.fillRoundedRect(skyX, skyY, skyW, skyH, 6)
+    skyG.lineStyle(1.5, 0xa0782f, 0.65)
+    skyG.strokeRoundedRect(skyX, skyY, skyW, skyH, 6)
+
+    // 罗盘星宿暗纹背景與背景碎星
+    skyG.lineStyle(1, InkColor.inkFaint, 0.2)
+    skyG.strokeCircle(dialogW / 2, skyY + 120, 180)
+    skyG.strokeCircle(dialogW / 2, skyY + 120, 290)
+    const bgStars = [
+      [60, 88],
+      [150, 102],
+      [270, 92],
+      [380, 86],
+      [500, 94],
+      [620, 84],
+      [740, 96],
+      [820, 110],
+      [118, 220],
+      [488, 218],
+      [615, 206]
+    ]
+    for (const [bx, by] of bgStars) {
+      skyG.fillStyle(0xa0782f, 0.25)
+      skyG.fillCircle(bx, by, 1.8)
+    }
+
+    // 北斗七星配置（天枢、天璇、天玑、天权、玉衡、开阳、瑶光）
+    // 严格按照北斗七星勺状几何排布（1-2-3-4 构成斗魁四方勺斗，4-5-6-7 构成弯曲斗柄），每颗星独享 116px 垂直列宽，下方直接挂载效果描述牌！
+    const BEIDOU_STARS: {
+      index: number
+      starName: string
+      ancientTitle: string
+      starReq: number
+      title: string
+      x: number
+      y: number
+      unlocked: boolean
+      isCurrent: boolean
+      shortLines: string[]
+      fullDetail: string
+    }[] = [
+      {
+        index: 0,
+        starName: '天枢 · 1★',
+        ancientTitle: '贪狼星 · 斗魁首星',
+        starReq: 1,
+        title: '初露锋芒',
+        x: 84,
+        y: 118,
+        unlocked: hero.star >= 1,
+        isCurrent: hero.star === 1,
+        shortLines: ['普攻附着 25%', '解锁原始战法', '可佩本命神兵'],
+        fullDetail:
+          '【天枢 · 1★ 初露锋芒】普攻五行附着率 25%；解锁武将原始主动战法与基础被动，可佩戴凡品兵器与本命神兵。'
+      },
+      {
+        index: 1,
+        starName: '天璇 · 2★',
+        ancientTitle: '巨门星 · 斗魁二星',
+        starReq: 2,
+        title: '威名远播',
+        x: 202,
+        y: 182,
+        unlocked: hero.star >= 2,
+        isCurrent: hero.star === 2,
+        shortLines: ['普攻附着 40%', '解锁2★同源槽', '部署军费 -2'],
+        fullDetail:
+          '【天璇 · 2★ 威名远播】普攻五行附着率提升至 40%；打通神兵【2★同源灵石槽】激活同源共鸣；局内部署军费永久 -2。'
+      },
+      {
+        index: 2,
+        starName: '天玑 · 3★',
+        ancientTitle: '禄存星 · 斗魁三星',
+        starReq: 3,
+        title: '独当一面',
+        x: 320,
+        y: 196,
+        unlocked: hero.star >= 3,
+        isCurrent: hero.star === 3,
+        shortLines: [
+          '普攻附着 50%',
+          '觉醒3★本命特质',
+          (cfg?.star3TraitName || '专属特质').replace(/[【】]/g, '')
+        ],
+        fullDetail: `【天玑 · 3★ 独当一面】普攻五行附着率提升至 50%；觉醒本命特质${cfg?.star3TraitName || ''}：${cfg?.star3TraitDesc || '专属元素联动机制'}。`
+      },
+      {
+        index: 3,
+        starName: '天权 · 4★',
+        ancientTitle: '文曲星 · 斗魁四星',
+        starReq: 4,
+        title: '威震华夏',
+        x: 438,
+        y: 136,
+        unlocked: hero.star >= 4,
+        isCurrent: hero.star === 4,
+        shortLines: ['普攻附着 65%', '解锁4★相生槽', '破Boss铁壁×1.5'],
+        fullDetail:
+          '【天权 · 4★ 威震华夏】普攻五行附着率提升至 65%；打通神兵【4★相生灵石槽】实现双槽共鸣；相生反应破除 Boss 五行铁壁效率提升至 1.5 倍。'
+      },
+      {
+        index: 4,
+        starName: '玉衡 · 5★',
+        ancientTitle: '廉贞星 · 斗柄首星',
+        starReq: 5,
+        title: '五虎天命',
+        x: 556,
+        y: 158,
+        unlocked: hero.star >= 5,
+        isCurrent: hero.star === 5,
+        shortLines: ['普攻附着 80%', '解锁5★圣兽大招', '战法充能+8%'],
+        fullDetail:
+          '【玉衡 · 5★ 五虎天命】普攻五行附着率登顶 80%；解锁双 Lv.5 灵石【五行圣兽终极大招】资格；每次释放战法立即为军令台充能 +8%。'
+      },
+      {
+        index: 5,
+        starName: '开阳 · 辅星',
+        ancientTitle: '武曲星 · 斗柄二星',
+        starReq: 1,
+        title: '名将列传',
+        x: 674,
+        y: 126,
+        unlocked: true,
+        isCurrent: false,
+        shortLines: ['名将传记试炼', '免费领专属将魂', '助阵命星晋升'],
+        fullDetail:
+          '【开阳 · 武曲列传】掌管五虎名将生平传记试炼。点击此星或下方【名将传记】按钮可免费领取专属将魂，用于点亮天璇至玉衡命星。'
+      },
+      {
+        index: 6,
+        starName: '瑶光 · 极星',
+        ancientTitle: '破军星 · 斗柄尾星',
+        starReq: 5,
+        title: '圣兽法相',
+        x: 792,
+        y: 174,
+        unlocked: hero.star >= 5,
+        isCurrent: false,
+        shortLines: ['伴随5★玉衡点亮', '圣兽法相降世', '诗号卷轴切入'],
+        fullDetail:
+          '【瑶光 · 破军极意】北斗斗柄所指，破军克敌。当 5★ 玉衡点亮且双槽镶嵌 Lv.5 灵石时，战法释放触发战场聚焦、名将诗号切入与圣兽法相降临！'
+      }
+    ]
+
+    // 1. 绘制北斗七星连线（斗魁 1-2-3-4 + 4-1 勺口虚线，斗柄 4-5-6-7）
+    // 斗魁勺口闭合暗线 (天权 -> 天枢)
+    skyG.lineStyle(1.2, 0xa0782f, 0.35)
+    skyG.lineBetween(BEIDOU_STARS[3].x, BEIDOU_STARS[3].y, BEIDOU_STARS[0].x, BEIDOU_STARS[0].y)
+
+    for (let i = 0; i < BEIDOU_STARS.length - 1; i++) {
+      const s1 = BEIDOU_STARS[i]
+      const s2 = BEIDOU_STARS[i + 1]
+      const lit = s1.unlocked && s2.unlocked
+      if (lit) {
+        skyG.lineStyle(5, 0xa0782f, 0.22)
+        skyG.lineBetween(s1.x, s1.y, s2.x, s2.y)
+        skyG.lineStyle(2.4, InkColor.cinnabar, 0.92)
+        skyG.lineBetween(s1.x, s1.y, s2.x, s2.y)
+      } else {
+        skyG.lineStyle(1.6, InkColor.inkFaint, 0.55)
+        skyG.lineBetween(s1.x, s1.y, s2.x, s2.y)
+      }
+    }
+    panel.add(skyG)
+
+    // 2. 绘制每颗星辰 + 星辰正下方直接挂载的效果描述牌
+    for (const st of BEIDOU_STARS) {
+      const isSelected = activeIdx === st.index
+      const isNextToLight = st.index < 5 && st.starReq === hero.star + 1
+
+      const starG = this.add.graphics()
+
+      // 星辰到下方描述框的垂直星轨引线
+      const descCardTop = st.y + 28
+      const descCardH = 114
+      const descCardW = 108
+      const descCardCenterY = descCardTop + descCardH / 2
+
+      starG.lineStyle(
+        1.2,
+        st.unlocked ? InkColor.cinnabar : isNextToLight ? 0xa0782f : InkColor.inkFaint,
+        0.65
       )
-      panel.add(bg)
+      starG.lineBetween(st.x, st.y + 12, st.x, descCardTop)
 
-      const badgeStr = unlocked
-        ? isCurrent
-          ? `★ ${node.star}★ 当前境界`
-          : `✓ ${node.star}★ 已点亮`
-        : `🔒 ${node.star}★ 待点亮`
+      // 星辰光晕与四角星芒
+      if (isSelected) {
+        starG.fillStyle(InkColor.cinnabar, 0.18)
+        starG.fillCircle(st.x, st.y, 20)
+        starG.lineStyle(1.6, InkColor.cinnabar, 0.95)
+        starG.strokeCircle(st.x, st.y, 20)
+      }
 
+      if (st.unlocked) {
+        starG.fillStyle(0xa0782f, 0.32)
+        starG.fillCircle(st.x, st.y, 14)
+        starG.fillStyle(InkColor.cinnabar, 1)
+        starG.fillCircle(st.x, st.y, 8.5)
+        starG.fillStyle(0xfff3d1, 1)
+        starG.fillCircle(st.x, st.y, 4)
+        // 十字星芒
+        starG.lineStyle(1.6, 0xfff3d1, 0.9)
+        starG.lineBetween(st.x - 13, st.y, st.x + 13, st.y)
+        starG.lineBetween(st.x, st.y - 13, st.x, st.y + 13)
+      } else if (isNextToLight) {
+        starG.fillStyle(0xa0782f, 0.25)
+        starG.fillCircle(st.x, st.y, 13)
+        starG.fillStyle(InkColor.paperPanel, 1)
+        starG.fillCircle(st.x, st.y, 8)
+        starG.lineStyle(2, 0xa0782f, 1)
+        starG.strokeCircle(st.x, st.y, 8)
+      } else {
+        starG.fillStyle(InkColor.paperPanel, 0.9)
+        starG.fillCircle(st.x, st.y, 7.5)
+        starG.lineStyle(1.2, InkColor.inkFaint, 0.75)
+        starG.strokeCircle(st.x, st.y, 7.5)
+      }
+      panel.add(starG)
+
+      // 星辰上方名称标签
       panel.add(
-        inkText(
-          this,
-          36,
-          ry + 14,
-          `${badgeStr} · 【${node.title}】  （普攻五行附着率：${node.attachRatePct}%）`,
-          {
-            size: 12.5,
-            color: unlocked ? InkText.cinnabar : InkText.wash,
-            bold: true
-          }
-        )
-      )
-
-      const detailLine =
-        node.star === 3 && cfg?.star3TraitName && cfg?.star3TraitDesc
-          ? `觉醒本命特质${cfg.star3TraitName}：${cfg.star3TraitDesc}`
-          : `${node.socketPermission}；${node.unlockDesc}`
-
-      panel.add(
-        inkText(this, 36, ry + 27, detailLine, {
-          size: 11,
-          color: unlocked ? InkText.ink : InkText.faint,
-          originX: 0,
-          originY: 0,
-          wrapWidth: dialogW - 72
+        inkText(this, st.x, st.y - 22, st.starName, {
+          size: 12,
+          color: st.unlocked ? InkText.cinnabar : isNextToLight ? InkText.gold : InkText.wash,
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
         })
       )
-    })
 
-    const btnY = dialogH - 30
-    const bioBtn = createInkButton(this, dialogW / 2 - 150, btnY, 148, 30, '📜 名将传记 (领将魂)', {
+      // 星辰正下方的效果描述牌（紧随北斗七星高低起伏排布，列宽 108px 绝不重叠）
+      const cardBg = this.add.rectangle(
+        st.x,
+        descCardCenterY,
+        descCardW,
+        descCardH,
+        isSelected ? InkColor.paper : st.unlocked ? InkColor.paperPanel : InkColor.paperDeep,
+        st.unlocked || isSelected ? 0.96 : 0.75
+      )
+      cardBg.setStrokeStyle(
+        isSelected ? 2 : 1,
+        isSelected
+          ? InkColor.cinnabar
+          : st.unlocked
+            ? 0xa0782f
+            : isNextToLight
+              ? InkColor.cinnabar
+              : InkColor.inkFaint
+      )
+      cardBg.setInteractive({ useHandCursor: true })
+      panel.add(cardBg)
+
+      const starHit = this.add.circle(st.x, st.y, 18, 0x000000, 0.001)
+      starHit.setInteractive({ useHandCursor: true })
+      panel.add(starHit)
+
+      // 描述框内标题与状态
+      const stateIcon = st.unlocked ? '★' : isNextToLight ? '✨' : '🔒'
+      panel.add(
+        inkText(this, st.x, descCardTop + 14, `${stateIcon}【${st.title}】`, {
+          size: 11.5,
+          color: st.unlocked ? InkText.strong : isNextToLight ? InkText.cinnabar : InkText.wash,
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
+        })
+      )
+
+      // 分隔细线
+      const sepG = this.add.graphics()
+      sepG.lineStyle(1, InkColor.inkFaint, 0.35)
+      sepG.lineBetween(st.x - 44, descCardTop + 26, st.x + 44, descCardTop + 26)
+      panel.add(sepG)
+
+      // 3 行核心效果描述
+      st.shortLines.forEach((line, lIdx) => {
+        panel.add(
+          inkText(this, st.x, descCardTop + 42 + lIdx * 22, line, {
+            size: 10.5,
+            color:
+              lIdx === 0 && st.unlocked
+                ? InkText.cinnabar
+                : st.unlocked
+                  ? InkText.ink
+                  : InkText.faint,
+            bold: lIdx === 0,
+            originX: 0.5,
+            originY: 0.5
+          })
+        )
+      })
+
+      // 底部微标（已点亮 / 可点亮 / 传记入口）
+      const footText =
+        st.index === 5
+          ? '点击领将魂 ▸'
+          : st.isCurrent
+            ? '● 当前星级'
+            : st.unlocked
+              ? '✓ 已点亮'
+              : isNextToLight
+                ? canUpgrade
+                  ? '⚡ 点击点亮!'
+                  : `需 ${required} 将魂`
+                : `需 ${st.starReq}★`
+
+      panel.add(
+        inkText(this, st.x, descCardTop + descCardH - 11, footText, {
+          size: 10,
+          color:
+            st.index === 5 || (isNextToLight && canUpgrade)
+              ? InkText.cinnabar
+              : st.unlocked
+                ? InkText.green
+                : InkText.faint,
+          bold: true,
+          originX: 0.5,
+          originY: 0.5
+        })
+      )
+
+      const onClickStar = () => {
+        if (st.index === 5) {
+          closeAll()
+          this.showBiographyTrialDialog(hero)
+          return
+        }
+        if (isNextToLight && canUpgrade && isSelected) {
+          closeAll()
+          this.upgradeHeroStar(hero.id, required)
+          this.showStarDestinyDetailDialog(hero, st.index)
+          return
+        }
+        closeAll()
+        this.showStarDestinyDetailDialog(hero, st.index)
+      }
+      cardBg.on('pointerdown', onClickStar)
+      starHit.on('pointerdown', onClickStar)
+    }
+
+    // ==================== 底部选中星辰完整效果横幅 ====================
+    const curStar = BEIDOU_STARS[activeIdx] || BEIDOU_STARS[0]
+    const bannerY = 442
+    const bannerBg = this.add.rectangle(dialogW / 2, bannerY + 24, 840, 48, InkColor.paperDeep, 0.85)
+    bannerBg.setStrokeStyle(1, InkColor.cinnabar, 0.55)
+    panel.add(bannerBg)
+
+    panel.add(
+      inkText(this, 36, bannerY + 24, `${curStar.ancientTitle}  ｜  ${curStar.fullDetail}`, {
+        size: 11.5,
+        color: InkText.ink,
+        bold: true,
+        originY: 0.5,
+        wrapWidth: 808
+      })
+    )
+
+    // ==================== 底部按钮栏 ====================
+    const btnY = dialogH - 28
+    const bioBtn = createInkButton(this, dialogW / 2 - 160, btnY, 156, 30, '📜 名将传记 (领将魂)', {
       fill: InkColor.paperDeep,
       hoverFill: 0xc5b795,
       textColor: InkText.cinnabar,
-      fontSize: 12,
+      fontSize: 12.5,
       stroke: InkColor.cinnabar,
       onClick: () => {
         closeAll()
@@ -1739,29 +2720,38 @@ export default class HeroListScene extends Phaser.Scene {
     panel.add(bioBtn)
 
     if (hero.star < 5) {
-      const upBtn = createInkButton(this, dialogW / 2 + 8, btnY, 132, 30, '✨ 点亮下一命星', {
-        fill: canUpgrade ? InkColor.cinnabar : InkColor.paperPanel,
-        hoverFill: canUpgrade ? 0xb2362e : InkColor.paperDeep,
-        textColor: canUpgrade ? InkText.paper : InkText.faint,
-        fontSize: 12,
-        stroke: canUpgrade ? InkColor.cinnabar : InkColor.inkFaint,
-        onClick: () => {
-          if (!canUpgrade) {
-            this.showMessage(`专属将魂不足（${soulStones}/${required}），可先前往【名将传记】领取`)
-            return
+      const upBtn = createInkButton(
+        this,
+        dialogW / 2 + 8,
+        btnY,
+        148,
+        30,
+        `✨ 点亮 ${hero.star + 1}★ 命星`,
+        {
+          fill: canUpgrade ? InkColor.cinnabar : InkColor.paperPanel,
+          hoverFill: canUpgrade ? 0xb2362e : InkColor.paperDeep,
+          textColor: canUpgrade ? InkText.paper : InkText.faint,
+          fontSize: 12.5,
+          stroke: canUpgrade ? InkColor.cinnabar : InkColor.inkFaint,
+          onClick: () => {
+            if (!canUpgrade) {
+              this.showMessage(`专属将魂不足（${soulStones}/${required}），可先点击【名将传记】免费领取`)
+              return
+            }
+            closeAll()
+            this.upgradeHeroStar(hero.id, required)
+            this.showStarDestinyDetailDialog(hero, hero.star - 1)
           }
-          closeAll()
-          this.upgradeHeroStar(hero.id, required)
         }
-      })
+      )
       panel.add(upBtn)
     }
 
-    const closeBtn = createInkButton(this, dialogW / 2 + 160, btnY, 108, 30, '关闭命盘', {
+    const closeBtn = createInkButton(this, dialogW / 2 + 168, btnY, 112, 30, '关闭命盘', {
       fill: InkColor.paperDeep,
       hoverFill: InkColor.paper,
       textColor: InkText.ink,
-      fontSize: 12,
+      fontSize: 12.5,
       onClick: closeAll
     })
     panel.add(closeBtn)
@@ -1899,206 +2889,20 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   /**
-   * 按需弹窗 3：本命神兵与双槽灵石共鸣全览（Lv.1 ~ Lv.5 同源/相生共鸣完整词条表）
-   */
-  private showArtifactAndResonanceModal(hero: Hero): void {
-    const dialogW = 680
-    const dialogH = 450
-    const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
-      stroke: 0xa0782f,
-      strokeWidth: 2
-    })
-    const closeAll = () => {
-      overlay.destroy()
-      panel.destroy()
-    }
-
-    const heroEquip = this.equipmentManager.getHeroEquipment(hero.id)
-    const artifactInst = heroEquip.artifact
-    const evo = artifactInst
-      ? this.equipmentManager.getArtifactEvolutionStage(artifactInst.instanceId)
-      : null
-    const isExclusiveEquipped = Boolean(
-      artifactInst &&
-        this.equipmentManager.isExclusiveForHero(artifactInst.instanceId, hero.id, hero.name)
-    )
-
-    const exclusiveCfg = artifacts.find(
-      (a: any) => a.exclusiveHero === hero.name || a.exclusiveHeroes?.includes(hero.id)
-    ) as any
-    const resCfg = exclusiveCfg?.exclusiveResonance
-    const reqWuXing = (exclusiveCfg?.gemSocket?.requiredWuXing || hero.wuXing) as WuXing
-    const genWuXing = WuXingGeneratedBy[reqWuXing]
-
-    panel.add(
-      inkText(
-        this,
-        dialogW / 2,
-        26,
-        `【🗡️ ${hero.name} · 本命神兵《${exclusiveCfg?.name || '专属神兵'}》与三才共鸣全览】`,
-        {
-          size: 18,
-          color: InkText.strong,
-          bold: true,
-          originX: 0.5
-        }
-      )
-    )
-
-    // 1. 神兵战法进化说明
-    const box1 = this.add.rectangle(dialogW / 2, 76, dialogW - 44, 58, InkColor.paperDeep, 0.8)
-    box1.setStrokeStyle(1, isExclusiveEquipped ? InkColor.cinnabar : InkColor.inkFaint)
-    panel.add(box1)
-
-    panel.add(
-      inkText(
-        this,
-        36,
-        58,
-        `① 本命神兵进化（${isExclusiveEquipped ? '✓ 已佩带生效' : '○ 佩带本命神兵后激活'}）`,
-        {
-          size: 12.5,
-          color: isExclusiveEquipped ? InkText.cinnabar : InkText.wash,
-          bold: true
-        }
-      )
-    )
-    panel.add(
-      inkText(this, 36, 70, resCfg?.evolvedSkillDesc || exclusiveCfg?.description || '', {
-        size: 11,
-        color: InkText.ink,
-        originX: 0,
-        originY: 0,
-        wrapWidth: dialogW - 72
-      })
-    )
-
-    // 2. 左列：2★ 同源灵石槽 Lv.1~5 效果；右列：4★ 相生灵石槽 Lv.1~5 效果
-    const colW = (dialogW - 56) / 2
-    const colTop = 114
-    const colH = 216
-
-    const renderResCol = (
-      x: number,
-      title: string,
-      unlocked: boolean,
-      curLv: number | null,
-      descs: string[],
-      fallback: string
-    ) => {
-      const cBg = this.add.rectangle(x + colW / 2, colTop + colH / 2, colW, colH, InkColor.paperDeep, 0.6)
-      cBg.setStrokeStyle(1, unlocked ? InkColor.ink : InkColor.inkFaint, 0.6)
-      panel.add(cBg)
-
-      panel.add(
-        inkText(this, x + 12, colTop + 16, title, {
-          size: 12.5,
-          color: unlocked ? InkText.cinnabar : InkText.wash,
-          bold: true
-        })
-      )
-
-      for (let lv = 1; lv <= 5; lv++) {
-        const ly = colTop + 34 + (lv - 1) * 35
-        const isCur = unlocked && curLv === lv
-        const lineTxt = descs?.[lv - 1] || `Lv.${lv}：${fallback}`
-        panel.add(
-          inkText(this, x + 12, ly, `${isCur ? '▶ ' : ''}${lineTxt}`, {
-            size: 10.5,
-            color: isCur ? InkText.cinnabar : InkText.ink,
-            bold: isCur,
-            originX: 0,
-            originY: 0,
-            wrapWidth: colW - 24
-          })
-        )
-      }
-    }
-
-    renderResCol(
-      22,
-      `② 2★同源槽（限【${INK_WUXING[reqWuXing].label}】灵石）`,
-      hero.star >= 2 && Boolean(evo?.sameGem),
-      evo?.sameGem?.level || null,
-      resCfg?.sameLevelDescs || [],
-      resCfg?.sameWuXingDesc || '强化本系技能威力'
-    )
-
-    renderResCol(
-      22 + colW + 12,
-      `③ 4★相生槽（限【${INK_WUXING[genWuXing].label}】灵石）`,
-      hero.star >= 4 && Boolean(evo?.generatingGem),
-      evo?.generatingGem?.level || null,
-      resCfg?.generatingLevelDescs || [],
-      resCfg?.generatingDesc || '触发相生增益协同'
-    )
-
-    // 3. 底部：5★ 双 Lv.5 终极大招
-    const ultUnlocked = Boolean(
-      isExclusiveEquipped && hero.star >= 5 && evo?.hasDualLv5Ultimate
-    )
-    const ultBox = this.add.rectangle(dialogW / 2, 368, dialogW - 44, 56, InkColor.paperDeep, 0.85)
-    ultBox.setStrokeStyle(1.5, ultUnlocked ? InkColor.cinnabar : 0xa0782f)
-    panel.add(ultBox)
-
-    panel.add(
-      inkText(
-        this,
-        36,
-        350,
-        `④ 5★双Lv.5终极大招【${resCfg?.ultimateName || '圣兽法相'}】（${ultUnlocked ? '🐉 已觉醒' : '需本命神兵 + 5★ + 双槽Lv.5灵石'}）`,
-        {
-          size: 12.5,
-          color: ultUnlocked ? InkText.cinnabar : InkText.gold,
-          bold: true
-        }
-      )
-    )
-    panel.add(
-      inkText(
-        this,
-        36,
-        362,
-        resCfg?.level5UltimateDesc || resCfg?.ultimateDesc || '召唤五行圣兽法相降临战场',
-        {
-          size: 11,
-          color: InkText.ink,
-          originX: 0,
-          originY: 0,
-          wrapWidth: dialogW - 72
-        }
-      )
-    )
-
-    const sandboxBtn = createInkButton(this, dialogW / 2 - 74, dialogH - 24, 136, 28, '⚔️ 四阶技能演武', {
-      fill: InkColor.cinnabar,
-      hoverFill: 0xb2362e,
-      textColor: InkText.paper,
-      fontSize: 12,
-      onClick: () => {
-        closeAll()
-        this.showSkillSandboxDialog(hero)
-      }
-    })
-    const closeBtn = createInkButton(this, dialogW / 2 + 74, dialogH - 24, 112, 28, '关闭全览', {
-      fill: InkColor.paperDeep,
-      hoverFill: InkColor.paper,
-      textColor: InkText.ink,
-      fontSize: 12,
-      onClick: closeAll
-    })
-    panel.add([sandboxBtn, closeBtn])
-  }
-
-  /**
-   * 按需弹窗 4：核心战法与本命特质完整无截断说明（支持一键切换查看 主动/被动/3★特质/5★大招）
+   * 按需弹窗：战法与特质详解（支持一键切换查看 主动战法 / 基础被动 / 2★同源共鸣 / 3★本命特质 / 4★相生共鸣 / 5★圣兽大招）
    */
   private showSkillDetailDialog(
     hero: Hero,
-    initialFocus: 'active' | 'passive' | 'trait3' | 'ultimate'
+    initialFocus:
+      | 'active'
+      | 'passive'
+      | 'sameResonance'
+      | 'trait3'
+      | 'genResonance'
+      | 'ultimate'
   ): void {
-    const dialogW = 620
-    const dialogH = 380
+    const dialogW = 680
+    const dialogH = 400
     const { overlay, panel } = createInkDialog(this, dialogW, dialogH, {
       stroke: InkColor.cinnabar,
       strokeWidth: 2
@@ -2126,6 +2930,8 @@ export default class HeroListScene extends Phaser.Scene {
       (a: any) => a.exclusiveHero === hero.name || a.exclusiveHeroes?.includes(hero.id)
     ) as any
     const resCfg = exclusiveArtifactCfg?.exclusiveResonance
+    const reqWuXing = (exclusiveArtifactCfg?.gemSocket?.requiredWuXing || hero.wuXing) as WuXing
+    const genWuXing = WuXingGeneratedBy[reqWuXing]
     const activeSkill = getSkill(hero.activeSkillId) as any
     const passiveSkill = getSkill(hero.passiveSkillId) as any
     const ultUnlocked = Boolean(
@@ -2144,20 +2950,31 @@ export default class HeroListScene extends Phaser.Scene {
         })
       )
 
-      const tabs: { key: 'active' | 'passive' | 'trait3' | 'ultimate'; label: string }[] = [
+      const tabs: {
+        key:
+          | 'active'
+          | 'passive'
+          | 'sameResonance'
+          | 'trait3'
+          | 'genResonance'
+          | 'ultimate'
+        label: string
+      }[] = [
         { key: 'active', label: '主动战法' },
         { key: 'passive', label: '基础被动' },
+        { key: 'sameResonance', label: '2★同源共鸣' },
         { key: 'trait3', label: '3★本命特质' },
+        { key: 'genResonance', label: '4★相生共鸣' },
         { key: 'ultimate', label: '5★圣兽大招' }
       ]
 
       tabs.forEach((t, idx) => {
         const active = currentFocus === t.key
-        const btn = createInkButton(this, 96 + idx * 142, 62, 130, 28, t.label, {
+        const btn = createInkButton(this, 75 + idx * 106, 62, 98, 28, t.label, {
           fill: active ? InkColor.cinnabar : InkColor.paperDeep,
           hoverFill: active ? 0xb2362e : InkColor.paper,
           textColor: active ? InkText.paper : InkText.ink,
-          fontSize: 12,
+          fontSize: 11.5,
           stroke: active ? InkColor.cinnabar : InkColor.inkFaint,
           onClick: () => {
             currentFocus = t.key
@@ -2167,7 +2984,14 @@ export default class HeroListScene extends Phaser.Scene {
         contentGroup.add(btn)
       })
 
-      const bodyBg = this.add.rectangle(dialogW / 2, 206, dialogW - 44, 220, InkColor.paperDeep, 0.75)
+      const bodyBg = this.add.rectangle(
+        dialogW / 2,
+        216,
+        dialogW - 44,
+        240,
+        InkColor.paperDeep,
+        0.75
+      )
       bodyBg.setStrokeStyle(1, InkColor.inkFaint, 0.6)
       contentGroup.add(bodyBg)
 
@@ -2195,13 +3019,13 @@ export default class HeroListScene extends Phaser.Scene {
           })
         )
 
-        inkRule(this, contentGroup, 38, 196, dialogW - 76, 0.35)
+        inkRule(this, contentGroup, 38, 198, dialogW - 76, 0.35)
 
         contentGroup.add(
           inkText(
             this,
             38,
-            216,
+            218,
             `【本命神兵进化】佩带《${exclusiveArtifactCfg?.name || '本命神兵'}》（${isExclusiveEquipped ? '✓ 当前已生效' : '○ 尚未佩带'}）`,
             {
               size: 14,
@@ -2211,7 +3035,7 @@ export default class HeroListScene extends Phaser.Scene {
           )
         )
         contentGroup.add(
-          inkText(this, 38, 236, resCfg?.evolvedSkillDesc || '佩带本命神兵后主动战法形态质变', {
+          inkText(this, 38, 238, resCfg?.evolvedSkillDesc || '佩带本命神兵后主动战法形态质变', {
             size: 12.5,
             color: isExclusiveEquipped ? InkText.strong : InkText.ink,
             originX: 0,
@@ -2236,6 +3060,49 @@ export default class HeroListScene extends Phaser.Scene {
             wrapWidth: dialogW - 76
           })
         )
+      } else if (currentFocus === 'sameResonance' || currentFocus === 'genResonance') {
+        const isSame = currentFocus === 'sameResonance'
+        const reqStar = isSame ? 2 : 4
+        const slotWx = isSame ? reqWuXing : genWuXing
+        const curGem = isSame ? evo?.sameGem : evo?.generatingGem
+        const isUnlocked = isExclusiveEquipped && hero.star >= reqStar && Boolean(curGem)
+        const descs: Record<number, string> =
+          (isSame ? resCfg?.sameLevelDescs : resCfg?.generatingLevelDescs) || {}
+
+        const statusStr = isUnlocked
+          ? `✓ 已激活（当前镶嵌：Lv.${curGem?.level} ${INK_WUXING[slotWx].label}系宝石）`
+          : `🔒 需佩带《${exclusiveArtifactCfg?.name || '本命神兵'}》+ 升至 ${reqStar}★ + 镶嵌【${INK_WUXING[slotWx].label}】系宝石`
+
+        contentGroup.add(
+          inkText(
+            this,
+            38,
+            114,
+            `【${reqStar}★ ${isSame ? '同源' : '相生'}灵石共鸣】  ${statusStr}`,
+            {
+              size: 13.5,
+              color: isUnlocked ? InkText.cinnabar : InkText.wash,
+              bold: true
+            }
+          )
+        )
+
+        for (let lv = 1; lv <= 5; lv++) {
+          const lineTxt = descs[lv] || descs[lv - 1]
+          if (!lineTxt) continue
+          const ly = 140 + (lv - 1) * 38
+          const isCur = isUnlocked && curGem?.level === lv
+          contentGroup.add(
+            inkText(this, 38, ly, `${isCur ? '▶ ' : '• '}${lineTxt}`, {
+              size: 12,
+              color: isCur ? InkText.cinnabar : InkText.ink,
+              bold: isCur,
+              originX: 0,
+              originY: 0,
+              wrapWidth: dialogW - 76
+            })
+          )
+        }
       } else if (currentFocus === 'trait3') {
         const unlocked = hero.star >= 3
         contentGroup.add(
@@ -2243,7 +3110,7 @@ export default class HeroListScene extends Phaser.Scene {
             this,
             38,
             120,
-            `【3★ 三国本命特质】${cfg?.star3TraitName || ''}（${unlocked ? '✓ 已觉醒' : `🔒 当前 ${hero.star}★，升至 3★ 觉醒`}）`,
+            `【3★ 三国本命特质】${cfg?.star3TraitName || ''}（${unlocked ? '✓ 已觉醒' : '🔒 需 3★ 觉醒'}）`,
             {
               size: 15,
               color: unlocked ? InkText.cinnabar : InkText.wash,
@@ -2702,6 +3569,7 @@ export default class HeroListScene extends Phaser.Scene {
           onClick: () => {
             this.claimedBioTrials.add(t.id)
             this.addSoulStones(hero.id, t.reward)
+            this.autoSave()
             inkToast(this, `完成【${t.title}】，获得 ${hero.name}将魂 ×${t.reward}！`)
             closeAll()
             this.renderRoster()
@@ -2809,6 +3677,7 @@ export default class HeroListScene extends Phaser.Scene {
         stroke: InkColor.cinnabar,
         onClick: () => {
           this.equipmentManager.socketGemToArtifact(artifact.instanceId, g.id, slotType)
+          this.autoSave()
           closeAll()
           this.renderRoster()
           this.updateCardSelection()
@@ -2927,6 +3796,15 @@ export default class HeroListScene extends Phaser.Scene {
 
   private unequipEquipment(instanceId: string, heroId: string): void {
     this.equipmentManager.unequipFromHero(instanceId)
+    const hero = this.heroes.get(heroId)
+    if (hero) {
+      const heroEq = this.equipmentManager.getHeroEquipment(heroId)
+      hero.equipment = {
+        weapon: heroEq.weapon?.equipmentId || null,
+        artifact: heroEq.artifact?.equipmentId || null
+      }
+    }
+    this.autoSave()
     this.renderRoster()
     this.updateCardSelection()
     this.updateDetailPanel(heroId)
@@ -2938,7 +3816,9 @@ export default class HeroListScene extends Phaser.Scene {
     const hero = this.heroes.get(heroId)
 
     if (unequipped.length === 0) {
-      if (hero) {
+      if (type === 'artifact') {
+        this.showMessage('暂无其他闲置神兵可更换')
+      } else if (hero) {
         this.showAcquisitionGuideDialog(type, hero)
       } else {
         this.showMessage('没有可用的闲置装备')
@@ -3065,6 +3945,14 @@ export default class HeroListScene extends Phaser.Scene {
       btnBg.on('pointerout', () => btnBg.setFillStyle(rarityStyle.tint, 0.9))
       btnBg.on('pointerdown', () => {
         this.equipmentManager.equipToHero(equip.instanceId, heroId, hero?.name)
+        if (hero) {
+          const heroEq = this.equipmentManager.getHeroEquipment(heroId)
+          hero.equipment = {
+            weapon: heroEq.weapon?.equipmentId || null,
+            artifact: heroEq.artifact?.equipmentId || null
+          }
+        }
+        this.autoSave()
         overlay.destroy()
         popup.destroy()
         this.renderRoster()
@@ -3184,7 +4072,7 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   private handleLosslessReset(hero: Hero): void {
-    const refundedExp = Math.max(hero.experience, getExpRequiredForLevel(hero.level))
+    const refundedExp = Math.max(hero.experience, getTotalInvestedExp(hero.level))
     if (refundedExp <= 0) {
       this.showMessage('当前武将尚无修为可传功')
       return
@@ -3219,11 +4107,7 @@ export default class HeroListScene extends Phaser.Scene {
 
   private addSoulStones(heroId: string, amount: number): void {
     const saveManager = SaveManager.getInstance()
-    let saveData = saveManager.getCurrentSave() || saveManager.loadFromSlot(0)
-    if (!saveData) {
-      saveManager.createNewSave(1)
-      saveData = saveManager.getCurrentSave()
-    }
+    const saveData = saveManager.getCurrentSave()
     if (!saveData) return
     const existing = saveData.inventory.soulStones.find(s => s.heroId === heroId)
     if (existing) {
@@ -3270,7 +4154,7 @@ export default class HeroListScene extends Phaser.Scene {
       this.inspectedStar = hero.star
     }
 
-    saveManager.saveCurrent()
+    this.autoSave()
     this.renderRoster()
     this.updateCardSelection()
     this.updateDetailPanel(heroId)
@@ -3299,10 +4183,7 @@ export default class HeroListScene extends Phaser.Scene {
       }
     }
 
-    saveData.inventory.equipment = this.equipmentManager
-      .getOwnedEquipment()
-      .map(e => e.equipmentId)
-    saveData.inventory.gems = this.equipmentManager.getOwnedGems()
+    saveData.claimedBioTrials = Array.from(this.claimedBioTrials)
     saveManager.saveCurrent()
   }
 

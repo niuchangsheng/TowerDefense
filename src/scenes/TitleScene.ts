@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { WuXing } from '@/types'
+import { SaveManager } from '@/core/save/SaveManager'
 import {
   InkColor,
   InkText,
@@ -32,6 +33,7 @@ export default class TitleScene extends Phaser.Scene {
    * 场景初始化
    */
   init(): void {
+    SaveManager.getInstance().ensureSaveInitialized()
     this.isTransitioning = false
     this.animTweens = []
     if (this.input) this.input.enabled = true

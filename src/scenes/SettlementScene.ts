@@ -3,7 +3,7 @@ import { BattleResult, Rarity, WuXing } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
 import { EquipmentManager } from '@/core/equipment/EquipmentManager'
 import { EndlessModeManager } from '@/core/level/EndlessModeManager'
-import { getHeroConfig } from '@/data/heroes'
+import { getHeroConfig, calculateLevelFromExp } from '@/data/heroes'
 import { getBattlefieldMapMeta } from '@/data/levels'
 import {
   InkColor,
@@ -299,8 +299,9 @@ export default class SettlementScene extends Phaser.Scene {
       // 保存奖励
       this.saveRewards()
     } else {
-      // 失败：居中战损总结与兵法建言
+      // 失败：居中战损总结与兵法建言，并触发结算存档
       this.createDefeatSummary(width / 2 - 260, 130, 520, 440)
+      this.saveRewards()
     }
 
     // 操作按钮
@@ -684,20 +685,17 @@ export default class SettlementScene extends Phaser.Scene {
    * 保存奖励到存档
    */
   private saveRewards(): void {
-    // 加载当前存档
-    let saveData = this.saveManager.getCurrentSave()
-
-    if (!saveData) {
-      // 如果没有当前存档，尝试加载自动存档
-      saveData = this.saveManager.loadFromSlot(0)
-    }
-
+    // 加载当前存档（自动确保已初始化）
+    const saveData = this.saveManager.getCurrentSave()
     if (!saveData) return
+
+    const isVictory = Boolean(this.battleResult.isVictory)
+    const wavesCompleted = this.battleResult.wavesCompleted || 0
 
     // 添加金币
     saveData.inventory.gold += this.rewards.gold
 
-    // 添加上场英雄经验
+    // 添加上场英雄经验并实时重算武将等级
     const deployedHeroIds = this.battleResult.deployedHeroIds || []
     const expPerHero = this.rewards.experience
 
@@ -705,29 +703,29 @@ export default class SettlementScene extends Phaser.Scene {
       const heroData = saveData.heroes.find(h => h.id === heroId)
       if (heroData) {
         heroData.experience += expPerHero
+        const newLevel = calculateLevelFromExp(heroData.experience)
+        if (newLevel > heroData.level) {
+          heroData.level = newLevel
+        }
       }
     }
 
-    // 添加装备
+    const eqMgr = EquipmentManager.getInstance()
+
+    // 添加装备到装备管理器（自动同步至 saveData.inventory）
     for (const equip of this.rewards.equipment) {
-      saveData.inventory.equipment.push(equip.id)
+      eqMgr.addEquipment(equip.id)
     }
 
     // 添加宿命神兵主材到蒲元铸剑坊
-    const eqMgr = EquipmentManager.getInstance()
     if (this.rewards.divineMaterial) {
       eqMgr.addDivineMaterial(this.rewards.divineMaterial.id, 1)
     }
 
     // 添加宝石（支持无尽北伐 Wave 16+ 词条 Min Roll 保底分位跃升）
-    const minRollPct = EndlessModeManager.getGemMinRollPercentile(this.battleResult.wavesCompleted || 0)
+    const minRollPct = EndlessModeManager.getGemMinRollPercentile(wavesCompleted)
     for (const gem of this.rewards.gems) {
-      const createdGem = eqMgr.addGem(gem.wuXing as WuXing, gem.level, minRollPct)
-      saveData.inventory.gems.push({
-        id: createdGem.id,
-        wuXing: createdGem.wuXing,
-        level: createdGem.level
-      })
+      eqMgr.addGem(gem.wuXing as WuXing, gem.level, minRollPct)
     }
 
     // 添加武将碎片
@@ -747,17 +745,19 @@ export default class SettlementScene extends Phaser.Scene {
     const stars = this.calculateStars()
     const levelProgress = saveData.levelProgress.find(l => l.levelId === this.battleResult.levelId)
     if (levelProgress) {
-      levelProgress.isCompleted = true
+      levelProgress.isCompleted = levelProgress.isCompleted || isVictory
       levelProgress.starsAchieved = Math.max(levelProgress.starsAchieved, stars)
+      levelProgress.highestWave = Math.max(levelProgress.highestWave || 0, wavesCompleted)
     } else {
       saveData.levelProgress.push({
         levelId: this.battleResult.levelId,
-        isCompleted: true,
-        starsAchieved: stars
+        isCompleted: isVictory,
+        starsAchieved: stars,
+        highestWave: wavesCompleted
       })
     }
 
-    // 保存存档
+    // 保存存档（同步写入当前槽位及自动存档槽位0）
     this.saveManager.saveCurrent()
 
     console.log('奖励已保存到存档')

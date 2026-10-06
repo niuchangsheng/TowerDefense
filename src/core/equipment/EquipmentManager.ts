@@ -1,4 +1,4 @@
-import { Equipment, Weapon, Artifact, Gem, GemAffix, GemStatType, Hero, WuXing, WuXingNames, WuXingGenerate, getAllowedGemWuXing, ResonanceType, HeroResonanceInfo } from '@/types'
+import { Equipment, Weapon, Artifact, Gem, GemAffix, GemStatType, Hero, WuXing, WuXingNames, WuXingGenerate, getAllowedGemWuXing, ResonanceType, HeroResonanceInfo, SavedEquipmentInstance, SavedArtifactSocketState } from '@/types'
 import { getWeapon, getArtifact, rollGemAffixes, getAffixPercentile } from '@/data/equipment'
 
 /**
@@ -50,10 +50,33 @@ export class EquipmentManager {
   private ownedEquipment: Map<string, EquipmentInstance> = new Map()
   private ownedGems: Map<string, Gem> = new Map()
   private equipmentCounter: number = 0
+  private isSuppressingSave: number = 0
+  private onChangeCallback?: () => void
 
   constructor() {
-    // 初始化一些默认装备供测试
-    this.initDefaultEquipment()
+    this.isSuppressingSave++
+    try {
+      this.initDefaultEquipment()
+    } finally {
+      this.isSuppressingSave--
+    }
+  }
+
+  /**
+   * 注册状态变更回调（由 SaveManager 绑定，每次装备/镶嵌/洗练/合成/分解/锻造自动触发存档）
+   */
+  public setOnChangeCallback(callback?: () => void): void {
+    this.onChangeCallback = callback
+  }
+
+  /**
+   * 通知状态变更以触发即时存档
+   */
+  private notifyStateChanged(): void {
+    if (this.isSuppressingSave > 0) return
+    if (this.onChangeCallback) {
+      this.onChangeCallback()
+    }
   }
 
   /**
@@ -202,6 +225,7 @@ export class EquipmentManager {
     }
 
     this.ownedEquipment.set(instance.instanceId, instance)
+    this.notifyStateChanged()
     return instance
   }
 
@@ -307,6 +331,7 @@ export class EquipmentManager {
 
     instance.isEquipped = true
     instance.equippedHeroId = heroId
+    this.notifyStateChanged()
     return true
   }
 
@@ -321,6 +346,7 @@ export class EquipmentManager {
 
     instance.isEquipped = false
     instance.equippedHeroId = null
+    this.notifyStateChanged()
     return true
   }
 
@@ -698,6 +724,7 @@ export class EquipmentManager {
       affixes: rollGemAffixes(level, minRollPercentile, inheritedStats, inheritedPercentiles)
     }
     this.ownedGems.set(gem.id, gem)
+    this.notifyStateChanged()
     return gem
   }
 
@@ -789,41 +816,48 @@ export class EquipmentManager {
     let socketedArtifactInstanceId: string | null = null
     let socketedSlot: 'same' | 'generating' | undefined = undefined
 
-    for (const g of toConsume) {
-      for (const inst of this.ownedEquipment.values()) {
-        if (inst.type !== 'artifact') continue
-        const detail = getArtifact(inst.equipmentId)
-        if (!detail?.gemSocket) continue
-        if (detail.gemSocket.sameGem === g.id) {
-          if (!socketedArtifactInstanceId || g.id === focusGem.id) {
-            socketedArtifactInstanceId = inst.instanceId
-            socketedSlot = 'same'
+    this.isSuppressingSave++
+    let newGem: Gem
+    try {
+      for (const g of toConsume) {
+        for (const inst of this.ownedEquipment.values()) {
+          if (inst.type !== 'artifact') continue
+          const detail = getArtifact(inst.equipmentId)
+          if (!detail?.gemSocket) continue
+          if (detail.gemSocket.sameGem === g.id) {
+            if (!socketedArtifactInstanceId || g.id === focusGem.id) {
+              socketedArtifactInstanceId = inst.instanceId
+              socketedSlot = 'same'
+            }
+            detail.gemSocket.sameGem = null
           }
-          detail.gemSocket.sameGem = null
-        }
-        if (detail.gemSocket.generatingGem === g.id) {
-          if (!socketedArtifactInstanceId || g.id === focusGem.id) {
-            socketedArtifactInstanceId = inst.instanceId
-            socketedSlot = 'generating'
+          if (detail.gemSocket.generatingGem === g.id) {
+            if (!socketedArtifactInstanceId || g.id === focusGem.id) {
+              socketedArtifactInstanceId = inst.instanceId
+              socketedSlot = 'generating'
+            }
+            detail.gemSocket.generatingGem = null
           }
-          detail.gemSocket.generatingGem = null
+          if (detail.gemSocket.currentGem === g.id) {
+            detail.gemSocket.currentGem =
+              detail.gemSocket.sameGem || detail.gemSocket.generatingGem || null
+          }
         }
-        if (detail.gemSocket.currentGem === g.id) {
-          detail.gemSocket.currentGem =
-            detail.gemSocket.sameGem || detail.gemSocket.generatingGem || null
-        }
+        this.ownedGems.delete(g.id)
       }
-      this.ownedGems.delete(g.id)
+
+      // 创建1个高级宝石，保留所选的 2 条属性词条类型与品相分位下限
+      newGem = this.addGem(wuXing, level + 1, 0, inheritedStats, inheritedPercentiles)
+
+      // 如果参与合成的灵石原本镶嵌在某把神兵上，自动将升阶后的新宝石镶嵌回原槽位
+      if (socketedArtifactInstanceId) {
+        this.socketGemToArtifact(socketedArtifactInstanceId, newGem.id, socketedSlot)
+      }
+    } finally {
+      this.isSuppressingSave--
     }
 
-    // 创建1个高级宝石，保留所选的 2 条属性词条类型与品相分位下限
-    const newGem = this.addGem(wuXing, level + 1, 0, inheritedStats, inheritedPercentiles)
-
-    // 如果参与合成的灵石原本镶嵌在某把神兵上，自动将升阶后的新宝石镶嵌回原槽位
-    if (socketedArtifactInstanceId) {
-      this.socketGemToArtifact(socketedArtifactInstanceId, newGem.id, socketedSlot)
-    }
-
+    this.notifyStateChanged()
     console.log(
       `合成成功：3个${wuXing}系Lv.${level}宝石 → 1个${wuXing}系Lv.${level + 1}宝石（自选保留词条生效）`
     )
@@ -943,6 +977,7 @@ export class EquipmentManager {
     } else if (targetSlot === 'generating' || (!targetSlot && isGeneratingWuXing)) {
       artifactDetail.gemSocket.generatingGem = gemId
     }
+    this.notifyStateChanged()
     return true
   }
 
@@ -959,6 +994,7 @@ export class EquipmentManager {
     artifactDetail.gemSocket.currentGem = null
     artifactDetail.gemSocket.sameGem = null
     artifactDetail.gemSocket.generatingGem = null
+    this.notifyStateChanged()
     return true
   }
 
@@ -985,6 +1021,7 @@ export class EquipmentManager {
         artifactDetail.gemSocket.currentGem = artifactDetail.gemSocket.sameGem || null
       }
     }
+    this.notifyStateChanged()
     return true
   }
 
@@ -1007,7 +1044,7 @@ export class EquipmentManager {
     ['mat_fire_lvbu', 1]
   ])
 
-  private spiritDust: number = 60
+  private spiritDust: number = 200
   private refinedIron: number = 120
 
   public static readonly DIVINE_FORGE_RECIPES: ReadonlyArray<{
@@ -1103,6 +1140,7 @@ export class EquipmentManager {
   public addDivineMaterial(materialId: string, count: number = 1): void {
     const cur = this.getDivineMaterialCount(materialId)
     this.divineMaterials.set(materialId, cur + count)
+    this.notifyStateChanged()
   }
 
   public getRefinedIron(): number {
@@ -1111,6 +1149,7 @@ export class EquipmentManager {
 
   public addRefinedIron(amount: number): void {
     this.refinedIron = Math.max(0, this.refinedIron + amount)
+    this.notifyStateChanged()
   }
 
   public hasOwnedEquipmentId(equipmentId: string): boolean {
@@ -1170,10 +1209,16 @@ export class EquipmentManager {
       return { count: 0, ironGained: 0, message: '当前没有闲置的通用制式兵械可供熔炼' }
     }
     let totalIron = 0
-    for (const w of idleWeapons) {
-      const res = this.salvageGenericWeapon(w.instanceId)
-      if (res.success) totalIron += res.ironGained
+    this.isSuppressingSave++
+    try {
+      for (const w of idleWeapons) {
+        const res = this.salvageGenericWeapon(w.instanceId)
+        if (res.success) totalIron += res.ironGained
+      }
+    } finally {
+      this.isSuppressingSave--
     }
+    this.notifyStateChanged()
     return {
       count: idleWeapons.length,
       ironGained: totalIron,
@@ -1215,11 +1260,20 @@ export class EquipmentManager {
       }
     }
 
-    this.divineMaterials.set(materialId, count - 1)
-    this.refinedIron -= recipe.ironCost
-    const inst = this.addEquipment(recipe.artifactId)
+    this.isSuppressingSave++
+    let inst: EquipmentInstance | null = null
+    try {
+      this.divineMaterials.set(materialId, count - 1)
+      this.refinedIron -= recipe.ironCost
+      inst = this.addEquipment(recipe.artifactId)
+      if (inst) {
+        this.equipToHero(inst.instanceId, recipe.heroId, recipe.heroName)
+      }
+    } finally {
+      this.isSuppressingSave--
+    }
     if (inst) {
-      this.equipToHero(inst.instanceId, recipe.heroId, recipe.heroName)
+      this.notifyStateChanged()
       return {
         success: true,
         instance: inst,
@@ -1239,6 +1293,7 @@ export class EquipmentManager {
 
   public addSpiritDust(amount: number): void {
     this.spiritDust = Math.max(0, this.spiritDust + amount)
+    this.notifyStateChanged()
   }
 
   /**
@@ -1306,6 +1361,7 @@ export class EquipmentManager {
     const rolled = rollGemAffixes(5, 0.45, [targetStat, targetStat])
     const newAffix = rolled[0]
     gem.affixes.push(newAffix)
+    this.notifyStateChanged()
 
     return {
       success: true,
@@ -1340,6 +1396,7 @@ export class EquipmentManager {
     // 生成一条新候选词条（保底分位 0.45 提高淬炼品质）
     const rolled = rollGemAffixes(gem.level, 0.45)
     const candidate = rolled[0]
+    this.notifyStateChanged()
 
     return {
       success: true,
@@ -1360,6 +1417,7 @@ export class EquipmentManager {
     const gem = this.ownedGems.get(gemId)
     if (!gem || !gem.affixes || !gem.affixes[affixIndex]) return false
     gem.affixes[affixIndex] = { ...newAffix }
+    this.notifyStateChanged()
     return true
   }
 
@@ -1404,6 +1462,7 @@ export class EquipmentManager {
       max: range.max,
       isPercentage: true
     }
+    this.notifyStateChanged()
 
     return {
       success: true,
@@ -1426,36 +1485,190 @@ export class EquipmentManager {
     const affixes = this.ensureArtifactStatAffixes(inst)
     if (!affixes[statIndex]) return false
     affixes[statIndex] = { ...newAffix }
+    this.notifyStateChanged()
     return true
+  }
+
+  /**
+   * 导出装备管理器完整状态用于存档持久化
+   */
+  public exportToSaveInventory(): {
+    equipment: string[]
+    equipmentInstances: SavedEquipmentInstance[]
+    artifactSockets: Record<string, SavedArtifactSocketState>
+    gems: Gem[]
+    spiritDust: number
+    refinedIron: number
+    divineMaterials: Record<string, number>
+  } {
+    const equipmentInstances: SavedEquipmentInstance[] = Array.from(this.ownedEquipment.values()).map(inst => ({
+      instanceId: inst.instanceId,
+      equipmentId: inst.equipmentId,
+      type: inst.type,
+      rarity: inst.rarity,
+      isEquipped: inst.isEquipped,
+      equippedHeroId: inst.equippedHeroId,
+      statAffixes: inst.statAffixes ? inst.statAffixes.map(a => ({ ...a })) : undefined
+    }))
+
+    const artifactSockets: Record<string, SavedArtifactSocketState> = {}
+    for (const inst of this.ownedEquipment.values()) {
+      if (inst.type === 'artifact') {
+        const detail = getArtifact(inst.equipmentId)
+        if (detail?.gemSocket) {
+          artifactSockets[inst.equipmentId] = {
+            currentGem: detail.gemSocket.currentGem || null,
+            sameGem: detail.gemSocket.sameGem || null,
+            generatingGem: detail.gemSocket.generatingGem || null
+          }
+        }
+      }
+    }
+
+    const gems: Gem[] = Array.from(this.ownedGems.values()).map(g => ({
+      ...g,
+      affixes: g.affixes ? g.affixes.map(a => ({ ...a })) : undefined
+    }))
+
+    const divineMaterials: Record<string, number> = {}
+    for (const [k, v] of this.divineMaterials.entries()) {
+      divineMaterials[k] = v
+    }
+
+    return {
+      equipment: equipmentInstances.map(i => i.equipmentId),
+      equipmentInstances,
+      artifactSockets,
+      gems,
+      spiritDust: this.spiritDust,
+      refinedIron: this.refinedIron,
+      divineMaterials
+    }
+  }
+
+  /**
+   * 从存档恢复装备管理器完整状态
+   */
+  public importFromSaveInventory(inventory?: {
+    equipment?: string[]
+    equipmentInstances?: SavedEquipmentInstance[]
+    artifactSockets?: Record<string, SavedArtifactSocketState>
+    gems?: Gem[]
+    spiritDust?: number
+    refinedIron?: number
+    divineMaterials?: Record<string, number>
+  }): void {
+    if (!inventory) return
+    this.isSuppressingSave++
+    try {
+      if (inventory.equipmentInstances && inventory.equipmentInstances.length > 0) {
+        for (const inst of this.ownedEquipment.values()) {
+          if (inst.type === 'artifact') {
+            const detail = getArtifact(inst.equipmentId)
+            if (detail?.gemSocket) {
+              detail.gemSocket.currentGem = null
+              detail.gemSocket.sameGem = null
+              detail.gemSocket.generatingGem = null
+            }
+          }
+        }
+        this.ownedEquipment.clear()
+        let maxCounter = 0
+        for (const saved of inventory.equipmentInstances) {
+          const match = saved.instanceId.match(/^equip_(\d+)_/)
+          if (match) {
+            maxCounter = Math.max(maxCounter, parseInt(match[1], 10))
+          }
+          const restored: EquipmentInstance = {
+            instanceId: saved.instanceId,
+            equipmentId: saved.equipmentId,
+            type: saved.type,
+            rarity: saved.rarity,
+            isEquipped: saved.isEquipped,
+            equippedHeroId: saved.equippedHeroId,
+            statAffixes: saved.statAffixes ? saved.statAffixes.map(a => ({ ...a })) : undefined
+          }
+          if (restored.type === 'artifact' && (!restored.statAffixes || restored.statAffixes.length < 5)) {
+            restored.statAffixes = this.createDefaultArtifactStatAffixes()
+          }
+          this.ownedEquipment.set(restored.instanceId, restored)
+        }
+        this.equipmentCounter = Math.max(this.equipmentCounter, maxCounter)
+      }
+
+      if (inventory.gems && inventory.gems.length > 0) {
+        this.ownedGems.clear()
+        for (const g of inventory.gems) {
+          const restoredGem: Gem = {
+            id: g.id,
+            wuXing: g.wuXing,
+            level: g.level,
+            affixes: g.affixes && g.affixes.length > 0 ? g.affixes.map(a => ({ ...a })) : rollGemAffixes(g.level)
+          }
+          this.ownedGems.set(restoredGem.id, restoredGem)
+        }
+      }
+
+      if (inventory.artifactSockets) {
+        for (const [equipmentId, socketState] of Object.entries(inventory.artifactSockets)) {
+          const detail = getArtifact(equipmentId)
+          if (detail?.gemSocket) {
+            detail.gemSocket.currentGem = socketState.currentGem ?? null
+            detail.gemSocket.sameGem = socketState.sameGem ?? null
+            detail.gemSocket.generatingGem = socketState.generatingGem ?? null
+          }
+        }
+      }
+
+      if (typeof inventory.spiritDust === 'number') {
+        this.spiritDust = inventory.spiritDust
+      }
+      if (typeof inventory.refinedIron === 'number') {
+        this.refinedIron = inventory.refinedIron
+      }
+      if (inventory.divineMaterials) {
+        this.divineMaterials.clear()
+        for (const [k, v] of Object.entries(inventory.divineMaterials)) {
+          this.divineMaterials.set(k, v)
+        }
+      }
+    } finally {
+      this.isSuppressingSave--
+    }
   }
 
   /**
    * 重置
    */
   reset(): void {
-    for (const inst of this.ownedEquipment.values()) {
-      if (inst.type === 'artifact') {
-        const detail = getArtifact(inst.equipmentId)
-        if (detail?.gemSocket) {
-          detail.gemSocket.currentGem = null
-          detail.gemSocket.sameGem = null
-          detail.gemSocket.generatingGem = null
+    this.isSuppressingSave++
+    try {
+      for (const inst of this.ownedEquipment.values()) {
+        if (inst.type === 'artifact') {
+          const detail = getArtifact(inst.equipmentId)
+          if (detail?.gemSocket) {
+            detail.gemSocket.currentGem = null
+            detail.gemSocket.sameGem = null
+            detail.gemSocket.generatingGem = null
+          }
         }
       }
+      this.ownedEquipment.clear()
+      this.ownedGems.clear()
+      this.equipmentCounter = 0
+      this.spiritDust = 200
+      this.refinedIron = 120
+      this.divineMaterials = new Map([
+        ['mat_wood_zhangjiao', 1],
+        ['mat_metal_caoren', 1],
+        ['mat_water_zhangliao', 1],
+        ['mat_earth_dongzhuo', 1],
+        ['mat_fire_lvbu', 1]
+      ])
+      this.initDefaultEquipment()
+    } finally {
+      this.isSuppressingSave--
     }
-    this.ownedEquipment.clear()
-    this.ownedGems.clear()
-    this.equipmentCounter = 0
-    this.spiritDust = 60
-    this.refinedIron = 120
-    this.divineMaterials = new Map([
-      ['mat_wood_zhangjiao', 1],
-      ['mat_metal_caoren', 1],
-      ['mat_water_zhangliao', 1],
-      ['mat_earth_dongzhuo', 1],
-      ['mat_fire_lvbu', 1]
-    ])
-    this.initDefaultEquipment()
   }
 }
 

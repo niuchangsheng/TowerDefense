@@ -1,17 +1,35 @@
 import { SaveData, SAVE_KEY_PREFIX, SAVE_VERSION, SAVE_SLOT_COUNT, createDefaultSaveData } from '@/types'
-import { createDefaultHeroes } from '@/data/heroes'
+import { createDefaultHeroes, calculateLevelFromExp } from '@/data/heroes'
 import { Hero, BattleResult } from '@/types'
+import { EquipmentManager } from '@/core/equipment/EquipmentManager'
 
 /**
  * 存档管理器
  * 支持多存档槽位（0=自动存档，1-3=手动存档）
+ * 每次战斗结算、洗练、装备、升级、升星等状态变更行为均实时触发持久化存档
  */
 export class SaveManager {
   private static instance: SaveManager
   private currentSlot: number = 1  // 当前使用的存档槽位（默认槽位1）
   private currentSave: SaveData | null = null
+  private memoryStorage: Map<string, string> = new Map()
+  private isSyncingEquipment: boolean = false
+  private saveCount: number = 0
 
-  private constructor() {}
+  private constructor() {
+    this.bindEquipmentManagerAutoSave()
+  }
+
+  /**
+   * 绑定装备管理器状态变更自动存档钩子（洗练、装备、卸下、镶嵌、合成、熔炼、锻造等立即存档）
+   */
+  private bindEquipmentManagerAutoSave(): void {
+    const eqMgr = EquipmentManager.getInstance()
+    eqMgr.setOnChangeCallback(() => {
+      if (this.isSyncingEquipment) return
+      this.saveCurrent()
+    })
+  }
 
   /**
    * 获取单例实例
@@ -21,6 +39,55 @@ export class SaveManager {
       SaveManager.instance = new SaveManager()
     }
     return SaveManager.instance
+  }
+
+  /**
+   * 获取累计触发存档次数（用于状态审计与测试验证）
+   */
+  public getSaveCount(): number {
+    return this.saveCount
+  }
+
+  /**
+   * 安全读取存储项（兼容浏览器 localStorage 与 Node/Vitest 内存环境）
+   */
+  private getStorageItem(key: string): string | null {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage !== null) {
+        return localStorage.getItem(key)
+      }
+    } catch {
+      // fallback to memoryStorage
+    }
+    return this.memoryStorage.get(key) ?? null
+  }
+
+  /**
+   * 安全写入存储项（兼容浏览器 localStorage 与 Node/Vitest 内存环境）
+   */
+  private setStorageItem(key: string, value: string): void {
+    this.memoryStorage.set(key, value)
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage !== null) {
+        localStorage.setItem(key, value)
+      }
+    } catch {
+      // fallback to memoryStorage
+    }
+  }
+
+  /**
+   * 安全移除存储项
+   */
+  private removeStorageItem(key: string): void {
+    this.memoryStorage.delete(key)
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage !== null) {
+        localStorage.removeItem(key)
+      }
+    } catch {
+      // fallback to memoryStorage
+    }
   }
 
   /**
@@ -34,7 +101,7 @@ export class SaveManager {
    * 检查槽位是否有存档
    */
   hasSave(slotId: number): boolean {
-    return localStorage.getItem(this.getSaveKey(slotId)) !== null
+    return this.getStorageItem(this.getSaveKey(slotId)) !== null
   }
 
   /**
@@ -49,7 +116,7 @@ export class SaveManager {
 
       if (hasSave) {
         try {
-          const jsonStr = localStorage.getItem(this.getSaveKey(i))
+          const jsonStr = this.getStorageItem(this.getSaveKey(i))
           if (jsonStr) {
             summary = JSON.parse(jsonStr) as SaveData
             if (!summary.heroes || !Array.isArray(summary.heroes)) summary.heroes = []
@@ -74,14 +141,45 @@ export class SaveManager {
   }
 
   /**
+   * 将 EquipmentManager 的最新状态（装备实例、洗练词条、镶嵌槽位、宝石词条、灵砂、玄铁、主材）同步到存档数据
+   */
+  private syncEquipmentToSaveData(saveData: SaveData): void {
+    const eqMgr = EquipmentManager.getInstance()
+    const exported = eqMgr.exportToSaveInventory()
+    if (!saveData.inventory) {
+      saveData.inventory = { soulStones: [], equipment: [], gems: [], gold: 1000 }
+    }
+    saveData.inventory.equipment = exported.equipment
+    saveData.inventory.equipmentInstances = exported.equipmentInstances
+    saveData.inventory.artifactSockets = exported.artifactSockets
+    saveData.inventory.gems = exported.gems
+    saveData.inventory.spiritDust = exported.spiritDust
+    saveData.inventory.refinedIron = exported.refinedIron
+    saveData.inventory.divineMaterials = exported.divineMaterials
+
+    if (Array.isArray(saveData.heroes)) {
+      for (const h of saveData.heroes) {
+        if (!h) continue
+        const heroEq = eqMgr.getHeroEquipment(h.id)
+        h.equipment = {
+          weapon: heroEq.weapon?.equipmentId || null,
+          artifact: heroEq.artifact?.equipmentId || null
+        }
+      }
+    }
+  }
+
+  /**
    * 保存到指定槽位
    */
   saveToSlot(slotId: number, saveData: SaveData): boolean {
     try {
+      this.syncEquipmentToSaveData(saveData)
       saveData.timestamp = Date.now()
       saveData.slotId = slotId
       const jsonStr = JSON.stringify(saveData)
-      localStorage.setItem(this.getSaveKey(slotId), jsonStr)
+      this.setStorageItem(this.getSaveKey(slotId), jsonStr)
+      this.saveCount++
       console.log(`存档保存成功 [槽位${slotId}]:`, new Date(saveData.timestamp).toLocaleString())
       return true
     } catch (error) {
@@ -95,7 +193,7 @@ export class SaveManager {
    */
   loadFromSlot(slotId: number): SaveData | null {
     try {
-      const jsonStr = localStorage.getItem(this.getSaveKey(slotId))
+      const jsonStr = this.getStorageItem(this.getSaveKey(slotId))
       if (!jsonStr) {
         console.log(`槽位${slotId}没有存档`)
         return null
@@ -122,6 +220,14 @@ export class SaveManager {
       if (!data.levelProgress || !Array.isArray(data.levelProgress)) data.levelProgress = []
       if (!data.chapterProgress || !Array.isArray(data.chapterProgress)) data.chapterProgress = []
 
+      // 恢复装备、洗练词条、宝石镶嵌与材料状态到 EquipmentManager
+      this.isSyncingEquipment = true
+      try {
+        EquipmentManager.getInstance().importFromSaveInventory(data.inventory as any)
+      } finally {
+        this.isSyncingEquipment = false
+      }
+
       this.currentSlot = slotId
       this.currentSave = data
       console.log(`存档加载成功 [槽位${slotId}]:`, new Date(data.timestamp).toLocaleString())
@@ -137,7 +243,7 @@ export class SaveManager {
    */
   deleteSlot(slotId: number): boolean {
     try {
-      localStorage.removeItem(this.getSaveKey(slotId))
+      this.removeStorageItem(this.getSaveKey(slotId))
       if (this.currentSlot === slotId) {
         this.currentSave = null
       }
@@ -150,10 +256,27 @@ export class SaveManager {
   }
 
   /**
-   * 获取当前存档
+   * 确保当前存在有效存档（若尚未加载，则优先从槽位1或自动存档槽位0加载，否则自动初始化新存档）
+   */
+  public ensureSaveInitialized(): SaveData {
+    if (this.currentSave) {
+      return this.currentSave
+    }
+    const loaded =
+      this.loadFromSlot(this.currentSlot) ||
+      this.loadFromSlot(1) ||
+      this.loadFromSlot(0)
+    if (loaded) {
+      return loaded
+    }
+    return this.createNewSave(this.currentSlot || 1)
+  }
+
+  /**
+   * 获取当前存档（自动确保已初始化，杜绝未读档直接操作导致存档丢失）
    */
   getCurrentSave(): SaveData | null {
-    return this.currentSave
+    return this.ensureSaveInitialized()
   }
 
   /**
@@ -180,44 +303,45 @@ export class SaveManager {
   }
 
   /**
-   * 自动存档（通关后调用）
+   * 自动存档（每次战斗结算调用，无论胜败或无尽北伐均保存最新进度与武将状态）
    */
   autoSave(battleResult: BattleResult): boolean {
-    // 槽位0是自动存档位
-    let autoSaveData = this.loadFromSlot(0)
+    const current = this.ensureSaveInitialized()
+    const waves = battleResult.wavesCompleted || 0
 
-    if (!autoSaveData) {
-      autoSaveData = createDefaultSaveData(0)
-      this.initDefaultData(autoSaveData)
+    // 更新关卡进度（胜利标记通关，失败亦记录最高推进波次）
+    if (battleResult.isVictory) {
+      this.updateLevelProgressInSave(current, battleResult.levelId, true, 3, waves)
+    } else {
+      const existing = current.levelProgress.find(l => l.levelId === battleResult.levelId)
+      if (existing) {
+        existing.highestWave = Math.max(existing.highestWave || 0, waves)
+      } else {
+        current.levelProgress.push({
+          levelId: battleResult.levelId,
+          isCompleted: false,
+          starsAchieved: 0,
+          highestWave: waves
+        })
+      }
     }
 
-    // 更新关卡进度
-    if (battleResult.isVictory) {
-      this.updateLevelProgressInSave(autoSaveData, battleResult.levelId, true, 3)
-
-      // 添加奖励
-      autoSaveData.inventory.gold += battleResult.rewards.gold || 0
-
-      // 更新上场武将的经验（从当前存档的武将数据中更新）
-      if (this.currentSave) {
-        for (const savedHero of this.currentSave.heroes) {
-          // 找到存档中的对应武将，更新其经验和等级
-          const heroIndex = autoSaveData.heroes.findIndex(h => h.id === savedHero.id)
-          if (heroIndex >= 0) {
-            autoSaveData.heroes[heroIndex] = {
-              ...autoSaveData.heroes[heroIndex],
-              level: savedHero.level,
-              experience: savedHero.experience,
-              star: savedHero.star,
-              isUnlocked: savedHero.isUnlocked,
-              equipment: savedHero.equipment
-            }
-          }
+    // 校验并同步所有武将经验对应的等级
+    if (Array.isArray(current.heroes)) {
+      for (const hero of current.heroes) {
+        if (!hero) continue
+        const calcLvl = calculateLevelFromExp(hero.experience || 0)
+        if (calcLvl > hero.level) {
+          hero.level = calcLvl
         }
       }
     }
 
-    return this.saveToSlot(0, autoSaveData)
+    // 同步保存到当前槽位及槽位0（自动存档槽位）
+    if (this.currentSlot !== 0) {
+      this.saveToSlot(this.currentSlot, current)
+    }
+    return this.saveToSlot(0, current)
   }
 
   /**
@@ -239,16 +363,11 @@ export class SaveManager {
       }
     }
 
-    // 初始化默认装备
-    saveData.inventory.equipment = [
-      'weapon_common_1',
-      'weapon_rare_1',
-      'artifact_chitu',
-      'artifact_qinglong'
-    ]
-
     // 初始化金币
     saveData.inventory.gold = 1000
+
+    // 同步默认装备与宝石状态
+    this.syncEquipmentToSaveData(saveData)
   }
 
   /**
@@ -257,56 +376,65 @@ export class SaveManager {
   createNewSave(slotId: number): SaveData {
     const newSave = createDefaultSaveData(slotId)
     this.initDefaultData(newSave)
-    this.saveToSlot(slotId, newSave)
     this.currentSlot = slotId
     this.currentSave = newSave
+    this.saveToSlot(slotId, newSave)
     return newSave
   }
 
   /**
    * 更新存档中的关卡进度
    */
-  private updateLevelProgressInSave(saveData: SaveData, levelId: string, isCompleted: boolean, stars: number): void {
+  private updateLevelProgressInSave(
+    saveData: SaveData,
+    levelId: string,
+    isCompleted: boolean,
+    stars: number,
+    highestWave?: number
+  ): void {
     const levelIndex = saveData.levelProgress.findIndex(l => l.levelId === levelId)
 
     if (levelIndex >= 0) {
       saveData.levelProgress[levelIndex] = {
         levelId,
-        isCompleted,
-        starsAchieved: Math.max(saveData.levelProgress[levelIndex].starsAchieved, stars)
+        isCompleted: saveData.levelProgress[levelIndex].isCompleted || isCompleted,
+        starsAchieved: Math.max(saveData.levelProgress[levelIndex].starsAchieved, stars),
+        highestWave: Math.max(
+          saveData.levelProgress[levelIndex].highestWave || 0,
+          highestWave || (isCompleted ? 15 : 0)
+        )
       }
     } else {
       saveData.levelProgress.push({
         levelId,
         isCompleted,
-        starsAchieved: stars
+        starsAchieved: stars,
+        highestWave: highestWave || (isCompleted ? 15 : 0)
       })
     }
   }
 
   /**
-   * 更新当前存档的关卡进度
+   * 更新当前存档的关卡进度并立即保存
    */
   updateLevelProgress(levelId: string, isCompleted: boolean, stars: number): void {
-    if (!this.currentSave) return
-    this.updateLevelProgressInSave(this.currentSave, levelId, isCompleted, stars)
+    const save = this.ensureSaveInitialized()
+    this.updateLevelProgressInSave(save, levelId, isCompleted, stars)
+    this.saveCurrent()
   }
 
   /**
    * 加载武将数据（合并默认配置）
    */
   loadHeroes(): Map<string, Hero> {
+    this.ensureSaveInitialized()
     const defaultHeroes = createDefaultHeroes()
     const loadedHeroes = new Map<string, Hero>()
+    const eqMgr = EquipmentManager.getInstance()
 
     // 先用默认配置
     for (const [id, hero] of defaultHeroes) {
       loadedHeroes.set(id, hero)
-    }
-
-    // 如果没有当前存档，返回默认
-    if (!this.currentSave) {
-      return loadedHeroes
     }
 
     // 用存档数据覆盖
@@ -315,13 +443,19 @@ export class SaveManager {
         if (!savedHero) continue
         const defaultHero = defaultHeroes.get(savedHero.id)
         if (defaultHero) {
+          const heroEq = eqMgr.getHeroEquipment(savedHero.id)
+          const exp = savedHero.experience ?? defaultHero.experience
+          const lvl = Math.max(savedHero.level ?? defaultHero.level, calculateLevelFromExp(exp))
           loadedHeroes.set(savedHero.id, {
             ...defaultHero,
-            level: savedHero.level ?? defaultHero.level,
+            level: lvl,
             star: savedHero.star ?? defaultHero.star,
-            experience: savedHero.experience ?? defaultHero.experience,
+            experience: exp,
             isUnlocked: savedHero.isUnlocked ?? defaultHero.isUnlocked,
-            equipment: savedHero.equipment ?? defaultHero.equipment
+            equipment: {
+              weapon: heroEq.weapon?.equipmentId ?? savedHero.equipment?.weapon ?? defaultHero.equipment.weapon,
+              artifact: heroEq.artifact?.equipmentId ?? savedHero.equipment?.artifact ?? defaultHero.equipment.artifact
+            }
           })
         }
       }
@@ -331,11 +465,15 @@ export class SaveManager {
   }
 
   /**
-   * 保存当前存档
+   * 保存当前存档（同时同步至当前槽位与自动存档槽位0）
    */
   saveCurrent(): boolean {
-    if (!this.currentSave) return false
-    return this.saveToSlot(this.currentSlot, this.currentSave)
+    const save = this.ensureSaveInitialized()
+    const ok = this.saveToSlot(this.currentSlot, save)
+    if (this.currentSlot !== 0) {
+      this.saveToSlot(0, save)
+    }
+    return ok
   }
 
   /**
@@ -422,7 +560,7 @@ export class SaveManager {
     let best = extractWave(this.currentSave)
     for (let slot = 0; slot <= 3; slot++) {
       try {
-        const raw = localStorage.getItem(this.getSaveKey(slot))
+        const raw = this.getStorageItem(this.getSaveKey(slot))
         if (raw) {
           const parsed = JSON.parse(raw) as SaveData
           best = Math.max(best, extractWave(parsed))
@@ -442,10 +580,7 @@ export class SaveManager {
    * @returns 是否打破历史纪录
    */
   updateEndlessRecord(wave: number, kills: number, levelId?: string): boolean {
-    let save = this.currentSave || this.loadFromSlot(1) || this.loadFromSlot(0)
-    if (!save) {
-      save = this.createNewSave(1)
-    }
+    const save = this.ensureSaveInitialized()
     if (!save.endlessRecord) {
       save.endlessRecord = { highestWave: 0, currentWave: 1, totalKills: 0, bestDate: 0, mapHighestWaves: {} }
     }
@@ -487,9 +622,6 @@ export class SaveManager {
 
     this.currentSave = save
     this.saveCurrent()
-    if (this.currentSlot !== 0) {
-      this.saveToSlot(0, save)
-    }
     return isNewRecord
   }
 }

@@ -873,13 +873,19 @@ export class BattleSystem {
   }
 
   /**
-   * 处理失败
+   * 处理失败（战败亦触发自动存档，记录当前进度与状态）
    */
   private handleDefeat(): void {
     this.battleState.status = 'defeat'
     this.isRunning = false
 
+    this.updateSaveManagerHeroes()
+
     const result = this.endBattle()
+
+    const saveManager = SaveManager.getInstance()
+    saveManager.autoSave(result)
+
     if (this.onBattleEndCallback) {
       this.onBattleEndCallback(result)
     }
