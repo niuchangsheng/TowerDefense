@@ -135,9 +135,11 @@ describe('第一性原理铁律与核心机制单元测试（四乘区 / 40%抗�
         expect(boss.weaknessReactions?.length).toBeGreaterThan(0)
       }
 
-      // 无尽北伐 Wave 16+ 掉落宝石保底分位逐层提高，最高封顶 50%
+      // 无尽北伐 Wave 16+ 掉落宝石保底分位逐层跃升（+15% / +30% / +50% 封顶）
       expect(EndlessModeManager.getGemMinRollPercentile(15)).toBe(0)
-      expect(EndlessModeManager.getGemMinRollPercentile(16)).toBeCloseTo(0.10, 2)
+      expect(EndlessModeManager.getGemMinRollPercentile(16)).toBeCloseTo(0.15, 2)
+      expect(EndlessModeManager.getGemMinRollPercentile(26)).toBeCloseTo(0.30, 2)
+      expect(EndlessModeManager.getGemMinRollPercentile(36)).toBeCloseTo(0.50, 2)
       expect(EndlessModeManager.getGemMinRollPercentile(50)).toBeCloseTo(0.50, 2)
     })
   })

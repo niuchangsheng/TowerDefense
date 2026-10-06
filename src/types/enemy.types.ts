@@ -50,6 +50,8 @@ export interface Enemy extends EnemyConfig {
   shieldBrokenUntil?: number // 铁壁护盾破碎脆弱易伤结束时间戳（毫秒）
   aegisParalyzedUntil?: number // 命脉弱点相生触发的 3s 瘫痪结束时间戳（毫秒）
   currentAegisGrids?: number // 当前剩余五行铁壁格数
+  octagonalLockActive?: boolean // 是否启用【一重烽火·八门重锁】（连续两次相同相生反应破壁效率减半）
+  lastAegisReactionType?: string // 上一次命中五行铁壁的相生反应类型
   phase2Awakened?: boolean   // Boss 半血狂暴重铸铁壁是否已触发
   isBerserk?: boolean       // 是否进入雷怒暴走状态
 }

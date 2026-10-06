@@ -2,14 +2,130 @@ import { LevelConfig, WaveConfig, WaveEnemyConfig, Point, EnemyType } from '@/ty
 import { normalEnemies, eliteEnemies, bossEnemies } from '@/data/enemies'
 import { EnemyAffix, ENEMY_AFFIXES, EnemyAffixId } from '@/types/affix'
 
+export type EndlessBeaconTier = 0 | 1 | 2 | 3
+
+export interface EndlessBeaconTierInfo {
+  tier: EndlessBeaconTier
+  name: string
+  title: string
+  icon: string
+  shortBadge: string
+  bossExtraAegisGrids: number
+  octagonalLockActive: boolean
+  consecutiveSameReactionHalfBreak: boolean
+  dualWeatherActive: boolean
+  dualEnemyWeather: boolean
+  compoundAffixes: boolean
+  attachmentDurationMs: number
+  gemMinRollPercentile: number
+  mechanicSummary: string
+  ruleSummary: string
+}
+
 /**
- * 无尽爬塔模式（乘胜北伐 · 无尽烽火）与 15 波紧凑战役波次生成管理器
- * 提供 15 波标准战役节拍、Wave 16+ 无尽衔接、平滑指数难度曲线与宝石词条保底分位计算
+ * 无尽爬塔模式（百战无尽 · 乘胜北伐）与 15 波紧凑战役一体化波次生成管理器
+ * 严格遵循 docs/Wuxing_System_Design.md 第九章 §9.4「战役即无尽 · 一体化征战架构」：
+ * - 第 1 ~ 15 波【历史战役破关期】：正常 2.5s 元素附着、单一天时流转、第 15 波决战本图镇守主帅，保底分位 0%
+ * - 第 16 ~ 25 波 🔥【一重烽火 · 八门重锁】：Boss 五行铁壁 +2 格，同种相生连续破壁效率减半，灵石保底分位 +15%
+ * - 第 26 ~ 35 波 🌩️【二重烽火 · 双象疾电】：每 5 波同时降临双天时（敌军同享双天时增幅），附着窗口收紧至 2.0s，灵石保底分位 +30%
+ * - 第 36 波+ 👹【三重烽火 · 极境北伐】：统帅 Boss 复合强化词缀高频冲阵，灵石保底分位 +50%（必出极品满值神石）
  */
 export class EndlessModeManager {
   private static readonly NORMAL_ENEMY_IDS = normalEnemies.map(e => e.id)
   private static readonly ELITE_ENEMY_IDS = eliteEnemies.map(e => e.id)
   private static readonly BOSS_ENEMY_IDS = bossEnemies.map(e => e.id)
+
+  /**
+   * 获取指定波次所属的【战役 / 百战无尽烽火】阶段层级 (0 ~ 3)
+   */
+  public static getBeaconTier(waveNumber: number): EndlessBeaconTier {
+    if (waveNumber <= 15) return 0
+    if (waveNumber <= 25) return 1
+    if (waveNumber <= 35) return 2
+    return 3
+  }
+
+  /**
+   * 获取指定波次的【战役 / 百战无尽烽火】完整机制跃迁规则与战利品保底信息
+   */
+  public static getBeaconTierInfo(waveNumber: number): EndlessBeaconTierInfo {
+    const tier = this.getBeaconTier(waveNumber)
+    switch (tier) {
+      case 0:
+        return {
+          tier: 0,
+          name: '历史战役破关期',
+          title: '历史战役破关期',
+          icon: '⚔️',
+          shortBadge: '破关期',
+          bossExtraAegisGrids: 0,
+          octagonalLockActive: false,
+          consecutiveSameReactionHalfBreak: false,
+          dualWeatherActive: false,
+          dualEnemyWeather: false,
+          compoundAffixes: false,
+          attachmentDurationMs: 2500,
+          gemMinRollPercentile: 0,
+          mechanicSummary: '2.5s元素附着 · 单一天时流转 · 第15波决战本图镇守主帅',
+          ruleSummary: '2.5s元素附着 · 单一天时流转 · 第15波决战本图镇守主帅'
+        }
+      case 1:
+        return {
+          tier: 1,
+          name: '一重烽火 · 八门重锁',
+          title: '一重烽火 · 八门重锁',
+          icon: '🔥',
+          shortBadge: '🔥一重烽火',
+          bossExtraAegisGrids: 2,
+          octagonalLockActive: true,
+          consecutiveSameReactionHalfBreak: true,
+          dualWeatherActive: false,
+          dualEnemyWeather: false,
+          compoundAffixes: false,
+          attachmentDurationMs: 2500,
+          gemMinRollPercentile: 0.15,
+          mechanicSummary: 'Boss铁壁+2格 & 同种相生连续破壁减半',
+          ruleSummary: '统帅铁壁+2格、连续同种相生破壁效率减半 · 灵石词条保底分位 +15%'
+        }
+      case 2:
+        return {
+          tier: 2,
+          name: '二重烽火 · 双象疾电',
+          title: '二重烽火 · 双象疾电',
+          icon: '🌩️',
+          shortBadge: '🌩️二重烽火',
+          bossExtraAegisGrids: 2,
+          octagonalLockActive: true,
+          consecutiveSameReactionHalfBreak: true,
+          dualWeatherActive: true,
+          dualEnemyWeather: true,
+          compoundAffixes: false,
+          attachmentDurationMs: 2000,
+          gemMinRollPercentile: 0.30,
+          mechanicSummary: '双天时并降（敌享双天时） & 元素附着缩至2.0s',
+          ruleSummary: '每5波双天时并降（敌享双天时）、元素附着缩至2.0s · 灵石词条保底分位 +30%'
+        }
+      case 3:
+      default:
+        return {
+          tier: 3,
+          name: '三重烽火 · 极境北伐',
+          title: '三重烽火 · 极境北伐',
+          icon: '👹',
+          shortBadge: '👹三重烽火',
+          bossExtraAegisGrids: 2,
+          octagonalLockActive: true,
+          consecutiveSameReactionHalfBreak: true,
+          dualWeatherActive: true,
+          dualEnemyWeather: true,
+          compoundAffixes: true,
+          attachmentDurationMs: 2000,
+          gemMinRollPercentile: 0.50,
+          mechanicSummary: '全精英/统帅双词缀魔神化 & 双天时2.0s附着',
+          ruleSummary: '统帅复合词缀狂澜 + 双天时2.0s附着 + 八门重锁 · 灵石词条保底分位 +50%（必出极品神石）'
+        }
+    }
+  }
 
   /**
    * 计算指定波次的敌人属性成长倍率
@@ -38,13 +154,15 @@ export class EndlessModeManager {
 
   /**
    * 计算无尽北伐（Wave 16+）掉落宝石的词条保底分位 (Min Roll Percentile)
-   * 规则：1~15 波为 0；16 波起每推进 5 波保底分位提升 +10%，最高封顶 50% (0.50)
+   * 严格遵循设计文档 §9.4 表格：
+   * - 第 1 ~ 15 波：0% (0)
+   * - 第 16 ~ 25 波【一重烽火】：+15% (0.15)
+   * - 第 26 ~ 35 波【二重烽火】：+30% (0.30)
+   * - 第 36 波+【三重烽火】：+50% (0.50)
    * 严禁突破宝石词条本身的 Max 上限（捍卫局外总增益 <= +50% 铁律）
    */
   public static getGemMinRollPercentile(waveNumber: number): number {
-    if (waveNumber <= 15) return 0
-    const endlessTiers = Math.floor((waveNumber - 11) / 5) // W16->1, W21->2, W26->3, W31->4, W36->5
-    return Math.min(0.50, Math.max(0, endlessTiers * 0.10))
+    return this.getBeaconTierInfo(waveNumber).gemMinRollPercentile
   }
 
   /**
@@ -60,7 +178,7 @@ export class EndlessModeManager {
 
     let affixCount = 0
     if (enemyType === 'elite') {
-      affixCount = 1
+      affixCount = waveNumber >= 36 ? 2 : 1
     } else if (enemyType === 'boss') {
       if (waveNumber < 30) affixCount = 1
       else if (waveNumber < 50) affixCount = 2

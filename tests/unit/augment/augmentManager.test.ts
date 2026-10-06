@@ -117,4 +117,29 @@ describe('AugmentManager 军师锦囊（天命肉鸽）核心测试', () => {
     expect(fallbackOptions.length).toBe(3)
     expect(fallbackOptions.every(a => a.repeatable)).toBe(true)
   })
+
+  it('《木牛流马》(aug_wooden_ox) 立即获得 2 枚易策令，且每次换牌叠加 +3% 攻击力与 +3% 攻速（上限 5 次）', () => {
+    const woodenOx = AUGMENT_POOL.find(a => a.id === 'aug_wooden_ox')!
+    expect(manager.getRerollCount()).toBe(2)
+
+    manager.selectAugment(woodenOx)
+    // 初始 2 枚 + 木牛流马立即赠送 2 枚 = 4 枚
+    expect(manager.getRerollCount()).toBe(4)
+
+    // 额外再补 2 枚以验证 5 次叠加上限
+    manager.grantRerolls(2)
+    expect(manager.getRerollCount()).toBe(6)
+
+    const baseAtk = manager.getAttackPercentBonus()
+    const baseSpd = manager.getAttackSpeedBonus()
+
+    for (let i = 1; i <= 6; i++) {
+      manager.reroll(['hero_guanyu'], ['wood'])
+      const expectedStacks = Math.min(i, 5)
+      expect(manager.getWoodenOxRerollStacks()).toBe(expectedStacks)
+      expect(manager.getAttackPercentBonus()).toBeCloseTo(baseAtk + expectedStacks * 0.03, 4)
+      expect(manager.getAttackSpeedBonus()).toBeCloseTo(baseSpd + expectedStacks * 0.03, 4)
+    }
+  })
 })
+

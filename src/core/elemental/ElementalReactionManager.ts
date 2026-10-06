@@ -60,6 +60,9 @@ export class ElementalReactionManager {
   /** 当前全局相生反应内置冷却时长（默认 1500ms，锦囊可缩短至 900ms） */
   private reactionIcdMs: number = ElementalReactionManager.DEFAULT_REACTION_ICD_MS
 
+  /** 当前全局基础元素附着窗口时长（默认 2500ms；百战二重烽火 Wave 26+ 收紧至 2000ms） */
+  private attachmentDurationMs: number = ElementalReactionManager.DEFAULT_ATTACHMENT_MS
+
   /** 全局元素反应伤害倍率修正（1.0 为基准，超出部分归入增伤区加算） */
   private reactionDamageMultiplier: number = 1.0
 
@@ -105,6 +108,14 @@ export class ElementalReactionManager {
 
   public getReactionIcdMs(): number {
     return this.reactionIcdMs
+  }
+
+  public setAttachmentDurationMs(durationMs: number): void {
+    this.attachmentDurationMs = Math.max(1000, durationMs)
+  }
+
+  public getAttachmentDurationMs(): number {
+    return this.attachmentDurationMs
   }
 
   public advanceMockTime(deltaMs: number): void {
@@ -273,8 +284,8 @@ export class ElementalReactionManager {
   ): void {
     const enemyId = this.getEnemyKey(target)
     const duration = options?.inLeylineOverlap
-      ? Math.round(ElementalReactionManager.DEFAULT_ATTACHMENT_MS * 1.3)
-      : ElementalReactionManager.DEFAULT_ATTACHMENT_MS
+      ? Math.round(this.attachmentDurationMs * 1.3)
+      : this.attachmentDurationMs
 
     let statusType: ElementalStatusType
 
@@ -667,6 +678,7 @@ export class ElementalReactionManager {
     this.multiStatusMap.clear()
     this.reactionIcdMap.clear()
     this.reactionIcdMs = ElementalReactionManager.DEFAULT_REACTION_ICD_MS
+    this.attachmentDurationMs = ElementalReactionManager.DEFAULT_ATTACHMENT_MS
     this.reactionDamageMultiplier = 1.0
     this.vaporizeShockwaveEnabled = false
   }

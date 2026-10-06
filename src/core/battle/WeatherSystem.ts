@@ -303,6 +303,7 @@ export const ELEMENTAL_WEATHER_IDS: DynamicWeatherId[] = [
  */
 export class WeatherSystem {
   private segmentWeathers: Map<number, DynamicWeatherConfig> = new Map()
+  private secondarySegmentWeathers: Map<number, DynamicWeatherConfig> = new Map()
   private currentWave: number = 1
   private ignorePenalty: boolean = false
   private allElementFavored: boolean = false
@@ -320,6 +321,7 @@ export class WeatherSystem {
 
   public initSchedule(seedWeathers?: DynamicWeatherId[]): void {
     this.segmentWeathers.clear()
+    this.secondarySegmentWeathers.clear()
 
     if (seedWeathers && seedWeathers.length >= 2) {
       this.segmentWeathers.set(0, DYNAMIC_WEATHERS[seedWeathers[0]])
@@ -363,6 +365,32 @@ export class WeatherSystem {
     const config = DYNAMIC_WEATHERS[pickedId]
     this.segmentWeathers.set(segmentIndex, config)
     return config
+  }
+
+  /**
+   * 百战二重烽火【双象疾电】（Wave 26+，即 segmentIndex >= 5）：
+   * 每 5 波同时激活第 2 种伴生天时气象（异于主天时）
+   */
+  public getSecondaryWeatherForSegment(segmentIndex: number): DynamicWeatherConfig | null {
+    if (segmentIndex < 5) return null
+    if (this.secondarySegmentWeathers.has(segmentIndex)) {
+      return this.secondarySegmentWeathers.get(segmentIndex)!
+    }
+    const primary = this.getWeatherForSegment(segmentIndex)
+    const candidates = ELEMENTAL_WEATHER_IDS.filter(id => id !== primary.id)
+    const pickedId = candidates[segmentIndex % candidates.length] || 'water_snow'
+    const config = DYNAMIC_WEATHERS[pickedId]
+    this.secondarySegmentWeathers.set(segmentIndex, config)
+    return config
+  }
+
+  public getSecondaryWeatherForWave(waveNumber: number): DynamicWeatherConfig | null {
+    if (waveNumber < 26) return null
+    return this.getSecondaryWeatherForSegment(this.getSegmentIndex(waveNumber))
+  }
+
+  public getCurrentSecondaryWeather(): DynamicWeatherConfig | null {
+    return this.getSecondaryWeatherForWave(this.currentWave)
   }
 
   public getWeatherForWave(waveNumber: number): DynamicWeatherConfig {
@@ -451,9 +479,22 @@ export class WeatherSystem {
 
   /**
    * 获取当前天时对敌军五维属性的修正
+   * - Wave 26+ 二重烽火【双象疾电】：敌军同时享受主天时与伴生副天时的五维正面增幅
    */
   public getCurrentEnemyModifiers(): WeatherEnemyModifiers {
-    return this.getCurrentWeather().enemyModifiers
+    const primary = this.getCurrentWeather().enemyModifiers
+    const secondary = this.getCurrentSecondaryWeather()?.enemyModifiers
+    if (!secondary) {
+      return primary
+    }
+    return {
+      hpBonus: primary.hpBonus + Math.max(0, secondary.hpBonus),
+      hpRegenPerSec: primary.hpRegenPerSec + Math.max(0, secondary.hpRegenPerSec),
+      defenseBonus: primary.defenseBonus + Math.max(0, secondary.defenseBonus),
+      moveSpeedBonus: primary.moveSpeedBonus + Math.max(0, secondary.moveSpeedBonus),
+      tenacityBonus: primary.tenacityBonus + Math.max(0, secondary.tenacityBonus),
+      fortitudeBonus: primary.fortitudeBonus + Math.max(0, secondary.fortitudeBonus)
+    }
   }
 
   /**

@@ -36,6 +36,7 @@ export class AugmentManager {
   private totalReactionMultiplierBonus: number = 0
   private totalCostGainBonus: number = 0
   private totalCounterMultiplierBonus: number = 0
+  private woodenOxRerollStacks: number = 0
 
   private callbacks: AugmentManagerCallbacks = {}
 
@@ -197,6 +198,7 @@ export class AugmentManager {
 
   /**
    * 使用【易策令】刷新抽卡候选
+   * 若已激活《木牛流马》（aug_wooden_ox），每次使用易策令换牌时，全军获得 +3% 攻击力与 +3% 攻速（最多叠 5 次至 +15%）
    */
   public reroll(
     deployedHeroIds: string[] = [],
@@ -204,6 +206,13 @@ export class AugmentManager {
   ): Augment[] | null {
     if (this.rerollCount <= 0) return null
     this.rerollCount--
+
+    if (this.hasSpecialAugment('aug_wooden_ox') && this.woodenOxRerollStacks < 5) {
+      this.woodenOxRerollStacks++
+      this.totalAttackPercentBonus += 0.03
+      this.totalAttackSpeedBonus += 0.03
+    }
+
     return this.drawOptions(deployedHeroIds, deployedWuXing, 3)
   }
 
@@ -252,7 +261,7 @@ export class AugmentManager {
     }
 
     // 特殊专属机制
-    if (eff.specialId === 'aug_celestial_tome') {
+    if (eff.specialId === 'aug_celestial_tome' || eff.specialId === 'aug_wooden_ox') {
       this.rerollCount += 2
     } else if (eff.specialId === 'aug_vaporize_burst') {
       ElementalReactionManager.getInstance().setVaporizeShockwave(true)
@@ -261,22 +270,27 @@ export class AugmentManager {
 
   // ==================== 四独立乘区与属性加成查询 ====================
 
-  /** 乘区 1：攻击力加成区 */
+  /** 乘区 2：攻击力加成区 */
   public getAttackPercentBonus(): number {
     return this.totalAttackPercentBonus
   }
 
-  /** 乘区 2：增伤加成区 */
+  /** 乘区 3：增伤加成区 */
   public getDamageIncreaseBonus(): number {
     return this.totalDamageIncreaseBonus
   }
 
-  /** 乘区 3：易伤加成区 */
+  /** 乘区 3（相生反应部分）：五行相生反应伤害加成 */
+  public getReactionMultiplierBonus(): number {
+    return this.totalReactionMultiplierBonus
+  }
+
+  /** 乘区 4：易伤加成区 */
   public getVulnerabilityBonus(): number {
     return this.totalVulnerabilityBonus
   }
 
-  /** 乘区 4：暴击率与暴击伤害加成 */
+  /** 暴击区：暴击率与暴击伤害加成 */
   public getCritRateBonus(): number {
     return this.totalCritRateBonus
   }
@@ -299,6 +313,10 @@ export class AugmentManager {
 
   public getCounterMultiplierBonus(): number {
     return this.totalCounterMultiplierBonus
+  }
+
+  public getWoodenOxRerollStacks(): number {
+    return this.woodenOxRerollStacks
   }
 
   public hasSpecialAugment(specialId: string): boolean {
@@ -324,6 +342,7 @@ export class AugmentManager {
     this.totalReactionMultiplierBonus = 0
     this.totalCostGainBonus = 0
     this.totalCounterMultiplierBonus = 0
+    this.woodenOxRerollStacks = 0
     ElementalReactionManager.getInstance().setVaporizeShockwave(false)
   }
 }

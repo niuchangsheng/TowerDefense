@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { Augment, AugmentRarity } from '@/types/augment'
+import { Augment, StratagemCategory } from '@/types/augment'
 import { AugmentManager } from '@/core/augment/AugmentManager'
 import {
   InkColor,
@@ -12,22 +12,79 @@ import {
 } from './InkTheme'
 import { SoundFX } from '@/effects/SoundFX'
 
-const RARITY_COLORS: Record<AugmentRarity, { text: string; stroke: number; bg: number; name: string }> = {
-  common: { text: '#2e7d32', stroke: 0x388e3c, bg: 0xf4f1ea, name: '【奇谋战法策】' },
-  rare: { text: '#1565c0', stroke: 0x1976d2, bg: 0xf4f1ea, name: '【相生连环策】' },
-  epic: { text: '#8e24aa', stroke: 0x7b1fa2, bg: 0xf4f1ea, name: '【攻防逆转策】' },
-  legendary: { text: '#b45309', stroke: 0xc2410c, bg: 0xf4f1ea, name: '【观星借天策】' }
+export interface StratagemStyleInfo {
+  label: string
+  text: string
+  stroke: number
+  badgeBg: number
+  tint: number
+}
+
+export const STRATAGEM_STYLE_MAP: Record<StratagemCategory | '无尽精进策', StratagemStyleInfo> = {
+  五行异变策: {
+    label: '【五行异变策】',
+    text: '#9e2b25',
+    stroke: 0x9e2b25,
+    badgeBg: 0x9e2b25,
+    tint: 0xf7efe9
+  },
+  相生连环策: {
+    label: '【相生连环策】',
+    text: '#235739',
+    stroke: 0x2e6b47,
+    badgeBg: 0x2e6b47,
+    tint: 0xeef5f0
+  },
+  攻防逆转策: {
+    label: '【攻防逆转策】',
+    text: '#563082',
+    stroke: 0x6b3fa0,
+    badgeBg: 0x6b3fa0,
+    tint: 0xf3eef8
+  },
+  奇谋战法策: {
+    label: '【奇谋战法策】',
+    text: '#1c496e',
+    stroke: 0x255c8a,
+    badgeBg: 0x255c8a,
+    tint: 0xebf2f7
+  },
+  观星借天策: {
+    label: '【观星借天策】',
+    text: '#875714',
+    stroke: 0xa06b1e,
+    badgeBg: 0xa06b1e,
+    tint: 0xf8f1e4
+  },
+  无尽精进策: {
+    label: '【无尽精进策】',
+    text: '#3f464d',
+    stroke: 0x545b62,
+    badgeBg: 0x545b62,
+    tint: 0xf0efec
+  }
+}
+
+export function getStratagemStyle(aug: Augment): StratagemStyleInfo {
+  if (aug.repeatable) return STRATAGEM_STYLE_MAP['无尽精进策']
+  if (aug.stratagemCategory && STRATAGEM_STYLE_MAP[aug.stratagemCategory]) {
+    return STRATAGEM_STYLE_MAP[aug.stratagemCategory]
+  }
+  return STRATAGEM_STYLE_MAP['奇谋战法策']
 }
 
 /**
- * 军师锦囊三选一弹窗
- * 墨香竹简长卷风格，展示 3 个天命肉鸽词条，支持悬浮动效、重选与战局时间暂停
+ * 军师锦囊三选一弹窗（无品质平权 · 三国典故五大策系 · 四大独立乘区归集）
+ * 严格遵循 docs/Wuxing_System_Design.md 第七章设计规范：
+ * - 废除白绿蓝紫金品质，按【五大策系】平权呈现
+ * - 展示三国历史典故出处、底层规则改写前后质变、四独立乘区加成与看天选策指南
+ * - 保底 1 张在场武将/五行契合卡 + 易策令换牌
  */
 export class AugmentSelectModal extends Phaser.GameObjects.Container {
   private augmentManager: AugmentManager
   private currentOptions: Augment[] = []
   private cardContainers: Phaser.GameObjects.Container[] = []
-  private rerollBtn?: Phaser.GameObjects.Container
+  private bottomBarContainer?: Phaser.GameObjects.Container
   private onSelectCallback: (selected: Augment) => void
   private onCloseCallback?: () => void
   private escKey?: Phaser.Input.Keyboard.Key
@@ -56,26 +113,25 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     this.setDepth(InkDepth.popup)
 
     // 1. 半透明水墨遮罩（拦截底层所有点击）
-    const overlay = scene.add.rectangle(0, 0, width, height, 0x111111, 0.75)
+    const overlay = scene.add.rectangle(0, 0, width, height, 0x111111, 0.78)
     overlay.setOrigin(0, 0)
     overlay.setInteractive()
     this.add(overlay)
 
-    // 2. 顶部标题长卷与右上角返回战场按钮
+    // 2. 顶部标题长卷与右上角返回按钮
     this.createHeader(width)
 
-    // 3. 抽取初始 3 张卡
+    // 3. 抽取初始 3 张卡（保底 1 张契合卡 + 2 张纯随机）
     this.currentOptions = this.augmentManager.drawOptions(this.deployedHeroIds, this.deployedWuXing, 3)
 
     if (this.currentOptions.length === 0) {
-      // 锦囊全部用完时的空状态
       this.renderEmptyState(width, height)
     } else {
       this.renderCards(width, height)
       this.createBottomBar(width, height)
     }
 
-    // 4. 监听 ESC 键直接返回战场
+    // 4. 监听 ESC 键直接返回
     if (scene.input.keyboard) {
       this.escKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
       this.escKey.once('down', () => {
@@ -98,22 +154,28 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
   }
 
   private createHeader(width: number): void {
-    const title = inkText(this.scene, width / 2, 60, '【军师锦囊 · 天命三选一】', {
+    const pickedCount = this.augmentManager.getActiveAugments().length
+    const title = inkText(this.scene, width / 2, 42, '【天命锦囊 · 三选一】', {
       size: 26,
-      color: '#ffffff',
+      color: '#fdfbf7',
       bold: true,
       originX: 0.5
     })
     title.setStroke('#111111', 4)
 
-    const subtitle = inkText(this.scene, width / 2, 92, '运筹帷幄之中 · 决胜千里之外', {
-      size: 14,
-      color: '#e0d8c3',
-      originX: 0.5
-    })
+    const subtitle = inkText(
+      this.scene,
+      width / 2,
+      72,
+      `保底 1 张当前阵容契合卡  ·  已选 ${pickedCount}/5 策`,
+      {
+        size: 13.5,
+        color: '#e8dbbe',
+        originX: 0.5
+      }
+    )
 
-    // 右上角退出/返回按钮
-    const closeBtn = createInkButton(this.scene, width - 80, 50, 100, 34, '✕ 返回战场', {
+    const closeBtn = createInkButton(this.scene, width - 84, 48, 108, 34, '✕ 暂缓返回', {
       fill: InkColor.paperDeep,
       hoverFill: InkColor.paper,
       textColor: InkText.ink,
@@ -124,9 +186,6 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     this.add([title, subtitle, closeBtn])
   }
 
-  /**
-   * 当所有锦囊皆已选完时的状态展示
-   */
   private renderEmptyState(width: number, height: number): void {
     const cx = width / 2
     const cy = height / 2
@@ -151,7 +210,7 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
       originX: 0.5
     })
 
-    const returnBtn = createInkButton(this.scene, cx, cy + 45, 150, 40, '返回战场迎敌', {
+    const returnBtn = createInkButton(this.scene, cx, cy + 45, 150, 40, '返回迎敌', {
       fill: InkColor.cinnabar,
       hoverFill: 0xb53a32,
       textColor: '#ffffff',
@@ -163,18 +222,17 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
   }
 
   private renderCards(width: number, height: number): void {
-    // 清理旧卡片
     for (const c of this.cardContainers) {
       c.destroy()
     }
     this.cardContainers = []
 
-    const cardW = 220
-    const cardH = 320
-    const spacing = 36
+    const cardW = 326
+    const cardH = 440
+    const spacing = 28
     const totalW = this.currentOptions.length * cardW + (this.currentOptions.length - 1) * spacing
     const startX = (width - totalW) / 2 + cardW / 2
-    const cardY = height / 2 + 10
+    const cardY = height / 2 - 4
 
     this.currentOptions.forEach((aug, index) => {
       const cx = startX + index * (cardW + spacing)
@@ -182,15 +240,14 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
       this.cardContainers.push(card)
       this.add(card)
 
-      // 卡片依次飞入动画
-      card.setY(cardY + 35)
+      card.setY(cardY + 32)
       card.setAlpha(0)
       this.scene.tweens.add({
         targets: card,
         y: cardY,
         alpha: 1,
-        duration: 350,
-        delay: index * 80,
+        duration: 320,
+        delay: index * 75,
         ease: 'Cubic.easeOut'
       })
     })
@@ -205,112 +262,155 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
   ): Phaser.GameObjects.Container {
     const scene = this.scene
     const c = scene.add.container(x, y)
-    const conf = RARITY_COLORS[aug.rarity]
+    const style = getStratagemStyle(aug)
 
-    // 1. 卡片宣纸底板
+    // 1. 宣纸底板与策系边框
     const bg = scene.add.graphics()
-    bg.fillStyle(conf.bg, 0.96)
-    bg.fillRoundedRect(-w / 2, -h / 2, w, h, InkRadius.md)
-    bg.lineStyle(2.5, conf.stroke, 0.9)
-    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, InkRadius.md)
+    const drawCardFrame = (hover: boolean) => {
+      bg.clear()
+      bg.fillStyle(hover ? 0xfbf8f1 : style.tint, 0.98)
+      bg.fillRoundedRect(-w / 2, -h / 2, w, h, InkRadius.md)
+      bg.lineStyle(hover ? 3 : 2, hover ? 0xd4af37 : style.stroke, 0.95)
+      bg.strokeRoundedRect(-w / 2, -h / 2, w, h, InkRadius.md)
+
+      bg.lineStyle(1, style.stroke, 0.25)
+      bg.strokeRoundedRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10, 4)
+    }
+    drawCardFrame(false)
     c.add(bg)
 
-    // 2. 策系标识顶栏（无品质平权 · 五大策系）
-    const catTitle = aug.stratagemCategory ? `【${aug.stratagemCategory}】` : conf.name
-    const rarityLabel = inkText(scene, 0, -h / 2 + 24, catTitle, {
-      size: 13,
-      color: conf.text,
-      bold: true,
-      originX: 0.5
-    })
-    c.add(rarityLabel)
+    // 2. 第一眼：顶部策系印章横幅
+    const topBanner = scene.add.rectangle(0, -h / 2 + 24, w - 24, 28, style.badgeBg, 0.92)
+    topBanner.setStrokeStyle(1, 0x1a1a1a, 0.5)
+    const catLabel = inkText(
+      scene,
+      0,
+      -h / 2 + 24,
+      `${style.label} · ${aug.targetDimension || '全局奇谋'}`,
+      {
+        size: 12,
+        color: '#fdfbf7',
+        bold: true,
+        originX: 0.5
+      }
+    )
+    c.add([topBanner, catLabel])
 
-    // 3. 锦囊名称
+    // 3. 大字锦囊名称与四字爽点词头
     const displayName = aug.name.startsWith('《') ? aug.name : `《${aug.name}》`
-    const nameText = inkText(scene, 0, -h / 2 + 62, displayName, {
-      size: 21,
+    const nameText = inkText(scene, 0, -h / 2 + 66, displayName, {
+      size: 25,
       color: InkText.strong,
       bold: true,
       originX: 0.5
     })
     c.add(nameText)
 
-    // 4. 副标题（如五行连锁）
-    if (aug.subtitle) {
-      const subText = inkText(scene, 0, -h / 2 + 92, aug.subtitle, {
-        size: 12,
-        color: conf.text,
-        originX: 0.5
-      })
-      c.add(subText)
-    }
+    const mechStr = aug.mechanismTitle || aug.subtitle || '【军师奇谋】'
+    const mechText = inkText(scene, 0, -h / 2 + 98, mechStr, {
+      size: 15,
+      color: InkText.cinnabar,
+      bold: true,
+      originX: 0.5
+    })
+    c.add(mechText)
 
-    // 分隔横线
-    const line = scene.add.graphics()
-    line.lineStyle(1, InkColor.ink, 0.25)
-    line.beginPath()
-    line.moveTo(-w / 2 + 18, -h / 2 + 114)
-    line.lineTo(w / 2 - 18, -h / 2 + 114)
-    line.strokePath()
-    c.add(line)
+    // 1行浅墨典故题跋
+    const loreOneLine = aug.historicalLore || aug.subtitle || ''
+    const loreShort = loreOneLine.length > 22 ? `${loreOneLine.slice(0, 22)}…` : loreOneLine
+    const loreText = inkText(scene, 0, -h / 2 + 124, `📜 ${loreShort}`, {
+      size: 11.5,
+      color: InkText.faint,
+      originX: 0.5
+    })
+    c.add(loreText)
 
-    // 5. 详细效果描述（自动换行）
-    const descText = scene.add.text(0, -h / 2 + 130, aug.description, {
+    // 4. 第二眼：核心效果框（去繁就简，只展示精炼后的核心效果，绝不堆叠“改写前”长文）
+    const ruleY = -h / 2 + 216
+    const ruleBox = scene.add.rectangle(0, ruleY, w - 28, 128, 0xfdfaf2, 0.92)
+    ruleBox.setStrokeStyle(1.5, style.stroke, 0.5)
+    c.add(ruleBox)
+
+    const conciseEffect = (aug.ruleAfter || aug.description || '')
+      .replace(/^改写后：\s*/, '')
+      .replace(/（归入【[^】]+】[^）]*）/g, '')
+      .replace(/（严格归入[^）]*）/g, '')
+      .trim()
+
+    const descText = scene.add.text(-w / 2 + 24, ruleY, conciseEffect, {
       fontFamily: INK_FONT,
-      fontSize: '13px',
-      color: '#222222',
-      wordWrap: { width: w - 36 },
+      fontSize: '13.5px',
+      fontStyle: 'bold',
+      color: '#1e1b18',
+      wordWrap: { width: w - 48 },
       lineSpacing: 5
-    }).setOrigin(0.5, 0)
+    }).setOrigin(0, 0.5)
     c.add(descText)
 
-    // 6. 底部标签栏（五行/专属）
-    if (aug.tags && aug.tags.length > 0) {
-      const tagStr = aug.tags.map(t => `【${t}】`).join(' ')
-      const tagText = inkText(scene, 0, h / 2 - 45, tagStr, {
-        size: 11,
-        color: InkText.faint,
-        originX: 0.5
-      })
-      c.add(tagText)
-    }
+    // 5. 醒目加成胶囊条
+    const bucketSummary = this.buildBucketSummary(aug)
+    const bucketBox = scene.add.rectangle(0, h / 2 - 114, w - 28, 32, 0xfbf5e6, 0.95)
+    bucketBox.setStrokeStyle(1.2, 0xa0782f, 0.7)
+    const bucketText = inkText(scene, 0, h / 2 - 114, bucketSummary, {
+      size: 12.5,
+      color: '#8a5a14',
+      bold: true,
+      originX: 0.5
+    })
+    c.add([bucketBox, bucketText])
 
-    // 7. 选择确认按钮
-    const selectBtn = createInkButton(scene, 0, h / 2 - 20, 110, 28, '择此妙计', {
-      fill: conf.stroke,
-      hoverFill: 0x111111,
+    // 6. 第三眼：1行克制/顺天提示
+    const bossMatch = (aug.counterBoss || '').match(/【([^】]+)】/)
+    const weatherMatch = (aug.synergyWeather || '').match(/【([^】]+)】/)
+    const quickGuide = [
+      weatherMatch ? `🌦️ ${weatherMatch[1]}` : '',
+      bossMatch ? `👹 克${bossMatch[1]}` : '👹 破铁壁通用'
+    ]
+      .filter(Boolean)
+      .join('   |   ')
+
+    const tipText = inkText(scene, 0, h / 2 - 74, quickGuide, {
+      size: 12,
+      color: InkText.ink,
+      bold: true,
+      originX: 0.5
+    })
+    c.add(tipText)
+
+    // 7. 底部确认按钮
+    const selectBtn = createInkButton(scene, 0, h / 2 - 30, 156, 34, '◆ 选用此策 ◆', {
+      fill: style.badgeBg,
+      hoverFill: 0x1a1a1a,
       textColor: '#ffffff',
-      fontSize: 12,
+      fontSize: 13.5,
+      stroke: 0xd4af37,
       onClick: () => this.handlePickAugment(aug)
     })
     c.add(selectBtn)
 
-    // 交互悬浮响应
     c.setSize(w, h)
     c.setInteractive({ useHandCursor: true })
 
     c.on('pointerover', () => {
+      drawCardFrame(true)
       scene.tweens.add({
         targets: c,
-        scaleX: 1.05,
-        scaleY: 1.05,
-        duration: 160,
+        scaleX: 1.03,
+        scaleY: 1.03,
+        duration: 150,
         ease: 'Quad.easeOut'
       })
-      bg.lineStyle(3.5, 0xffffff, 1)
-      bg.strokeRoundedRect(-w / 2, -h / 2, w, h, InkRadius.md)
     })
 
     c.on('pointerout', () => {
+      drawCardFrame(false)
       scene.tweens.add({
         targets: c,
         scaleX: 1.0,
         scaleY: 1.0,
-        duration: 160,
+        duration: 150,
         ease: 'Quad.easeOut'
       })
-      bg.lineStyle(2.5, conf.stroke, 0.9)
-      bg.strokeRoundedRect(-w / 2, -h / 2, w, h, InkRadius.md)
     })
 
     c.on('pointerdown', () => {
@@ -320,45 +420,66 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     return c
   }
 
+  private buildBucketSummary(aug: Augment): string {
+    const ef = aug.effects
+    const items: string[] = []
+    if (ef.attackPercentBonus) items.push(`⚔️ 攻击+${Math.round(ef.attackPercentBonus * 100)}%`)
+    if (ef.damageIncreaseBonus) items.push(`🔥 增伤+${Math.round(ef.damageIncreaseBonus * 100)}%`)
+    if (ef.reactionDamageMultiplier) items.push(`🔗 相生+${Math.round(ef.reactionDamageMultiplier * 100)}%`)
+    if (ef.vulnerabilityBonus) items.push(`🩸 易伤+${Math.round(ef.vulnerabilityBonus * 100)}%`)
+    if (ef.critRateBonus) items.push(`🎯 暴率+${Math.round(ef.critRateBonus * 100)}%`)
+    if (ef.critDamageBonus) items.push(`💥 暴伤+${Math.round(ef.critDamageBonus * 100)}%`)
+    if (ef.attackSpeedBonus) items.push(`⚡ 攻速+${Math.round(ef.attackSpeedBonus * 100)}%`)
+    if (ef.attackRangeBonus) items.push(`🎯 射程+${ef.attackRangeBonus}px`)
+    if (ef.costGainBonus) items.push(`🪙 军费+${Math.round(ef.costGainBonus * 100)}%`)
+    if (ef.baseMaxHealthBonus) items.push(`🏯 城防+${ef.baseMaxHealthBonus}`)
+    return items.slice(0, 3).join('   ') || `✨ ${aug.mechanismTitle || '专属机制质变'}`
+  }
+
   private createBottomBar(width: number, height: number): void {
+    this.bottomBarContainer?.destroy()
+    this.bottomBarContainer = this.scene.add.container(0, 0)
+    this.add(this.bottomBarContainer)
+
     const count = this.augmentManager.getRerollCount()
     const canReroll = count > 0
+    const hasWoodenOx = this.augmentManager.hasSpecialAugment('aug_wooden_ox')
+    const oxBonusNote = hasWoodenOx ? ` [木牛流马: 换牌+3%攻/速]` : ''
 
-    // 重整军策按钮
-    this.rerollBtn = createInkButton(
+    const rerollBtn = createInkButton(
       this.scene,
-      width / 2 - 85,
-      height - 45,
-      150,
+      width / 2 - 115,
+      height - 36,
+      210,
       36,
-      `重整军策 (${count}次)`,
+      `🎲 易策令换牌 (余 ${count} 枚)${oxBonusNote}`,
       {
-        fill: canReroll ? InkColor.paperDeep : 0x777777,
-        hoverFill: canReroll ? InkColor.paper : 0x777777,
-        textColor: canReroll ? InkText.strong : '#bbbbbb',
-        fontSize: 13,
+        fill: canReroll ? InkColor.paperDeep : 0x666666,
+        hoverFill: canReroll ? InkColor.paper : 0x666666,
+        textColor: canReroll ? InkText.strong : '#cccccc',
+        fontSize: 12,
+        stroke: canReroll ? 0xa0782f : 0x444444,
         onClick: () => this.handleReroll()
       }
     )
-    this.add(this.rerollBtn)
 
-    // 暂存军策直接返回按钮
     const deferBtn = createInkButton(
       this.scene,
-      width / 2 + 85,
-      height - 45,
-      150,
+      width / 2 + 115,
+      height - 36,
+      170,
       36,
-      '暂存 · 返回战场',
+      '暂存军令 · 返回',
       {
         fill: InkColor.paperDeep,
         hoverFill: InkColor.paper,
         textColor: InkText.faint,
-        fontSize: 13,
+        fontSize: 12,
         onClick: () => this.closeModal()
       }
     )
-    this.add(deferBtn)
+
+    this.bottomBarContainer.add([rerollBtn, deferBtn])
   }
 
   private handleReroll(): void {
@@ -371,7 +492,6 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
       const height = this.scene.cameras.main.height
 
       this.renderCards(width, height)
-      this.rerollBtn?.destroy()
       this.createBottomBar(width, height)
 
       SoundFX.thud(0.3)
@@ -395,9 +515,6 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     })
   }
 
-  /**
-   * 安全关闭弹窗并返回战场
-   */
   public closeModal(): void {
     SoundFX.thud(0.3)
     this.scene.tweens.add({

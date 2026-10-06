@@ -64,6 +64,20 @@ export interface Augment {
   category: AugmentCategory
   /** 所属三国典故五大策系 */
   stratagemCategory?: StratagemCategory
+  /** 作用维度 / 对应元素或相生反应（如：【金·裂】、水生木、逆转韧性/刚毅） */
+  targetDimension?: string
+  /** 三国历史/演义典故出处 */
+  historicalLore?: string
+  /** 核心机制改造词头（如：【痛点破除·静亦流血】、【水木接火】） */
+  mechanismTitle?: string
+  /** 改写前底层规则简述 */
+  ruleBefore?: string
+  /** 改写后核心机制质变简述 */
+  ruleAfter?: string
+  /** 看天选策：最佳配合天时气象 */
+  synergyWeather?: string
+  /** 破局指南：专克五维兵种与统帅 Boss */
+  counterBoss?: string
   icon?: string
   tags?: string[]
   /** 触发五行限制（若有，则需要场上有该五行英雄时才更容易刷出） */

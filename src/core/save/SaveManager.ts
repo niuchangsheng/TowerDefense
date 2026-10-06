@@ -408,22 +408,74 @@ export class SaveManager {
   }
 
   /**
-   * 更新百战无尽战绩记录
+   * 获取指定古战场舆图的最高推进波次（含15波破关与百战无尽）
+   */
+  getMapHighestWave(levelId: string): number {
+    const extractWave = (s: SaveData | null): number => {
+      if (!s) return 0
+      const fromEndlessMap = s.endlessRecord?.mapHighestWaves?.[levelId] ?? 0
+      const lvlProg = s.levelProgress?.find(l => l && l.levelId === levelId)
+      const fromLevelProg = lvlProg?.highestWave ?? (lvlProg?.isCompleted ? 15 : 0)
+      return Math.max(fromEndlessMap, fromLevelProg)
+    }
+
+    let best = extractWave(this.currentSave)
+    for (let slot = 0; slot <= 3; slot++) {
+      try {
+        const raw = localStorage.getItem(this.getSaveKey(slot))
+        if (raw) {
+          const parsed = JSON.parse(raw) as SaveData
+          best = Math.max(best, extractWave(parsed))
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return best
+  }
+
+  /**
+   * 更新百战无尽战绩记录（支持记录对应古战场舆图的最高波次）
    * @param wave 本局突破波次
    * @param kills 本局击杀总数
+   * @param levelId 可选：所属古战场舆图ID
    * @returns 是否打破历史纪录
    */
-  updateEndlessRecord(wave: number, kills: number): boolean {
-    let save = this.currentSave || this.loadFromSlot(1)
+  updateEndlessRecord(wave: number, kills: number, levelId?: string): boolean {
+    let save = this.currentSave || this.loadFromSlot(1) || this.loadFromSlot(0)
     if (!save) {
       save = this.createNewSave(1)
     }
     if (!save.endlessRecord) {
-      save.endlessRecord = { highestWave: 0, currentWave: 1, totalKills: 0, bestDate: 0 }
+      save.endlessRecord = { highestWave: 0, currentWave: 1, totalKills: 0, bestDate: 0, mapHighestWaves: {} }
+    }
+    if (!save.endlessRecord.mapHighestWaves) {
+      save.endlessRecord.mapHighestWaves = {}
     }
 
     // 更新当前波次进度
     save.endlessRecord.currentWave = Math.max(1, wave)
+
+    if (levelId) {
+      const prevMapBest = save.endlessRecord.mapHighestWaves[levelId] || 0
+      if (wave > prevMapBest) {
+        save.endlessRecord.mapHighestWaves[levelId] = wave
+      }
+      const lvlIdx = save.levelProgress.findIndex(l => l && l.levelId === levelId)
+      if (lvlIdx >= 0) {
+        save.levelProgress[lvlIdx].highestWave = Math.max(save.levelProgress[lvlIdx].highestWave || 0, wave)
+        if (wave >= 15) {
+          save.levelProgress[lvlIdx].isCompleted = true
+        }
+      } else if (wave >= 15) {
+        save.levelProgress.push({
+          levelId,
+          isCompleted: true,
+          starsAchieved: 3,
+          highestWave: wave
+        })
+      }
+    }
 
     let isNewRecord = false
     if (wave > save.endlessRecord.highestWave) {
@@ -435,6 +487,9 @@ export class SaveManager {
 
     this.currentSave = save
     this.saveCurrent()
+    if (this.currentSlot !== 0) {
+      this.saveToSlot(0, save)
+    }
     return isNewRecord
   }
 }

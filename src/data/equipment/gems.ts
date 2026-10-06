@@ -10,39 +10,39 @@ export const GEM_STAT_RANGES: Record<
   Record<number, { min: number; max: number; isPercentage: boolean; label: string }>
 > = {
   attack: {
-    1: { min: 0.008, max: 0.014, isPercentage: true, label: '攻击力' },
-    2: { min: 0.015, max: 0.025, isPercentage: true, label: '攻击力' },
+    1: { min: 0.010, max: 0.015, isPercentage: true, label: '攻击力' },
+    2: { min: 0.016, max: 0.025, isPercentage: true, label: '攻击力' },
     3: { min: 0.026, max: 0.038, isPercentage: true, label: '攻击力' },
     4: { min: 0.039, max: 0.052, isPercentage: true, label: '攻击力' },
     5: { min: 0.053, max: 0.070, isPercentage: true, label: '攻击力' }
   },
   attackRange: {
-    1: { min: 2, max: 4, isPercentage: false, label: '攻击范围' },
-    2: { min: 4, max: 7, isPercentage: false, label: '攻击范围' },
-    3: { min: 7, max: 11, isPercentage: false, label: '攻击范围' },
-    4: { min: 11, max: 15, isPercentage: false, label: '攻击范围' },
-    5: { min: 15, max: 20, isPercentage: false, label: '攻击范围' }
+    1: { min: 0.010, max: 0.015, isPercentage: true, label: '攻击范围' },
+    2: { min: 0.016, max: 0.025, isPercentage: true, label: '攻击范围' },
+    3: { min: 0.026, max: 0.038, isPercentage: true, label: '攻击范围' },
+    4: { min: 0.039, max: 0.055, isPercentage: true, label: '攻击范围' },
+    5: { min: 0.056, max: 0.080, isPercentage: true, label: '攻击范围' }
   },
   attackSpeed: {
-    1: { min: 0.008, max: 0.014, isPercentage: true, label: '攻击速度' },
-    2: { min: 0.015, max: 0.025, isPercentage: true, label: '攻击速度' },
-    3: { min: 0.026, max: 0.038, isPercentage: true, label: '攻击速度' },
-    4: { min: 0.039, max: 0.052, isPercentage: true, label: '攻击速度' },
-    5: { min: 0.053, max: 0.070, isPercentage: true, label: '攻击速度' }
+    1: { min: 0.010, max: 0.020, isPercentage: true, label: '攻击速度' },
+    2: { min: 0.021, max: 0.035, isPercentage: true, label: '攻击速度' },
+    3: { min: 0.036, max: 0.052, isPercentage: true, label: '攻击速度' },
+    4: { min: 0.053, max: 0.075, isPercentage: true, label: '攻击速度' },
+    5: { min: 0.076, max: 0.100, isPercentage: true, label: '攻击速度' }
   },
   critRate: {
-    1: { min: 0.006, max: 0.012, isPercentage: true, label: '暴击几率' },
-    2: { min: 0.012, max: 0.020, isPercentage: true, label: '暴击几率' },
-    3: { min: 0.020, max: 0.032, isPercentage: true, label: '暴击几率' },
-    4: { min: 0.032, max: 0.045, isPercentage: true, label: '暴击几率' },
-    5: { min: 0.045, max: 0.060, isPercentage: true, label: '暴击几率' }
+    1: { min: 0.010, max: 0.015, isPercentage: true, label: '暴击几率' },
+    2: { min: 0.016, max: 0.025, isPercentage: true, label: '暴击几率' },
+    3: { min: 0.026, max: 0.038, isPercentage: true, label: '暴击几率' },
+    4: { min: 0.039, max: 0.055, isPercentage: true, label: '暴击几率' },
+    5: { min: 0.056, max: 0.080, isPercentage: true, label: '暴击几率' }
   },
   critDamage: {
-    1: { min: 0.015, max: 0.030, isPercentage: true, label: '暴击伤害' },
-    2: { min: 0.030, max: 0.050, isPercentage: true, label: '暴击伤害' },
-    3: { min: 0.050, max: 0.075, isPercentage: true, label: '暴击伤害' },
-    4: { min: 0.075, max: 0.105, isPercentage: true, label: '暴击伤害' },
-    5: { min: 0.105, max: 0.140, isPercentage: true, label: '暴击伤害' }
+    1: { min: 0.020, max: 0.040, isPercentage: true, label: '暴击伤害' },
+    2: { min: 0.041, max: 0.070, isPercentage: true, label: '暴击伤害' },
+    3: { min: 0.071, max: 0.110, isPercentage: true, label: '暴击伤害' },
+    4: { min: 0.111, max: 0.160, isPercentage: true, label: '暴击伤害' },
+    5: { min: 0.161, max: 0.220, isPercentage: true, label: '暴击伤害' }
   }
 }
 
@@ -63,15 +63,17 @@ export const GEM_STAT_LABELS: Record<GemStatType, string> = {
 }
 
 /**
- * 为宝石生成 2 条随机基础属性词条
+ * 为宝石生成 2 条随机基础属性词条（允许重复抽取相同属性，如双攻击力/双暴伤）
  * @param level 宝石等级 (1~5)
  * @param minRollPercentile 保底分位值提升（无尽北伐高层掉落奖励，0 ~ 0.50，只抬高下限绝不突破 Max 上限）
  * @param inheritedStats 三合一升阶时由【主石】100% 定向继承的词条属性类型
+ * @param inheritedPercentiles 三合一升阶时由【主石】继承的词条品质分位 (0 ~ 1)
  */
 export function rollGemAffixes(
   level: number,
   minRollPercentile: number = 0,
-  inheritedStats?: GemStatType[]
+  inheritedStats?: GemStatType[],
+  inheritedPercentiles?: number[]
 ): GemAffix[] {
   const clampedLevel = Math.max(1, Math.min(5, level))
   const clampedPercentile = Math.max(0, Math.min(0.50, minRollPercentile))
@@ -80,18 +82,22 @@ export function rollGemAffixes(
   if (inheritedStats && inheritedStats.length >= 2) {
     chosenStats = [inheritedStats[0], inheritedStats[1]]
   } else {
-    const pool = [...ALL_GEM_STATS]
-    const firstIdx = Math.floor(Math.random() * pool.length)
-    const first = pool.splice(firstIdx, 1)[0]
-    const secondIdx = Math.floor(Math.random() * pool.length)
-    const second = pool[secondIdx]
+    // 独立随机抽取 2 条（允许抽到相同属性词条堆叠）
+    const first = ALL_GEM_STATS[Math.floor(Math.random() * ALL_GEM_STATS.length)]
+    const second = ALL_GEM_STATS[Math.floor(Math.random() * ALL_GEM_STATS.length)]
     chosenStats = [first, second]
   }
 
-  return chosenStats.map(stat => {
+  return chosenStats.map((stat, idx) => {
     const range = GEM_STAT_RANGES[stat][clampedLevel]
-    const effectiveMin = range.min + (range.max - range.min) * clampedPercentile
-    const rawVal = effectiveMin + Math.random() * (range.max - effectiveMin)
+    let rawVal: number
+    if (inheritedPercentiles && typeof inheritedPercentiles[idx] === 'number') {
+      const pct = Math.max(clampedPercentile, Math.min(1, inheritedPercentiles[idx]))
+      rawVal = range.min + (range.max - range.min) * pct
+    } else {
+      const effectiveMin = range.min + (range.max - range.min) * clampedPercentile
+      rawVal = effectiveMin + Math.random() * (range.max - effectiveMin)
+    }
     const value = range.isPercentage
       ? Number(Math.min(range.max, rawVal).toFixed(4))
       : Math.min(range.max, Math.round(rawVal))
@@ -104,6 +110,37 @@ export function rollGemAffixes(
       isPercentage: range.isPercentage
     }
   })
+}
+
+/**
+ * 计算单条词条在其等级 [Min, Max] 区间内的品质分位 (0.0 ~ 1.0)
+ */
+export function getAffixPercentile(affix: GemAffix): number {
+  const span = affix.max - affix.min
+  if (span <= 0) return 1
+  return Math.max(0, Math.min(1, (affix.value - affix.min) / span))
+}
+
+/**
+ * 评估宝石词条综合品相评级（普通 / 良工 / 🔥极品满Roll · 第10章 §10.3.3）
+ */
+export function getGemQualityRating(gem: Gem): {
+  label: string
+  color: string
+  avgPercentile: number
+} {
+  if (!gem.affixes || gem.affixes.length === 0) {
+    return { label: '良工', color: '#2e7d32', avgPercentile: 0.5 }
+  }
+  const sum = gem.affixes.reduce((acc, a) => acc + getAffixPercentile(a), 0)
+  const avg = sum / gem.affixes.length
+  if (avg >= 0.80) {
+    return { label: '🔥 极品满Roll', color: '#c62828', avgPercentile: avg }
+  } else if (avg >= 0.45) {
+    return { label: '✦ 良工佳品', color: '#8a5a14', avgPercentile: avg }
+  } else {
+    return { label: '普通原胚', color: '#5c5549', avgPercentile: avg }
+  }
 }
 
 /**

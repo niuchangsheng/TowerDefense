@@ -2,12 +2,20 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('phaser', () => {
   class MockScene {}
+  class MockContainer {}
   return {
     default: {
-      Scene: MockScene
+      Scene: MockScene,
+      GameObjects: {
+        Container: MockContainer
+      }
     }
   }
 })
+
+vi.mock('@/effects/CharacterAttackFX', () => ({
+  CharacterAttackFX: class {}
+}))
 
 import { AUGMENT_POOL, REPEATABLE_AUGMENTS } from '@/data/augments'
 import { getHeroConfig } from '@/data/heroes'
@@ -85,4 +93,39 @@ describe('AugmentCompendium 军事锦囊图鉴数据与分类测试', () => {
       expect(heroConfig?.name).toBeTruthy()
     }
   })
+
+  it('五大典故策系 + 无尽精进策完美覆盖全部 30 卷且互不重叠（§7.1~§7.6）', () => {
+    const scene = new AugmentCompendiumScene()
+    scene.init({ volume: 'stratagems' })
+
+    const c1 = scene.getTabCount('五行异变策')
+    const c2 = scene.getTabCount('相生连环策')
+    const c3 = scene.getTabCount('攻防逆转策')
+    const c4 = scene.getTabCount('奇谋战法策')
+    const c5 = scene.getTabCount('观星借天策')
+    const rep = scene.getTabCount('repeatable')
+
+    expect(c1).toBe(5) // 潼关割袍 / 刮骨疗毒 / 铁索横江 / 博望屯火 / 霸桥挑袍
+    expect(c2).toBe(6) // 水淹七军 / 赤壁东风 / 盘蛇焚藤 / 暗渡陈仓 / 渭水筑城 / 五气朝元
+    expect(c3).toBe(5) // 七擒孟获 / 定军斩渊 / 长坂单骑 / 八门金锁 / 万剑归宗
+    expect(c4).toBe(6) // 隆中三分 / 草船借箭 / 空城抚琴 / 木牛流马 / 墨染山河 / 百战玄甲
+    expect(c5).toBe(3) // 五丈原祈星 / 奇门遁甲 / 望梅止渴
+    expect(rep).toBe(5)
+
+    expect(c1 + c2 + c3 + c4 + c5 + rep).toBe(30)
+  })
+
+  it('每一卷锦囊均具备三国历史典故出处、改写前后底层规则对照与天时/统帅破局指南', () => {
+    for (const aug of allAugments) {
+      expect(aug.stratagemCategory).toBeTruthy()
+      expect(aug.targetDimension).toBeTruthy()
+      expect(aug.historicalLore).toBeTruthy()
+      expect(aug.mechanismTitle).toBeTruthy()
+      expect(aug.ruleBefore).toBeTruthy()
+      expect(aug.ruleAfter).toBeTruthy()
+      expect(aug.synergyWeather).toBeTruthy()
+      expect(aug.counterBoss).toBeTruthy()
+    }
+  })
 })
+

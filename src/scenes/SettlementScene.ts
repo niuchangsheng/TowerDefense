@@ -308,17 +308,19 @@ export default class SettlementScene extends Phaser.Scene {
   }
 
   /**
-   * 创建无尽模式专用水墨结算界面
+   * 创建百战无尽模式专用水墨结算界面（与五大古战场合一）
    */
   private createEndlessSettlement(): void {
     const width = this.cameras.main.width
     const stats = this.battleResult.stats
     const waves = this.battleResult.wavesCompleted || 0
+    const mapMeta = getBattlefieldMapMeta(this.battleResult.levelId)
+    const beacon = EndlessModeManager.getBeaconTierInfo(waves)
 
-    // 标题：百战无尽 · 试炼结算
-    inkText(this, width / 2, 48, '百战无尽 · 试炼结算', {
-      size: 40,
-      color: InkText.strong,
+    // 标题：百战无尽 · 烽火结算
+    inkText(this, width / 2, 46, `${beacon.icon} 百战无尽 · 烽火结算`, {
+      size: 38,
+      color: InkText.cinnabar,
       bold: true,
       originX: 0.5
     })
@@ -327,8 +329,8 @@ export default class SettlementScene extends Phaser.Scene {
     if (stats?.isNewRecord) {
       const sealW = 96
       const sealH = 26
-      const sealX = width / 2 + 220
-      const sealY = 48
+      const sealX = width / 2 + 235
+      const sealY = 46
       const seal = this.add.rectangle(sealX, sealY, sealW, sealH, InkColor.cinnabar)
       seal.setStrokeStyle(1.5, 0x6e1b15)
       inkText(this, sealX, sealY, '【百战新篇】', {
@@ -340,12 +342,20 @@ export default class SettlementScene extends Phaser.Scene {
       })
     }
 
-    // 副标题
-    inkText(this, width / 2, 90, `沙盘论道 · 止步于第 ${waves} 阵`, {
-      size: InkFontSize.md,
-      color: InkText.faint,
-      originX: 0.5
-    })
+    // 副标题：战场卷名 + 烽火阶段 + 灵石保底分位
+    const mapTitle = mapMeta ? `${mapMeta.scrollTitle} · ${mapMeta.guardianBossName}` : this.battleResult.levelId
+    const minRollPct = Math.round(beacon.gemMinRollPercentile * 100)
+    inkText(
+      this,
+      width / 2,
+      88,
+      `【${mapTitle}】止步于第 ${waves} 波 · 境界：${beacon.title}（灵石保底 +${minRollPct}%）`,
+      {
+        size: InkFontSize.md,
+        color: InkText.faint,
+        originX: 0.5
+      }
+    )
 
     // 左栏：无尽试炼考绩 (140, 126, 460, 145) + 诸将历练 (140, 285, 460, 295)
     this.createEndlessStatsPanel(140, 126, 460, 145)
@@ -365,16 +375,17 @@ export default class SettlementScene extends Phaser.Scene {
     const panel = createPanel(this, x, y, w, h)
     const stats = this.battleResult.stats
     const record = this.saveManager.getEndlessRecord()
+    const waveReached = stats?.highestWave ?? this.battleResult.wavesCompleted
+    const beacon = EndlessModeManager.getBeaconTierInfo(waveReached)
 
-    panel.add(inkText(this, 20, 22, '◈ 试炼考绩', {
+    panel.add(inkText(this, 20, 22, `◈ 百战考绩 · ${beacon.icon} ${beacon.title}`, {
       size: 15,
       color: InkText.wash,
       bold: true
     }))
 
-    // 第一行：止步阵数与斩敌总数
-    const waveReached = stats?.highestWave ?? this.battleResult.wavesCompleted
-    panel.add(inkText(this, 24, 52, `止步阵数: 第 ${waveReached} 阵`, {
+    // 第一行：止步波数与斩敌总数
+    panel.add(inkText(this, 24, 52, `止步波次: 第 ${waveReached} 波`, {
       size: 13,
       color: InkText.cinnabar,
       bold: true
@@ -384,12 +395,12 @@ export default class SettlementScene extends Phaser.Scene {
       color: InkText.ink
     }))
 
-    // 第二行：斩杀精英与降服魔首
+    // 第二行：斩杀精英与降服统帅
     panel.add(inkText(this, 24, 82, `斩杀精英: 🔱 ${stats?.eliteKills ?? 0} 名`, {
       size: 13,
       color: InkText.ink
     }))
-    panel.add(inkText(this, 240, 82, `降服魔首: 👑 ${stats?.bossKills ?? 0} 尊`, {
+    panel.add(inkText(this, 240, 82, `降服统帅: 👑 ${stats?.bossKills ?? 0} 尊`, {
       size: 13,
       color: InkText.ink
     }))
@@ -400,7 +411,7 @@ export default class SettlementScene extends Phaser.Scene {
       size: 13,
       color: InkText.faint
     }))
-    panel.add(inkText(this, 240, 112, `历史之最: 第 ${record?.highestWave ?? 0} 阵`, {
+    panel.add(inkText(this, 240, 112, `百战纪录: 第 ${record?.highestWave ?? waveReached} 波`, {
       size: 13,
       color: InkText.gold,
       bold: true
@@ -576,12 +587,16 @@ export default class SettlementScene extends Phaser.Scene {
       }
     }
 
-    // 4. 宝石
+    // 4. 宝石（显示百战无尽词条保底分位）
     if (this.rewards.gems.length > 0) {
+      const minRollPct = Math.round(
+        EndlessModeManager.getGemMinRollPercentile(this.battleResult.wavesCompleted || 0) * 100
+      )
+      const minRollTag = minRollPct > 0 ? `（词条保底 +${minRollPct}%）` : ''
       for (const gem of this.rewards.gems) {
         if (itemY > h - 40) break
         const style = INK_WUXING[gem.wuXing as WuXing]
-        const gemName = `💎 ${style?.label ?? '?'}系灵石 Lv.${gem.level}`
+        const gemName = `💎 ${style?.label ?? '?'}系灵石 Lv.${gem.level}${minRollTag}`
         this.createRewardRow(panel, itemY, w, '五行宝石', gemName, style?.text ?? InkText.faint)
         itemY += itemSpacing
       }
@@ -756,28 +771,34 @@ export default class SettlementScene extends Phaser.Scene {
     const height = this.cameras.main.height
     const buttonY = height - 72
 
-    const isEndless = Boolean(this.battleResult.stats?.isEndless || this.battleResult.levelId.includes('endless'))
+    const targetLevelId = this.battleResult.levelId || 'chapter1_level1'
+    const isEndless = Boolean(this.battleResult.stats?.isEndless || targetLevelId.includes('endless'))
+    const isConquered = isEndless || this.battleResult.isVictory || (this.battleResult.wavesCompleted || 0) >= 15
+    const resumeWave = Math.max(
+      16,
+      this.saveManager.getMapHighestWave(targetLevelId),
+      this.battleResult.wavesCompleted || 0
+    )
+
     if (isEndless) {
-      const nextWave = this.saveManager.getEndlessCurrentWave()
-      const retryLabel = nextWave > 1 ? `续战第${nextWave}阵` : '再次挑战'
-      createInkButton(this, width / 2 - 90, buttonY, 140, 44, retryLabel, {
-        fill: InkColor.inkStrong,
-        hoverFill: InkColor.ink,
+      createInkButton(this, width / 2 - 105, buttonY, 185, 44, `🔥 继续挑战(第${resumeWave}波)`, {
+        fill: InkColor.cinnabar,
+        hoverFill: 0xb53a32,
         textColor: InkText.paper,
-        fontSize: 16,
+        fontSize: 15,
         onClick: () => {
-          this.scene.start('BattleScene', { levelId: 'level_endless_tower', startWave: nextWave })
+          this.scene.start('BattleScene', { levelId: targetLevelId, startWave: resumeWave })
         }
       })
 
-      createInkButton(this, width / 2 + 90, buttonY, 140, 44, '返回主页', {
+      createInkButton(this, width / 2 + 105, buttonY, 145, 44, '返回选卷', {
         fill: InkColor.paperPanel,
         hoverFill: InkColor.paperDeep,
         textColor: InkText.ink,
-        fontSize: 17,
+        fontSize: 16,
         stroke: InkColor.ink,
         onClick: () => {
-          this.scene.start('TitleScene')
+          this.scene.start('LevelSelectScene')
         }
       })
       return
@@ -787,54 +808,57 @@ export default class SettlementScene extends Phaser.Scene {
     const showNext = this.battleResult.isVictory && !!nextLevelId
 
     if (showNext) {
-      // 3个按钮对称居中
-      createInkButton(this, width / 2 - 160, buttonY, 130, 44, '下一关', {
+      // 3个按钮对称居中（已破关：下一卷 / 继续本卷无尽 / 返回选卷）
+      createInkButton(this, width / 2 - 175, buttonY, 135, 44, '下一卷', {
         fill: InkColor.cinnabar,
         hoverFill: 0xb53a32,
         textColor: InkText.paper,
-        fontSize: 17,
+        fontSize: 16,
         onClick: () => {
           this.scene.start('BattleScene', { levelId: nextLevelId })
         }
       })
 
-      createInkButton(this, width / 2, buttonY, 130, 44, '再次挑战', {
+      createInkButton(this, width / 2, buttonY, 175, 44, `🔥 继续无尽(第${resumeWave}波)`, {
         fill: InkColor.inkStrong,
         hoverFill: InkColor.ink,
         textColor: InkText.paper,
-        fontSize: 17,
+        fontSize: 15,
         onClick: () => {
-          this.scene.start('BattleScene', { levelId: this.battleResult.levelId })
+          this.scene.start('BattleScene', { levelId: targetLevelId, startWave: resumeWave })
         }
       })
 
-      createInkButton(this, width / 2 + 160, buttonY, 130, 44, '返回', {
+      createInkButton(this, width / 2 + 175, buttonY, 135, 44, '返回选卷', {
         fill: InkColor.paperPanel,
         hoverFill: InkColor.paperDeep,
         textColor: InkText.ink,
-        fontSize: 17,
+        fontSize: 16,
         stroke: InkColor.ink,
         onClick: () => {
           this.scene.start('LevelSelectScene')
         }
       })
     } else {
-      // 2个按钮对称居中（章节末关或战败时）
-      createInkButton(this, width / 2 - 90, buttonY, 140, 44, '再次挑战', {
-        fill: InkColor.inkStrong,
-        hoverFill: InkColor.ink,
+      // 2个按钮对称居中（末卷破关或未破关战败时）
+      const retryLabel = isConquered ? `🔥 继续挑战(第${resumeWave}波)` : '⚔️ 从头再战(第1波)'
+      const retryStartWave = isConquered ? resumeWave : 1
+
+      createInkButton(this, width / 2 - 105, buttonY, 185, 44, retryLabel, {
+        fill: isConquered ? InkColor.cinnabar : InkColor.inkStrong,
+        hoverFill: isConquered ? 0xb53a32 : InkColor.ink,
         textColor: InkText.paper,
-        fontSize: 17,
+        fontSize: 15,
         onClick: () => {
-          this.scene.start('BattleScene', { levelId: this.battleResult.levelId })
+          this.scene.start('BattleScene', { levelId: targetLevelId, startWave: retryStartWave })
         }
       })
 
-      createInkButton(this, width / 2 + 90, buttonY, 140, 44, '返回', {
+      createInkButton(this, width / 2 + 105, buttonY, 145, 44, '返回选卷', {
         fill: InkColor.paperPanel,
         hoverFill: InkColor.paperDeep,
         textColor: InkText.ink,
-        fontSize: 17,
+        fontSize: 16,
         stroke: InkColor.ink,
         onClick: () => {
           this.scene.start('LevelSelectScene')

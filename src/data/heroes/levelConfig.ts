@@ -10,16 +10,16 @@ import { HeroLevelConfig, ExpRewardConfig } from '@/types'
 export const MAX_HERO_LEVEL = 10
 
 export const MARTIAL_REALM_NAMES: Record<number, string> = {
-  1: '一境·初窥门径',
-  2: '二境·气贯周天',
-  3: '三境·洗髓伐毛',
-  4: '四境·罡气外放',
-  5: '五境·炉火纯青',
-  6: '六境·登峰造极',
-  7: '七境·出神入化',
-  8: '八境·返璞归真',
-  9: '九境·一代宗师',
-  10: '十境·无双大宗师'
+  1: '初阵',
+  2: '淬体',
+  3: '凝气',
+  4: '破锋',
+  5: '贯通',
+  6: '宗师',
+  7: '止水',
+  8: '天人',
+  9: '无双',
+  10: '化境'
 }
 
 /**

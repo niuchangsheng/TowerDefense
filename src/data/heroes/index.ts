@@ -40,15 +40,51 @@ export interface StarDestinyNode {
   title: string
   attachRatePct: number
   attachmentRate: number
+  socketPermission: string
   unlockDesc: string
 }
 
 export const STAR_DESTINY_NODES: StarDestinyNode[] = [
-  { star: 1, title: '1★ 命星初亮', attachRatePct: 25, attachmentRate: 0.25, unlockDesc: '开局全员无门槛上阵，解锁基础主动战法' },
-  { star: 2, title: '2★ 同源器眼', attachRatePct: 40, attachmentRate: 0.40, unlockDesc: '解锁专属神兵【同源宝石槽】，部署军费 -2' },
-  { star: 3, title: '3★ 本命武魂', attachRatePct: 50, attachmentRate: 0.50, unlockDesc: '觉醒名将 3★ 专属本命特质（机制质变）' },
-  { star: 4, title: '4★ 相生器眼', attachRatePct: 65, attachmentRate: 0.65, unlockDesc: '解锁专属神兵【相生宝石槽】，破 Boss 铁壁效率 1.5x' },
-  { star: 5, title: '5★ 紫微极意', attachRatePct: 80, attachmentRate: 0.80, unlockDesc: '双槽 Lv.5 宝石觉醒【圣兽法相终极大招】，战法回 +8% 军令' }
+  {
+    star: 1,
+    title: '初露锋芒',
+    attachRatePct: 25,
+    attachmentRate: 0.25,
+    socketPermission: '可佩戴兵器/本命神兵（激活神兵技能变化），宝石孔位尚未开窍',
+    unlockDesc: '解锁武将【原始主动战法】与基础被动，五虎开局全员无门槛上阵'
+  },
+  {
+    star: 2,
+    title: '威名远播',
+    attachRatePct: 40,
+    attachmentRate: 0.40,
+    socketPermission: '🔓 打通神兵【同源宝石槽】(sameSocket)，允许镶嵌同系宝石激活【同源特效】',
+    unlockDesc: '【轻装急行】：该武将局内部署军费费用永久 -2'
+  },
+  {
+    star: 3,
+    title: '独当一面',
+    attachRatePct: 50,
+    attachmentRate: 0.50,
+    socketPermission: '保持【同源宝石槽】',
+    unlockDesc: '🔥 觉醒【三国本命特质】（每位武将独有的五行元素状态联动核心被动）'
+  },
+  {
+    star: 4,
+    title: '威震华夏',
+    attachRatePct: 65,
+    attachmentRate: 0.65,
+    socketPermission: '🔓 打通神兵【相生宝石槽】(generatingSocket)，实现【同源+相生特效】双槽同存',
+    unlockDesc: '【破壁先锋】：由该武将触发的【五行相生反应】对 Boss【五行铁壁】造成 1.5× 破盾削减'
+  },
+  {
+    star: 5,
+    title: '五虎天命',
+    attachRatePct: 80,
+    attachmentRate: 0.80,
+    socketPermission: '🐉 解锁【双 Lv.5 宝石 · 终极大招】觉醒权限（双槽嵌满 Lv.5 神品宝石激发圣兽法相）',
+    unlockDesc: '【统帅军威】：每次释放主动战法时，立即为战场【军令台】灌注 +8% 军令充能'
+  }
 ]
 
 /**
@@ -56,7 +92,7 @@ export const STAR_DESTINY_NODES: StarDestinyNode[] = [
  * - 关羽（木·毒 / 武圣）
  * - 张飞（土·重 / 万人敌）
  * - 赵云（水·湿 / 常山赵子龙）
- * - 黄忠（火·灼 / 神箭）
+ * - 黄忠（火·灼 / 定军神箭）
  * - 马超（金·裂 / 神威天将军）
  */
 export const heroConfigs: HeroConfig[] = [
@@ -77,9 +113,9 @@ export const heroConfigs: HeroConfig[] = [
     passiveSkillId: 'skill_passive_guanyu',
     activeSkillId: 'skill_active_guanyu',
     unlockSoulStoneCount: 10,
-    starUpgradeRequirements: [20, 40, 80, 160],
-    star3TraitName: '【青龙饮血】',
-    star3TraitDesc: '对携带【木·毒】的敌军造成伤害时，每层木毒使暴击率 +8%；击杀带毒敌军立即返还主动战法 1.0s 冷却。'
+    starUpgradeRequirements: [1, 3, 6, 10],
+    star3TraitName: '【义绝春秋】',
+    star3TraitDesc: '战场上每有 1 名处于【木·毒】的敌军阵亡，关羽主动战法冷却立即缩短 0.6s，且毒种阵亡传染半径扩大 35%。'
   },
   {
     id: 'hero_zhangfei',
@@ -98,9 +134,9 @@ export const heroConfigs: HeroConfig[] = [
     passiveSkillId: 'skill_passive_zhangfei',
     activeSkillId: 'skill_active_zhangfei',
     unlockSoulStoneCount: 10,
-    starUpgradeRequirements: [20, 40, 80, 160],
-    star3TraitName: '【燕人咆哮】',
-    star3TraitDesc: '普攻命中处于【土·重】或【熔岩·焦土】的敌军时，额外削减 15% 刚毅（受 40% 保底下限约束），并使【负重内震】扩散至周围 70px。'
+    starUpgradeRequirements: [1, 3, 6, 10],
+    star3TraitName: '【万夫莫敌】',
+    star3TraitDesc: '处于张飞攻击范围内的敌军，其身上的【土·重】持续时间暂停衰减；且每次触发【负重内震】时，震波向周围 85px 额外溅射 50% 内震伤害。'
   },
   {
     id: 'hero_zhaoyun',
@@ -119,9 +155,9 @@ export const heroConfigs: HeroConfig[] = [
     passiveSkillId: 'skill_passive_zhaoyun',
     activeSkillId: 'skill_active_zhaoyun',
     unlockSoulStoneCount: 10,
-    starUpgradeRequirements: [20, 40, 80, 160],
-    star3TraitName: '【龙胆出入】',
-    star3TraitDesc: '每第 3 次普攻必定触发七探盘蛇连刺（100% 附着【水·湿】），且对处于【寒芒·碎冰】冻结目标的暴击伤害提升 +35%。'
+    starUpgradeRequirements: [1, 3, 6, 10],
+    star3TraitName: '【一身是胆】',
+    star3TraitDesc: '对处于【水·湿】的敌军每累计命中 4 次，第 4 击必定暴击，并使其身上的【水·湿】减速幅度在 2.0s 内翻倍。'
   },
   {
     id: 'hero_huangzhong',
@@ -140,9 +176,9 @@ export const heroConfigs: HeroConfig[] = [
     passiveSkillId: 'skill_passive_huangzhong',
     activeSkillId: 'skill_active_huangzhong',
     unlockSoulStoneCount: 10,
-    starUpgradeRequirements: [20, 40, 80, 160],
-    star3TraitName: '【定军烈弓】',
-    star3TraitDesc: '对距离自身 140px 以上的远端目标，【火·灼】附着率额外 +25%，且触发【木生火·燎原】时火海半径扩大 25%。'
+    starUpgradeRequirements: [1, 3, 6, 10],
+    star3TraitName: '【百步穿杨】',
+    star3TraitDesc: '对处于【火·灼】的敌军发起攻击时，黄忠本次攻击射程动态 +25%，且箭矢无视目标 20%【韧性】（更易暴击）。'
   },
   {
     id: 'hero_machao',
@@ -161,9 +197,9 @@ export const heroConfigs: HeroConfig[] = [
     passiveSkillId: 'skill_passive_machao',
     activeSkillId: 'skill_active_machao',
     unlockSoulStoneCount: 10,
-    starUpgradeRequirements: [20, 40, 80, 160],
-    star3TraitName: '【铁骑破甲】',
-    star3TraitDesc: '攻击携带【金·裂】的敌军时，流血真伤结算步距缩短 30%，且触发【土生金·淬刃】时额外迸射 1 道剑气。'
+    starUpgradeRequirements: [1, 3, 6, 10],
+    star3TraitName: '【神威铁骑】',
+    star3TraitDesc: '战场上每存在 1 名处于【金·裂】流血状态的敌军，马超自身攻击速度提升 6%（最多叠加 6 层至 +36% 攻速）。'
   }
 ]
 

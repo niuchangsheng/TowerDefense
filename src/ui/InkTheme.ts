@@ -183,6 +183,7 @@ export interface InkTextOptions {
   originX?: number
   originY?: number
   wrapWidth?: number
+  lineSpacing?: number
 }
 
 /**
@@ -201,14 +202,16 @@ export function inkText(
     bold = false,
     originX = 0,
     originY = 0.5,
-    wrapWidth
+    wrapWidth,
+    lineSpacing
   } = options
 
   const text = scene.add.text(x, y, content, {
     fontFamily: INK_FONT,
     fontSize: `${size}px`,
     color,
-    fontStyle: bold ? 'bold' : 'normal'
+    fontStyle: bold ? 'bold' : 'normal',
+    lineSpacing
   })
   text.setOrigin(originX, originY)
   if (wrapWidth !== undefined) {

@@ -20,13 +20,24 @@ export interface Weapon extends EquipmentBase {
 // 专属共鸣类型：无共鸣、同源共鸣、相生滋养
 export type ResonanceType = 'none' | 'same' | 'generating'
 
-// 神器专属共鸣配置
+// 神器专属共鸣配置（严格对齐 Wuxing_System_Design.md 第4、5、10章）
 export interface ExclusiveResonanceConfig {
+  heroId?: string                  // 专属神将ID
   heroName: string                 // 专属神将称号/名
-  hiddenSkillName: string          // 隐藏奥义技能名
-  sameEffectDesc: string           // 同源宝石共鸣效果描述
-  generatingEffectDesc: string     // 相生宝石滋养效果描述
-  ultimateDesc: string             // 5级神石终极唤醒描述
+  hiddenSkillName: string          // 神兵进化主动战法名
+  baseSkillName?: string           // 未佩戴神兵时的原始主动战法名
+  baseSkillDesc?: string           // 未佩戴神兵时的原始技能与被动描述
+  evolvedSkillDesc?: string        // 佩戴专属神兵后的主动与被动技能质变描述
+  sameEffectTitle?: string         // 2★ 同源槽特效名称（如【青龙木毒】）
+  sameEffectDesc: string           // 同源宝石共鸣机制总述
+  sameLevelDescs?: Record<number, string> // Lv.1 ~ Lv.5 同源宝石精确成长描述
+  generatingEffectTitle?: string   // 4★ 相生槽特效名称（如【沧海润木】）
+  generatingEffectDesc: string     // 相生宝石滋养机制总述（相生共鸣 + 战法引信）
+  generatingLevelDescs?: Record<number, string> // Lv.1 ~ Lv.5 相生宝石精确成长描述
+  ultimateName?: string            // 5★ 双Lv.5终极大招名称（如《青龙啸天》）
+  ultimateDesc: string             // 5★ 双Lv.5神石终极大招完整描述
+  guardianBeast?: string           // 五行守护圣兽法相名
+  poemQuote?: string               // 终极大招 0.35s 暗场切入诗号
 }
 
 // 宝石基础属性词条类型（严格取自我方五大基础属性池）

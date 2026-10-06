@@ -171,6 +171,59 @@ export default class PreloadScene extends Phaser.Scene {
     buttonGraphics.fillRect(0, 0, 200, 50)
     buttonGraphics.generateTexture('button_placeholder', 200, 50)
     buttonGraphics.destroy()
+
+    // 补充生成【龙胆亮银枪】与【虎头湛金枪】水墨神兵插画纹理
+    this.ensureDivineWeaponTextures()
+  }
+
+  private ensureDivineWeaponTextures(): void {
+    if (!this.textures.exists('artifact_longdan')) {
+      const g = this.add.graphics()
+      g.fillStyle(0x1b2838, 1)
+      g.fillRect(0, 0, 128, 128)
+      g.lineStyle(3, 0x4fc3f7, 0.85)
+      g.strokeRect(4, 4, 120, 120)
+      // 寒芒光晕
+      g.fillStyle(0x29b6f6, 0.22)
+      g.fillCircle(64, 64, 44)
+      // 银枪杆（斜向）
+      g.lineStyle(5, 0xcfd8dc, 1)
+      g.lineBetween(20, 108, 92, 36)
+      // 白缨红穗
+      g.fillStyle(0xe53935, 0.9)
+      g.fillTriangle(84, 44, 66, 36, 74, 56)
+      // 龙胆亮银枪尖
+      g.fillStyle(0xffffff, 1)
+      g.fillTriangle(112, 16, 86, 34, 94, 42)
+      g.lineStyle(2, 0x81d4fa, 1)
+      g.strokeTriangle(112, 16, 86, 34, 94, 42)
+      g.generateTexture('artifact_longdan', 128, 128)
+      g.destroy()
+    }
+
+    if (!this.textures.exists('artifact_zhanjin')) {
+      const g = this.add.graphics()
+      g.fillStyle(0x261e14, 1)
+      g.fillRect(0, 0, 128, 128)
+      g.lineStyle(3, 0xffb300, 0.9)
+      g.strokeRect(4, 4, 120, 120)
+      // 庚金光晕
+      g.fillStyle(0xffca28, 0.22)
+      g.fillCircle(64, 64, 44)
+      // 湛金枪杆
+      g.lineStyle(6, 0x8d6e63, 1)
+      g.lineBetween(18, 110, 90, 38)
+      // 虎头吞口金饰
+      g.fillStyle(0xffb300, 1)
+      g.fillCircle(86, 42, 9)
+      // 湛金枪锋
+      g.fillStyle(0xffe082, 1)
+      g.fillTriangle(114, 14, 84, 34, 94, 44)
+      g.lineStyle(2, 0xffa000, 1)
+      g.strokeTriangle(114, 14, 84, 34, 94, 44)
+      g.generateTexture('artifact_zhanjin', 128, 128)
+      g.destroy()
+    }
   }
 
   /**

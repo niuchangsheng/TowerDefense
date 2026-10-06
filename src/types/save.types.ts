@@ -25,11 +25,12 @@ export interface SaveData {
     gold: number
   }
 
-  // 关卡进度
+  // 关卡进度（合并记录 15 波破关与百战无尽最高波次）
   levelProgress: {
     levelId: string
     isCompleted: boolean
     starsAchieved: number
+    highestWave?: number
   }[]
 
   // 章节进度
@@ -38,12 +39,13 @@ export interface SaveData {
     isCompleted: boolean
   }[]
 
-  // 百战无尽试炼最佳战绩
+  // 百战无尽烽火最佳战绩（战役即无尽一体化）
   endlessRecord?: {
     highestWave: number
     currentWave?: number   // 当前挑战进度波次（用于无尽断点续战）
     totalKills: number
     bestDate: number
+    mapHighestWaves?: Record<string, number> // 各古战场舆图最高波次记录
   }
 }
 

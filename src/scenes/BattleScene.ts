@@ -30,6 +30,7 @@ import { MilitarySituationModal } from '@/ui/MilitarySituationModal'
 import { MilitarySituationDetailModal } from '@/ui/MilitarySituationDetailModal'
 import { AugmentStatusModal } from '@/ui/AugmentStatusModal'
 import { MilitarySituation } from '@/types/militarySituation'
+import { EndlessModeManager } from '@/core/level/EndlessModeManager'
 
 type RangeUnit = HeroEntity | TroopEntity
 
@@ -131,11 +132,16 @@ export default class BattleScene extends Phaser.Scene {
   init(data: { levelId: string; startWave?: number }): void {
     this.levelId = data.levelId || 'chapter1_level1'
     this.currentLevelConfig = getLevelConfig(this.levelId) || level1Config
-    const isEndless = this.currentLevelConfig.chapterId === 'endless' || this.currentLevelConfig.id === 'level_endless_tower'
-    if (isEndless) {
-      this.startWave = data.startWave ?? SaveManager.getInstance().getEndlessCurrentWave()
+    const isEndless =
+      this.currentLevelConfig.chapterId === 'endless' ||
+      this.currentLevelConfig.id === 'level_endless_tower'
+    if (typeof data.startWave === 'number' && data.startWave >= 1) {
+      this.startWave = data.startWave
+    } else if (isEndless) {
+      this.startWave = SaveManager.getInstance().getEndlessCurrentWave()
     } else {
-      this.startWave = 1
+      const savedMapWave = SaveManager.getInstance().getMapHighestWave(this.levelId)
+      this.startWave = savedMapWave >= 15 ? Math.max(16, savedMapWave) : 1
     }
     console.log(`BattleScene: 进入关卡 ${this.levelId} (${this.currentLevelConfig.name}), 起始波次: ${this.startWave}`)
   }
@@ -1215,15 +1221,35 @@ export default class BattleScene extends Phaser.Scene {
     })
 
     this.battleSystem.onWaveStart((wave) => {
-      const weather = this.battleSystem.getWeatherSystem().getCurrentWeather()
-      this.showTemporaryMessage(`第 ${wave} 波来袭 · 天时【${weather.name}】`)
+      const ws = this.battleSystem.getWeatherSystem()
+      const weather = ws.getCurrentWeather()
+      const secWeather = ws.getCurrentSecondaryWeather()
+      if (wave === 16 || wave === 26 || wave === 36) {
+        const beacon = EndlessModeManager.getBeaconTierInfo(wave)
+        this.showTemporaryMessage(
+          `【${beacon.icon} ${beacon.title}】${beacon.mechanicSummary} · 灵石保底 +${Math.round(beacon.gemMinRollPercentile * 100)}%`
+        )
+      } else if (secWeather) {
+        this.showTemporaryMessage(`第 ${wave} 波来袭 · 双象天时【${weather.name} + ${secWeather.name}】`)
+      } else {
+        this.showTemporaryMessage(`第 ${wave} 波来袭 · 天时【${weather.name}】`)
+      }
     })
 
     // 无弹窗动态天时轮转监听
     this.battleSystem.onWeatherChanged((weather, wave) => {
       this.updateMilitaryBadge()
       this.weatherFX.setWeather(weather.ambientWeatherKey || 'clear')
-      inkToast(this, `【观星天时 · 第${wave}波】${weather.name}：${weather.description}`, 120)
+      const secWeather = this.battleSystem.getWeatherSystem().getCurrentSecondaryWeather()
+      if (secWeather) {
+        inkToast(
+          this,
+          `【双象疾电 · 第${wave}波】${weather.name} + ${secWeather.name}：敌军享双天时五维增幅！`,
+          130
+        )
+      } else {
+        inkToast(this, `【观星天时 · 第${wave}波】${weather.name}：${weather.description}`, 120)
+      }
     })
 
     // 第 15 波通关抉择：【🏆 凯旋班师】 vs 【🔥 乘胜北伐 · 踏入无尽烽火 (Wave 16+)】
@@ -1437,10 +1463,12 @@ export default class BattleScene extends Phaser.Scene {
     this.militarySealBg.on('pointerdown', () => {
       const ws = this.battleSystem.getWeatherSystem()
       const cur = ws.getCurrentWeather()
+      const sec = ws.getCurrentSecondaryWeather()
       const next = ws.getNextSegmentWeather(this.battleSystem.getState().currentWave || 1)
+      const secNote = sec ? ` + 伴生【${sec.name}】` : ''
       inkToast(
         this,
-        `【观星台】当前：${cur.name}（${cur.description}）｜下段预告：${next.name}`,
+        `【观星台】当前：${cur.name}${secNote}（${cur.description}）｜下段预告：${next.name}`,
         140
       )
     })
@@ -1498,24 +1526,30 @@ export default class BattleScene extends Phaser.Scene {
    */
   private updateMilitaryBadge(): void {
     if (!this.militaryBadgeContainer || !this.militarySealBg || !this.militarySealText) return
-    const weather = this.battleSystem.getWeatherSystem().getCurrentWeather()
-    const weatherKey = weather.id
+    const ws = this.battleSystem.getWeatherSystem()
+    const weather = ws.getCurrentWeather()
+    const secWeather = ws.getCurrentSecondaryWeather()
+    const weatherKey = secWeather ? `${weather.id}+${secWeather.id}` : weather.id
 
     if (weatherKey === this.lastMilitaryTacticId) return
     this.lastMilitaryTacticId = weatherKey
 
     const shortName = weather.name.slice(0, 2)
+    const label = secWeather
+      ? `双象·${shortName}/${secWeather.name.slice(0, 2)}`
+      : `天时·${shortName}`
+
     if (weather.element) {
       const wxColor = INK_WUXING[weather.element]?.border ?? InkColor.cinnabar
       this.militarySealBg.setFillStyle(wxColor, 0.9)
-      this.militarySealBg.setSize(96, 28)
+      this.militarySealBg.setSize(secWeather ? 112 : 96, 28)
       this.militarySealText.setColor('#ffffff')
-      this.militarySealText.setText(`天时·${shortName}`)
+      this.militarySealText.setText(label)
     } else {
       this.militarySealBg.setFillStyle(InkColor.paperDeep, 0.95)
       this.militarySealBg.setSize(96, 28)
       this.militarySealText.setColor(InkText.strong)
-      this.militarySealText.setText(`天时·${shortName}`)
+      this.militarySealText.setText(label)
     }
   }
 
@@ -1539,9 +1573,10 @@ export default class BattleScene extends Phaser.Scene {
     this.costText.setText(`军费 ${state.currentCost}`)
     this.healthText.setText(`帅营 ${state.playerHealth}`)
 
-    // 无尽模式无上限波次显示，普通模式保留波次进度
+    // 无尽模式显示【三重烽火】标识 + 当前波次，普通模式显示 15 波进度
     if (this.battleSystem.isEndlessMode()) {
-      this.waveText.setText(`第 ${state.currentWave} 波`)
+      const beacon = EndlessModeManager.getBeaconTierInfo(state.currentWave)
+      this.waveText.setText(`${beacon.icon} 第 ${state.currentWave} 波`)
     } else {
       this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
     }

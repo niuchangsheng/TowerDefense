@@ -107,6 +107,10 @@ export class BattleSystem {
     const maxCost = levelConfig.playerMaxCost ?? COST_CONFIG.maxCost
     this.costManager = new CostManager(levelConfig.playerStartCost, maxCost)
 
+    if (startWave && startWave >= 16) {
+      this.endlessTransitioned = true
+    }
+
     // 初始化波次管理
     this.waveManager = new WaveManager(levelConfig.waves)
     const isEndless = this.isEndlessMode()
@@ -217,10 +221,12 @@ export class BattleSystem {
     this.isPaused = false
     this.battleState.status = 'running'
 
-    // Wave 1 开局赠送第 1 次三选一锦囊（共 5 次固定节点之一）
-    this.augmentManager.checkAndTriggerWaveAugment(1, 'start')
+    // Wave 1 开局赠送第 1 次三选一锦囊（若直入 Wave 16+ 则已在构造时补齐 5 策）
+    if (this.lastNotifiedWave === 0) {
+      this.augmentManager.checkAndTriggerWaveAugment(1, 'start')
+    }
 
-    // 开始第一波
+    // 开始第一波（或设定起始波）
     this.waveManager.startNextWave()
   }
 
@@ -562,6 +568,10 @@ export class BattleSystem {
       this.heroBattleManager.resetAllHeroTransforms()
       this.troopBattleManager.resetAllTroopTransforms()
 
+      // 同步百战无尽【三重烽火】阶段机制（Wave 26+ 附着窗口收紧至 2.0s）
+      const beaconInfo = EndlessModeManager.getBeaconTierInfo(currentWave)
+      ElementalReactionManager.getInstance().setAttachmentDurationMs(beaconInfo.attachmentDurationMs)
+
       // 同步观星借天策锦囊状态：《五丈原祈星》与《奇门遁甲》
       if (this.augmentManager.hasSpecialAugment('aug_wuzhangyuan_star')) {
         this.weatherSystem.setReverseNegativeAndBoostPositive(true)
@@ -576,7 +586,7 @@ export class BattleSystem {
       // 《望梅止渴》：每当天时轮转或每经过 3 波，开启 10s 普攻 100% 必挂五行元素窗口
       if (
         this.augmentManager.hasSpecialAugment('aug_endless_wuxing_harmony') &&
-        (rotated || currentWave % 3 === 1)
+        (rotated.changed || currentWave % 3 === 1)
       ) {
         this.weatherSystem.triggerWangmeiGuaranteedElement(this.elapsedTime, 10000)
       }
@@ -602,7 +612,7 @@ export class BattleSystem {
   }
 
   /**
-   * 生成单个敌人（含天时双向敌方属性修正 + Wave 5 / Wave 10 随天时绑定的先锋统帅）
+   * 生成单个敌人（含天时双向敌方属性修正 + Wave 5 / Wave 10 随天时绑定的先锋统帅 + Wave 16+ 三重烽火强化）
    */
   private spawnEnemy(enemyId: string): void {
     let config = getEnemyConfig(enemyId)
@@ -647,6 +657,16 @@ export class BattleSystem {
 
       const spawned = this.enemyManager.spawnEnemy(config, spawnOptions)
       const eData = spawned.getEnemyData()
+
+      // 百战一重烽火【八门重锁】（Wave 16+）：Boss 铁壁格数 +2，且连续使用同一种相生反应破盾效率减半
+      const beaconInfo = EndlessModeManager.getBeaconTierInfo(currentWave)
+      if (eData.type === 'boss' && beaconInfo.bossExtraAegisGrids > 0) {
+        eData.maxAegisGrids = (eData.maxAegisGrids ?? 3) + beaconInfo.bossExtraAegisGrids
+        eData.currentAegisGrids = eData.maxAegisGrids
+        eData.octagonalLockActive = beaconInfo.octagonalLockActive
+        spawned.updateHealth(eData.currentHealth)
+      }
+
       if (weatherEnemyMod.defenseBonus) {
         const baseDef = eData.defense ?? 0
         eData.defense = Math.max(baseDef * 0.4, baseDef * (1 + weatherEnemyMod.defenseBonus))
@@ -887,9 +907,9 @@ export class BattleSystem {
     const highestWave = this.waveManager.getCurrentWave()
     let isNewRecord = false
 
-    if (isEndless) {
+    if (isEndless || this.battleState.status === 'victory') {
       const saveManager = SaveManager.getInstance()
-      isNewRecord = saveManager.updateEndlessRecord(highestWave, this.totalKills)
+      isNewRecord = saveManager.updateEndlessRecord(highestWave, this.totalKills, this.levelConfig.id)
     }
 
     return {

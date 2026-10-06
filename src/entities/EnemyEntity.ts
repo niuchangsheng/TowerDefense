@@ -195,7 +195,7 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     this.healthBar.fillStyle(healthColor)
     this.healthBar.fillRect(-width / 2, yOffset, width * healthPercent, height)
 
-    // 渲染 Boss【五行铁壁】护盾格（3~5格，位于血条下方 5px）
+    // 渲染 Boss【五行铁壁】护盾格（3~7格，位于血条下方 5px，支持半格渲染）
     const maxGrids = this.enemyData.maxAegisGrids ?? 0
     const curGrids = this.enemyData.currentAegisGrids ?? 0
     if (maxGrids > 0) {
@@ -204,12 +204,12 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
       const gridW = (width - gap * (maxGrids - 1)) / maxGrids
       for (let i = 0; i < maxGrids; i++) {
         const gx = -width / 2 + i * (gridW + gap)
-        if (i < curGrids) {
+        this.healthBar.fillStyle(InkColor.ink, 0.25)
+        this.healthBar.fillRect(gx, aegisY, gridW, 3)
+        const fillRatio = Math.max(0, Math.min(1, curGrids - i))
+        if (fillRatio > 0) {
           this.healthBar.fillStyle(0xd99826, 0.95)
-          this.healthBar.fillRect(gx, aegisY, gridW, 3)
-        } else {
-          this.healthBar.fillStyle(InkColor.ink, 0.25)
-          this.healthBar.fillRect(gx, aegisY, gridW, 3)
+          this.healthBar.fillRect(gx, aegisY, gridW * fillRatio, 3)
         }
       }
     }
@@ -316,6 +316,7 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     ) {
       this.enemyData.phase2Awakened = true
       this.enemyData.currentAegisGrids = this.enemyData.maxAegisGrids
+      this.enemyData.lastAegisReactionType = undefined
       this.enemyData.shieldBrokenUntil = 0
       this.updateHealthBar()
       if (this.scene) {
@@ -329,6 +330,7 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
    * 五行相生反应削减 Boss【五行铁壁】护盾格
    * - 任意五行相生反应命中：削减 1 格
    * - 命中 Boss【命脉弱点相生】：削减 2 格并附加 3s 瘫痪
+   * - 百战一重烽火【八门重锁】（Wave 16+）：连续使用同一种相生反应破盾效率减半
    * - 全部铁壁格击碎瞬间：触发 1.5s 眩晕 + 5s 易伤 +50%
    */
   damageBossAegis(
@@ -342,11 +344,26 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
 
     const hitWeakness = Boolean(this.enemyData.weaknessReactions?.includes(reactionType))
     const baseBreak = hitWeakness ? 2 : 1
-    const totalBreak = Math.max(1, Math.round(baseBreak * (1 + breakBonusRatio)))
+    const isConsecutiveSame =
+      Boolean(this.enemyData.octagonalLockActive) &&
+      Boolean(reactionType) &&
+      this.enemyData.lastAegisReactionType === reactionType
+    const lockMultiplier = isConsecutiveSame ? 0.5 : 1.0
+    const rawBreak = baseBreak * (1 + breakBonusRatio) * lockMultiplier
+    const totalBreak = Math.max(0.5, Math.round(rawBreak * 2) / 2)
     const actualBroken = Math.min(curGrids, totalBreak)
 
-    this.enemyData.currentAegisGrids = Math.max(0, curGrids - actualBroken)
+    if (reactionType) {
+      this.enemyData.lastAegisReactionType = reactionType
+    }
+
+    this.enemyData.currentAegisGrids = Math.max(0, Number((curGrids - actualBroken).toFixed(2)))
     const shatteredAll = this.enemyData.currentAegisGrids === 0
+
+    if (isConsecutiveSame && this.scene) {
+      const fx = new CharacterAttackFX(this.scene)
+      fx.damageText({ x: this.x, y: this.y - 34 }, '【八门同锁·破盾减半】', { color: '#b0bec5' })
+    }
 
     if (hitWeakness) {
       const now = this.scene?.time?.now ?? Date.now()
@@ -361,6 +378,7 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     if (shatteredAll) {
       const now = this.scene?.time?.now ?? Date.now()
       this.enemyData.shieldBrokenUntil = now + 5000
+      this.enemyData.lastAegisReactionType = undefined
       this.applyStun(1500)
       this.hitShake(8)
       if (this.scene) {

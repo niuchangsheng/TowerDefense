@@ -3,51 +3,39 @@ import { SaveManager } from '@/core/save/SaveManager'
 import {
   getAllChapters,
   getChapterLevels,
-  isLevelUnlocked,
-  isChapterUnlocked,
   getBattlefieldMapMeta
 } from '@/data/levels'
-import { ChapterConfig, LevelConfig, WuXing } from '@/types'
-import { getEnemyConfig } from '@/data/enemies'
+import { LevelConfig, WuXing } from '@/types'
 import {
   InkColor,
   InkText,
-  InkFontSize,
+  INK_FONT,
   INK_WUXING,
   drawPaperBackground,
   inkText,
-  createInkButton,
-  renderPageHeader,
   createPageBackButton
 } from '@/ui/InkTheme'
 import { SoundFX } from '@/effects/SoundFX'
 
-/** 谁克制该五行 */
-const COUNTERED_BY: Record<WuXing, WuXing> = {
-  metal: 'fire',   // 火克金
-  wood: 'metal',   // 金克木
-  earth: 'wood',   // 木克土
-  water: 'earth',  // 土克水
-  fire: 'water'    // 水克火
-}
-
 /**
- * 战役关卡沙盘推演场景（水墨舆图风）
- * 左侧：中式羊皮纸行军沙盘（要塞关隘节点、蜿蜒虚线行军路线、大捷朱砂印章、烽火动效）
- * 右侧：《军机密报》情报卷轴（敌军规模、五行分布、孙子兵法克敌秘策、点将出征）
+ * 出师征战 · 水墨丹青五轴画屏场景
+ *
+ * 水墨美学要点：
+ * 1. 全幅山水烟岚背景：远山泼墨重峦、山巅古烽燧与狼烟、左上苍松斜枝、远天归雁、流岚云气与水墨飞白微粒；
+ * 2. 宋明立轴装裱形制：天杆挂绳、绫锦天头地脚、紫檀轴杆、鎏金玉轴头与朱红垂穗；
+ * 3. 画心写意古战场意境：每卷独属五行山水剪影（巨鹿苍林/樊城怒涛/合淝赤焰/郿坞崇垒/虎牢双峰）与浓淡墨晕；
+ * 4. 金石篆刻印章与书法题跋：去除现代 Emoji 与胶囊框，改用手钤金石方印、朱文批注与唯一地脚破关印记；
+ * 5. 虎符朱印帅令台：底部居中双线金框虎符大印按钮，已破关接续上次折戟波次，未破关自首波起征。
  */
 export default class LevelSelectScene extends Phaser.Scene {
   private saveManager: SaveManager
-  private currentChapterIndex: number = 0
   private completedLevels: string[] = []
   private selectedLevelId: string = ''
   private isTransitioning: boolean = false
+  private animTweens: Phaser.Tweens.Tween[] = []
 
-  // 容器组件与动效管理
-  private sandTableContainer!: Phaser.GameObjects.Container
-  private intelContainer!: Phaser.GameObjects.Container
-  private chapterTabsContainer!: Phaser.GameObjects.Container
-  private activeTweens: Phaser.Tweens.Tween[] = []
+  private scrollsContainer!: Phaser.GameObjects.Container
+  private bottomBarContainer!: Phaser.GameObjects.Container
 
   constructor() {
     super({ key: 'LevelSelectScene' })
@@ -56,6 +44,7 @@ export default class LevelSelectScene extends Phaser.Scene {
 
   init(): void {
     this.isTransitioning = false
+    this.animTweens = []
     if (this.input) this.input.enabled = true
   }
 
@@ -64,18 +53,25 @@ export default class LevelSelectScene extends Phaser.Scene {
     if (this.input) this.input.enabled = true
 
     this.events.once('shutdown', () => {
-      this.clearTweens()
+      this.clearAllTweens()
       this.isTransitioning = false
     })
 
     SoundFX.unlock()
     this.loadProgress()
 
-    // 宣纸底色背景
-    drawPaperBackground(this)
-    renderPageHeader(this, '战役沙盘', '· 兵贵神速 · 奇正相生')
+    const width = this.cameras.main.width
+    const height = this.cameras.main.height
 
-    // 返回标题界面按钮
+    // 1. 宣纸基底与全幅写意水墨山水远景
+    drawPaperBackground(this)
+    this.drawInkLandscapeBackdrop(width, height)
+    this.createDriftingMist(width, height)
+    this.createFloatingInkMotes(width, height)
+
+    // 2. 古典匾额卷首顶栏与返回按钮
+    this.renderClassicalHeader(width)
+
     createPageBackButton(this, () => {
       if (this.isTransitioning) return
       this.isTransitioning = true
@@ -85,7 +81,6 @@ export default class LevelSelectScene extends Phaser.Scene {
           if (this.input) this.input.enabled = true
         }
       })
-      this.clearTweens()
       try {
         this.scene.start('TitleScene')
       } catch (err) {
@@ -95,354 +90,763 @@ export default class LevelSelectScene extends Phaser.Scene {
       }
     })
 
-    // 初始化容器
-    this.chapterTabsContainer = this.add.container(0, 0)
-    this.sandTableContainer = this.add.container(0, 0)
-    this.intelContainer = this.add.container(0, 0)
+    this.scrollsContainer = this.add.container(0, 0)
+    this.scrollsContainer.setDepth(10)
+    this.bottomBarContainer = this.add.container(0, 0)
+    this.bottomBarContainer.setDepth(12)
 
-    // 默认选中关卡
     this.initDefaultSelection()
-
-    // 渲染全场景视图
     this.renderAll()
   }
 
-  /**
-   * 加载存档通关进度
-   */
+  private clearAllTweens(): void {
+    for (const tw of this.animTweens) {
+      if (tw && tw.isPlaying()) tw.stop()
+    }
+    this.animTweens = []
+  }
+
+  // ==========================================
+  // 1. 全幅水墨山水背景与古典匾额顶栏
+  // ==========================================
+
+  private drawInkLandscapeBackdrop(width: number, height: number): void {
+    const g = this.add.graphics()
+    g.setDepth(1)
+
+    const drawMountain = (points: [number, number][], fillAlpha: number) => {
+      g.fillStyle(InkColor.ink, fillAlpha)
+      g.beginPath()
+      g.moveTo(points[0][0], height)
+      for (const pt of points) {
+        g.lineTo(pt[0], pt[1])
+      }
+      g.lineTo(width, height)
+      g.closePath()
+      g.fillPath()
+    }
+
+    // 极远层：淡墨云山
+    drawMountain([
+      [0, height - 220],
+      [width * 0.14, height - 285],
+      [width * 0.27, height - 210],
+      [width * 0.42, height - 310],
+      [width * 0.58, height - 235],
+      [width * 0.74, height - 295],
+      [width * 0.88, height - 225],
+      [width, height - 250]
+    ], 0.035)
+
+    // 中远层：青墨群峰
+    drawMountain([
+      [0, height - 145],
+      [width * 0.18, height - 205],
+      [width * 0.33, height - 140],
+      [width * 0.51, height - 195],
+      [width * 0.69, height - 135],
+      [width * 0.84, height - 185],
+      [width, height - 140]
+    ], 0.065)
+
+    // 近景：浓墨坡岸与沧浪水纹
+    drawMountain([
+      [0, height - 68],
+      [width * 0.22, height - 96],
+      [width * 0.45, height - 58],
+      [width * 0.72, height - 88],
+      [width, height - 62]
+    ], 0.10)
+
+    // 远山古烽燧剪影与袅袅狼烟
+    const bx = width * 0.84
+    const by = height - 185
+    g.fillStyle(InkColor.ink, 0.18)
+    g.fillRect(bx - 8, by - 14, 16, 14)
+    g.fillRect(bx - 8, by - 18, 4, 4)
+    g.fillRect(bx - 2, by - 18, 4, 4)
+    g.fillRect(bx + 4, by - 18, 4, 4)
+    g.lineStyle(1.2, InkColor.ink, 0.09)
+    g.beginPath()
+    g.moveTo(bx, by - 18)
+    g.lineTo(bx + 4, by - 34)
+    g.lineTo(bx - 3, by - 52)
+    g.lineTo(bx + 5, by - 70)
+    g.strokePath()
+
+    // 左上角苍松斜枝入画
+    g.lineStyle(3, InkColor.ink, 0.2)
+    g.beginPath()
+    g.moveTo(0, 62)
+    g.lineTo(44, 80)
+    g.lineTo(96, 74)
+    g.lineTo(148, 94)
+    g.strokePath()
+    g.lineStyle(1.6, InkColor.ink, 0.16)
+    g.beginPath()
+    g.moveTo(76, 77)
+    g.lineTo(108, 108)
+    g.strokePath()
+
+    const pineClusters = [
+      { cx: 94, cy: 70, r: 9 },
+      { cx: 126, cy: 82, r: 11 },
+      { cx: 150, cy: 92, r: 9 },
+      { cx: 108, cy: 106, r: 8 }
+    ]
+    for (const c of pineClusters) {
+      g.fillStyle(InkColor.ink, 0.13)
+      g.fillCircle(c.cx, c.cy, c.r)
+    }
+
+    // 右上角远天归雁
+    const birds = [
+      { x: width - 190, y: 56, s: 1 },
+      { x: width - 155, y: 42, s: 0.8 },
+      { x: width - 125, y: 64, s: 0.65 }
+    ]
+    for (const b of birds) {
+      g.lineStyle(1.4, InkColor.ink, 0.25)
+      g.beginPath()
+      g.moveTo(b.x - 8 * b.s, b.y + 3 * b.s)
+      g.lineTo(b.x, b.y - 3 * b.s)
+      g.lineTo(b.x + 8 * b.s, b.y + 3 * b.s)
+      g.strokePath()
+    }
+  }
+
+  private createDriftingMist(width: number, height: number): void {
+    const mistConfigs = [
+      { x: width * 0.25, y: height - 125, w: 340, h: 24, alpha: 0.04, dur: 11000 },
+      { x: width * 0.72, y: height - 170, w: 380, h: 28, alpha: 0.035, dur: 13500 }
+    ]
+    for (const cfg of mistConfigs) {
+      const m = this.add.graphics()
+      m.setDepth(2)
+      m.fillStyle(InkColor.ink, cfg.alpha)
+      m.fillEllipse(cfg.x, cfg.y, cfg.w, cfg.h)
+      const tw = this.tweens.add({
+        targets: m,
+        x: { from: -28, to: 28 },
+        alpha: { from: cfg.alpha * 0.7, to: cfg.alpha * 1.3 },
+        duration: cfg.dur,
+        ease: 'Sine.easeInOut',
+        yoyo: true,
+        repeat: -1
+      })
+      this.animTweens.push(tw)
+    }
+  }
+
+  private createFloatingInkMotes(width: number, height: number): void {
+    for (let i = 0; i < 10; i++) {
+      const mote = this.add.graphics()
+      mote.setDepth(2)
+      const isRed = i % 4 === 0
+      mote.fillStyle(isRed ? InkColor.cinnabar : InkColor.ink, isRed ? 0.18 : 0.12)
+      mote.fillEllipse(0, 0, 5, 2.5)
+      mote.setPosition(Phaser.Math.Between(80, width - 80), Phaser.Math.Between(60, height - 80))
+      mote.setAngle(Phaser.Math.Between(-30, 30))
+
+      const tw = this.tweens.add({
+        targets: mote,
+        x: mote.x + Phaser.Math.Between(35, 80),
+        y: mote.y + Phaser.Math.Between(20, 50),
+        alpha: { from: 0.15, to: 0.02 },
+        duration: Phaser.Math.Between(5500, 9000),
+        repeat: -1,
+        yoyo: true,
+        ease: 'Sine.easeInOut'
+      })
+      this.animTweens.push(tw)
+    }
+  }
+
+  private renderClassicalHeader(width: number): void {
+    const header = this.add.container(width / 2, 42)
+    header.setDepth(10)
+
+    const g = this.add.graphics()
+    // 笔锋飞白双横线
+    g.lineStyle(1.5, InkColor.ink, 0.35)
+    g.lineBetween(-320, 22, -95, 22)
+    g.lineBetween(95, 22, 320, 22)
+    g.lineStyle(1, InkColor.inkFaint, 0.2)
+    g.lineBetween(-260, 26, 260, 26)
+
+    // 中央菱形墨印点缀
+    g.fillStyle(InkColor.cinnabar, 0.85)
+    g.fillPoints(
+      [
+        new Phaser.Geom.Point(-86, 22),
+        new Phaser.Geom.Point(-81, 17),
+        new Phaser.Geom.Point(-76, 22),
+        new Phaser.Geom.Point(-81, 27)
+      ],
+      true
+    )
+    g.fillPoints(
+      [
+        new Phaser.Geom.Point(76, 22),
+        new Phaser.Geom.Point(81, 17),
+        new Phaser.Geom.Point(86, 22),
+        new Phaser.Geom.Point(81, 27)
+      ],
+      true
+    )
+
+    // 右侧朱砂小閑章「兵机」
+    const sealX = 88
+    const sealY = -6
+    g.fillStyle(InkColor.cinnabar, 0.9)
+    g.fillRoundedRect(sealX - 11, sealY - 11, 22, 22, 2)
+    g.lineStyle(1, 0xf6f0e4, 0.7)
+    g.strokeRect(sealX - 9, sealY - 9, 18, 18)
+
+    header.add(g)
+
+    const titleTxt = inkText(this, 0, -4, '出 师 征 战', {
+      size: 30,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    const sealTxt = inkText(this, sealX, sealY, '兵', {
+      size: 12,
+      color: '#f8f4ea',
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    const subTxt = inkText(this, 0, 22, '五 卷 古 战 场', {
+      size: 12,
+      color: InkText.wash,
+      originX: 0.5,
+      originY: 0.5
+    })
+
+    header.add([titleTxt, sealTxt, subTxt])
+  }
+
+  // ==========================================
+  // 2. 存档进度读取与默认选卷
+  // ==========================================
+
   private loadProgress(): void {
+    const completedSet = new Set<string>()
     try {
-      if (this.saveManager.hasSave(0)) {
-        const autoSave = this.saveManager.loadFromSlot(0)
-        if (autoSave && Array.isArray(autoSave.levelProgress)) {
-          this.completedLevels = autoSave.levelProgress
-            .filter(l => l && l.isCompleted)
-            .map(l => l.levelId)
+      const collectFromSave = (save: { levelProgress?: Array<{ levelId: string; isCompleted?: boolean; highestWave?: number }> } | null) => {
+        if (!save || !Array.isArray(save.levelProgress)) return
+        for (const l of save.levelProgress) {
+          if (l && (l.isCompleted || (l.highestWave && l.highestWave >= 15))) {
+            completedSet.add(l.levelId)
+          }
         }
       }
 
-      for (let i = 1; i <= 3; i++) {
+      collectFromSave(this.saveManager.getCurrentSave())
+      for (let i = 0; i <= 3; i++) {
         if (this.saveManager.hasSave(i)) {
-          const save = this.saveManager.loadFromSlot(i)
-          if (save && Array.isArray(save.levelProgress)) {
-            this.completedLevels = save.levelProgress
-              .filter(l => l && l.isCompleted)
-              .map(l => l.levelId)
-            break
-          }
+          collectFromSave(this.saveManager.loadFromSlot(i))
+        }
+      }
+
+      for (const lvl of this.getAllScrollLevels()) {
+        if (this.saveManager.getMapHighestWave(lvl.id) >= 15) {
+          completedSet.add(lvl.id)
         }
       }
     } catch (err) {
       console.warn('[LevelSelectScene] 读取通关进度异常，使用空进度兜底:', err)
-      this.completedLevels = []
     }
+    this.completedLevels = Array.from(completedSet)
   }
 
-  /**
-   * 初始化默认选中的关卡
-   */
-  private initDefaultSelection(): void {
+  private getAllScrollLevels(): LevelConfig[] {
     const chapters = getAllChapters()
-    const currentChapter = chapters[this.currentChapterIndex]
-    if (!currentChapter) return
+    const firstChapter = chapters[0]
+    if (!firstChapter) return []
+    return getChapterLevels(firstChapter.id)
+  }
 
-    const levels = getChapterLevels(currentChapter.id)
+  private initDefaultSelection(): void {
+    const levels = this.getAllScrollLevels()
     if (levels.length === 0) return
 
-    // 优先选择第一个已解锁但尚未通关的关卡
-    const currentPending = levels.find(
-      l => isLevelUnlocked(l.id, this.completedLevels) && !this.completedLevels.includes(l.id)
-    )
-
-    if (currentPending) {
-      this.selectedLevelId = currentPending.id
-    } else {
-      // 若全部通关或暂无待通，选最后一个已解锁关卡
-      const unlocked = levels.filter(l => isLevelUnlocked(l.id, this.completedLevels))
-      this.selectedLevelId = unlocked.length > 0 ? unlocked[unlocked.length - 1].id : levels[0].id
-    }
-  }
-
-  /**
-   * 刷新整个界面
-   */
-  private renderAll(): void {
-    this.clearTweens()
-    this.renderChapterTabs()
-    this.renderSandTable()
-    this.renderIntelPanel()
-  }
-
-  /**
-   * 清理运行中的动效
-   */
-  private clearTweens(): void {
-    for (const t of this.activeTweens) {
-      t.stop()
-      t.remove()
-    }
-    this.activeTweens = []
-  }
-
-  // ==========================================
-  // 1. 顶部章节选择栏
-  // ==========================================
-
-  private renderChapterTabs(): void {
-    this.chapterTabsContainer.removeAll(true)
-    const chapters = getAllChapters()
-    const width = this.cameras.main.width
-    const tabWidth = 200
-    const spacing = 16
-    const totalWidth = chapters.length * tabWidth + (chapters.length - 1) * spacing
-    const startX = (width - totalWidth) / 2 + tabWidth / 2
-    const y = 108
-
-    for (let i = 0; i < chapters.length; i++) {
-      const chapter = chapters[i]
-      const x = startX + i * (tabWidth + spacing)
-      const isUnlocked = isChapterUnlocked(chapter.id, this.completedLevels)
-      const isSelected = i === this.currentChapterIndex
-
-      this.createChapterTab(x, y, tabWidth, chapter, isUnlocked, isSelected, i)
-    }
-  }
-
-  private createChapterTab(
-    x: number,
-    y: number,
-    width: number,
-    chapter: ChapterConfig,
-    isUnlocked: boolean,
-    isSelected: boolean,
-    index: number
-  ): void {
-    const tabBg = this.add.rectangle(x, y, width, 44, InkColor.paperPanel)
-    this.chapterTabsContainer.add(tabBg)
-
-    if (isSelected) {
-      tabBg.setFillStyle(InkColor.paperDeep)
-      tabBg.setStrokeStyle(2, InkColor.cinnabar)
-    } else if (isUnlocked) {
-      tabBg.setStrokeStyle(1, InkColor.ink)
-    } else {
-      tabBg.setFillStyle(InkColor.paperPanel, 0.45)
-      tabBg.setStrokeStyle(1, InkColor.inkFaint)
-    }
-
-    const titleColor = isUnlocked ? (isSelected ? InkText.strong : InkText.ink) : InkText.faint
-    const titleText = inkText(this, x, y - 6, chapter.name, {
-      size: InkFontSize.md,
-      color: titleColor,
-      bold: isSelected,
-      originX: 0.5
-    })
-    this.chapterTabsContainer.add(titleText)
-
-    // 历史年号
-    const subText = inkText(this, x, y + 12, chapter.historicalEvent.split('-')[0].trim(), {
-      size: 11,
-      color: InkText.faint,
-      originX: 0.5
-    })
-    this.chapterTabsContainer.add(subText)
-
-    // 锁定标记
-    if (!isUnlocked) {
-      const lockText = inkText(this, x + width / 2 - 20, y, '🔒', {
-        size: 13,
-        color: InkText.faint,
-        originX: 0.5
-      })
-      this.chapterTabsContainer.add(lockText)
-    }
-
-    if (isUnlocked) {
-      tabBg.setInteractive({ useHandCursor: true })
-      tabBg.on('pointerover', () => {
-        if (index !== this.currentChapterIndex) {
-          tabBg.setFillStyle(InkColor.paperDeep)
-        }
-      })
-      tabBg.on('pointerout', () => {
-        if (index !== this.currentChapterIndex) {
-          tabBg.setFillStyle(InkColor.paperPanel)
-        }
-      })
-      tabBg.on('pointerdown', () => {
-        if (this.currentChapterIndex !== index) {
-          this.currentChapterIndex = index
-          this.initDefaultSelection()
-          this.renderAll()
-        }
-      })
-    }
-  }
-
-  // ==========================================
-  // 2. 左侧军事沙盘推演图 (Sand Table)
-  // ==========================================
-
-  private renderSandTable(): void {
-    this.sandTableContainer.removeAll(true)
-
-    const chapters = getAllChapters()
-    const currentChapter = chapters[this.currentChapterIndex]
-    if (!currentChapter) return
-
-    const levels = getChapterLevels(currentChapter.id)
-
-    // 沙盘坐标与尺寸
-    const ST_X = 40
-    const ST_Y = 152
-    const ST_W = 800
-    const ST_H = 536
-
-    const g = this.add.graphics()
-    this.sandTableContainer.add(g)
-
-    // --- 1. 底板与多重古风边框 ---
-    g.fillStyle(InkColor.paperPanel, 0.95)
-    g.fillRect(ST_X, ST_Y, ST_W, ST_H)
-
-    // 外框（墨晕粗线）
-    g.lineStyle(2.5, InkColor.inkWash, 1)
-    g.strokeRect(ST_X, ST_Y, ST_W, ST_H)
-
-    // 内框（细墨线）
-    const innerMargin = 8
-    g.lineStyle(1, InkColor.inkFaint, 0.8)
-    g.strokeRect(ST_X + innerMargin, ST_Y + innerMargin, ST_W - innerMargin * 2, ST_H - innerMargin * 2)
-
-    // 四角中式回纹/云纹角饰
-    this.drawCornerBrackets(g, ST_X + 12, ST_Y + 12, ST_W - 24, ST_H - 24, 16)
-
-    // --- 2. 沙盘舆图背景地形墨晕（山水/险要关河） ---
-    this.drawTerrainWash(g, ST_X, ST_Y, ST_W, ST_H)
-
-    // 经纬方位参考虚线（军事战备图感）
-    this.drawTacticalGrid(g, ST_X, ST_Y, ST_W, ST_H)
-
-    // 罗盘方位标记 (八卦子午罗盘)
-    this.drawCompass(ST_X + 50, ST_Y + 45)
-
-    // 舆图标题
-    const mapTitle = inkText(this, ST_X + 80, ST_Y + 36, `「${currentChapter.name} · 行军阵图」`, {
-      size: 15,
-      color: InkText.wash,
-      bold: true
-    })
-    this.sandTableContainer.add(mapTitle)
-
-    // 战局平定进度标尺
-    const completedCount = levels.filter(l => this.completedLevels.includes(l.id)).length
-    const progressText = inkText(
-      this,
-      ST_X + ST_W - 24,
-      ST_Y + 36,
-      `平定战线: ${completedCount}/${levels.length} 隘`,
-      {
-        size: 13,
-        color: completedCount === levels.length ? InkText.green : InkText.cinnabar,
-        bold: true,
-        originX: 1
-      }
-    )
-    this.sandTableContainer.add(progressText)
-
-    if (levels.length === 0) {
-      const emptyNote = inkText(
-        this,
-        ST_X + ST_W / 2,
-        ST_Y + ST_H / 2,
-        '此篇章战役舆图整备中，尚未勘定敌阵……',
-        {
-          size: 16,
-          color: InkText.faint,
-          originX: 0.5,
-          originY: 0.5
-        }
-      )
-      this.sandTableContainer.add(emptyNote)
+    if (this.selectedLevelId && levels.some(l => l.id === this.selectedLevelId)) {
       return
     }
 
-    // --- 3. 五大三国古战场卷轴坐标布局 ---
-    // 卷一巨鹿 -> 卷二樊城 -> 卷三合淝 -> 卷四焚城洛阳 -> 卷五虎牢雄关
-    const nodeCoords = [
-      { x: ST_X + 125, y: ST_Y + 370 }, // 卷一：巨鹿破黄巾（张角）
-      { x: ST_X + 265, y: ST_Y + 210 }, // 卷二：樊城破八门（曹仁）
-      { x: ST_X + 415, y: ST_Y + 345 }, // 卷三：合淝威逍遥（张辽）
-      { x: ST_X + 555, y: ST_Y + 195 }, // 卷四：焚城讨董卓（董卓）
-      { x: ST_X + 695, y: ST_Y + 330 }  // 卷五：虎牢战温侯（吕布）
-    ]
+    const firstPending = levels.find(l => !this.completedLevels.includes(l.id))
+    this.selectedLevelId = firstPending ? firstPending.id : levels[0].id
+  }
 
-    // --- 4. 绘制蜿蜒行军虚线轨迹与箭头 ---
-    for (let i = 0; i < levels.length - 1; i++) {
-      const startCoord = nodeCoords[i]
-      const endCoord = nodeCoords[i + 1]
-      if (!startCoord || !endCoord) continue
+  private renderAll(): void {
+    const levels = this.getAllScrollLevels()
+    this.renderFiveScrolls(levels)
+    this.renderBottomCommandBar(levels)
+  }
 
-      const levelA = levels[i]
-      const levelB = levels[i + 1]
-      const isConquered = this.completedLevels.includes(levelA.id)
-      const isRouteUnlocked = isLevelUnlocked(levelB.id, this.completedLevels)
+  // ==========================================
+  // 3. 中央五轴宋明立轴画屏（五幅水墨丹青挂轴）
+  // ==========================================
 
-      const midX = (startCoord.x + endCoord.x) / 2
-      const midY = (startCoord.y + endCoord.y) / 2 + (i % 2 === 0 ? -18 : 18)
-      const waypoints = [startCoord, { x: midX, y: midY }, endCoord]
+  private renderFiveScrolls(levels: LevelConfig[]): void {
+    this.scrollsContainer.removeAll(true)
+    if (levels.length === 0) return
 
-      this.drawDashedRoute(g, waypoints, isConquered, isRouteUnlocked)
-    }
+    const canvasW = this.cameras.main.width
+    const scrollW = 216
+    const scrollH = 466
+    const gap = 24
+    const totalW = levels.length * scrollW + (levels.length - 1) * gap
+    const startX = (canvasW - totalW) / 2 + scrollW / 2
+    const baseCenterY = 334
 
-    // --- 5. 绘制城寨关隘节点徽章 ---
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i]
-      const coord = nodeCoords[i] || { x: ST_X + 120 + i * 140, y: ST_Y + 260 }
-      const isCompleted = this.completedLevels.includes(level.id)
-      const isUnlocked = isLevelUnlocked(level.id, this.completedLevels)
-      const isSelected = this.selectedLevelId === level.id
-      const isCurrentFrontier = isUnlocked && !isCompleted
+      const isSelected = level.id === this.selectedLevelId
+      const savedWave = this.saveManager.getMapHighestWave(level.id)
+      const isCompleted = this.completedLevels.includes(level.id) || savedWave >= 15
+      const mapBestWave = Math.max(isCompleted ? 15 : 0, savedWave)
+      const cx = startX + i * (scrollW + gap)
+      const cy = isSelected ? baseCenterY - 10 : baseCenterY
 
-      this.renderFortressNode(coord.x, coord.y, level, i, isCompleted, isUnlocked, isSelected, isCurrentFrontier)
+      this.createHangingScrollCard(
+        cx,
+        cy,
+        scrollW,
+        scrollH,
+        i,
+        level,
+        isSelected,
+        isCompleted,
+        mapBestWave,
+        levels
+      )
+    }
+  }
+
+  private createHangingScrollCard(
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    index: number,
+    level: LevelConfig,
+    isSelected: boolean,
+    isCompleted: boolean,
+    mapBestWave: number,
+    allLevels: LevelConfig[]
+  ): void {
+    const meta = getBattlefieldMapMeta(level.id)
+    const wx: WuXing = meta?.bossWuXing || 'wood'
+    const wxStyle = INK_WUXING[wx]
+
+    const container = this.add.container(cx, cy)
+    this.scrollsContainer.add(container)
+
+    const g = this.add.graphics()
+    container.add(g)
+
+    const drawScrollFrame = (hover: boolean) => {
+      g.clear()
+
+      // 1. 宣纸挂轴背面柔和墨影
+      g.fillStyle(InkColor.inkStrong, isSelected ? 0.16 : 0.07)
+      g.fillRoundedRect(-w / 2 + 5, -h / 2 + 8, w, h, 3)
+
+      // 2. 顶部丝绦挂绳与铜钩（立轴悬挂感）
+      const cordAlpha = isSelected ? 0.85 : 0.45
+      g.lineStyle(1.5, isSelected ? InkColor.cinnabar : InkColor.inkWash, cordAlpha)
+      g.beginPath()
+      g.moveTo(-28, -h / 2 - 4)
+      g.lineTo(0, -h / 2 - 18)
+      g.lineTo(28, -h / 2 - 4)
+      g.strokePath()
+      g.fillStyle(isSelected ? 0xc59b27 : 0x8a734c, 0.95)
+      g.fillCircle(0, -h / 2 - 18, 3)
+
+      // 3. 天杆（上木杆）与地轴（下粗轴 + 鎏金玉轴头）
+      const rodColor = isSelected ? 0x3b1e0e : 0x2f241f
+      const jadeCapColor = isSelected ? 0xc59b27 : 0x8c734b
+      // 天杆
+      g.fillStyle(rodColor, 1)
+      g.fillRoundedRect(-w / 2 - 7, -h / 2 - 4, w + 14, 8, 3)
+      g.fillStyle(jadeCapColor, 1)
+      g.fillRect(-w / 2 - 10, -h / 2 - 3, 4, 6)
+      g.fillRect(w / 2 + 6, -h / 2 - 3, 4, 6)
+
+      // 地轴（比天杆更厚重）
+      g.fillStyle(rodColor, 1)
+      g.fillRoundedRect(-w / 2 - 9, h / 2 - 6, w + 18, 12, 4)
+      g.fillStyle(jadeCapColor, 1)
+      g.fillRoundedRect(-w / 2 - 14, h / 2 - 5, 6, 10, 2)
+      g.fillRoundedRect(w / 2 + 8, h / 2 - 5, 6, 10, 2)
+
+      // 地轴中央垂挂朱砂丝穗
+      g.lineStyle(1.8, InkColor.cinnabar, isSelected ? 0.9 : 0.55)
+      g.lineBetween(0, h / 2 + 6, 0, h / 2 + 18)
+      g.fillStyle(InkColor.cinnabar, isSelected ? 0.9 : 0.6)
+      g.fillCircle(0, h / 2 + 12, 2.5)
+
+      // 4. 绫锦裱边底色（天头与地脚深宣色，中间画心澄心堂宣纸色）
+      const silkBorderFill = isSelected ? 0xe5dac3 : 0xd8ccb4
+      g.fillStyle(silkBorderFill, 0.98)
+      g.fillRect(-w / 2, -h / 2 + 4, w, h - 8)
+
+      // 中央画心宣纸
+      const heartTop = -h / 2 + 46
+      const heartH = h - 100
+      const heartFill = isSelected
+        ? 0xf7f2e6
+        : hover
+        ? 0xeee5d3
+        : 0xe9dfc9
+      g.fillStyle(heartFill, 0.98)
+      g.fillRect(-w / 2 + 8, heartTop, w - 16, heartH)
+
+      // 天头双惊燕带（立轴传统垂带装饰）
+      g.fillStyle(isSelected ? InkColor.cinnabar : InkColor.inkWash, isSelected ? 0.35 : 0.18)
+      g.fillRect(-w / 2 + 34, -h / 2 + 4, 5, 36)
+      g.fillRect(w / 2 - 39, -h / 2 + 4, 5, 36)
+
+      // 5. 画心水墨写意古战场意象（五行主题山水笔触）
+      this.drawScrollBattlefieldInkArt(g, w, h, wx, isSelected)
+
+      // 6. 主帅背后的水墨晕染圆团（烘托书法大字）
+      g.fillStyle(wxStyle.border, isSelected ? 0.10 : 0.05)
+      g.fillCircle(0, -14, 44)
+      g.fillStyle(InkColor.ink, isSelected ? 0.05 : 0.025)
+      g.fillCircle(6, -10, 32)
+
+      // 7. 挂轴外框、画心内框与古典四角回纹抱角
+      const outerStroke = isSelected
+        ? InkColor.cinnabar
+        : hover
+        ? wxStyle.border
+        : InkColor.inkWash
+      g.lineStyle(isSelected ? 2.2 : 1.2, outerStroke, isSelected ? 0.95 : 0.7)
+      g.strokeRect(-w / 2, -h / 2 + 4, w, h - 8)
+
+      const innerStroke = isSelected ? wxStyle.border : InkColor.inkFaint
+      g.lineStyle(1, innerStroke, isSelected ? 0.65 : 0.4)
+      g.strokeRect(-w / 2 + 8, heartTop, w - 16, heartH)
+
+      this.drawClassicalCornerBrackets(
+        g,
+        -w / 2 + 11,
+        heartTop + 3,
+        w - 22,
+        heartH - 6,
+        8,
+        isSelected ? InkColor.cinnabar : wxStyle.border,
+        isSelected ? 0.85 : 0.45
+      )
+
+      // 8. 画心内部水墨飞白分隔线（两头渐细）
+      this.drawBrushDivider(g, 0, -74, w - 44, isSelected ? 0.4 : 0.25)
+      this.drawBrushDivider(g, 0, 62, w - 44, isSelected ? 0.4 : 0.25)
+    }
+
+    drawScrollFrame(false)
+
+    // --- 锚点 1：天头竹简卷号 + 金石篆刻五行方印 + 书法战卷名 ---
+    const scrollNumLabels = ['卷一', '卷二', '卷三', '卷四', '卷五']
+    const scrollNum = scrollNumLabels[index] || `卷${index + 1}`
+
+    // 左上角竖式小竹签卷号
+    const volRibbon = this.add.graphics()
+    volRibbon.fillStyle(isSelected ? InkColor.cinnabar : InkColor.inkWash, isSelected ? 0.92 : 0.75)
+    volRibbon.fillRoundedRect(-w / 2 + 14, -h / 2 + 12, 22, 44, 2)
+    volRibbon.lineStyle(1, 0xf6f0e4, 0.55)
+    volRibbon.strokeRect(-w / 2 + 16, -h / 2 + 14, 18, 40)
+    const volTxt = this.add.text(-w / 2 + 25, -h / 2 + 34, `${scrollNum[0]}\n${scrollNum[1]}`, {
+      fontFamily: INK_FONT,
+      fontSize: '11px',
+      color: '#f8f4ea',
+      fontStyle: 'bold',
+      lineSpacing: 2,
+      align: 'center'
+    }).setOrigin(0.5, 0.5)
+    container.add([volRibbon, volTxt])
+
+    // 五行金石篆刻印章（方中带圆刀痕印）
+    const sealY = -164
+    const sealG = this.add.graphics()
+    // 印泥微晕
+    sealG.fillStyle(wxStyle.border, 0.16)
+    sealG.fillRoundedRect(-23, sealY - 23, 48, 48, 5)
+    // 印底
+    sealG.fillStyle(wxStyle.fill, 0.96)
+    sealG.fillRoundedRect(-23, sealY - 23, 46, 46, 4)
+    // 双线金石印边
+    sealG.lineStyle(2, wxStyle.border, 0.95)
+    sealG.strokeRoundedRect(-23, sealY - 23, 46, 46, 4)
+    sealG.lineStyle(1, wxStyle.border, 0.45)
+    sealG.strokeRect(-19, sealY - 19, 38, 38)
+    // 篆刻残角刀痕
+    sealG.lineStyle(1.5, InkColor.paperPanel, 0.85)
+    sealG.lineBetween(-23, sealY - 14, -18, sealY - 14)
+    sealG.lineBetween(18, sealY + 15, 23, sealY + 15)
+
+    const sealChar = inkText(this, 0, sealY, wxStyle.label, {
+      size: 24,
+      color: wxStyle.text,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    container.add([sealG, sealChar])
+
+    // 战场大名与副题
+    const cityTitle = meta ? meta.shortLabel : level.name
+    const subTitle = meta ? meta.scrollTitle.replace(/^卷[一二三四五]·?/, '') : ''
+
+    const cityTxt = inkText(this, 0, -114, cityTitle, {
+      size: 24,
+      color: isSelected ? InkText.strong : InkText.ink,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    const subTxt = inkText(this, 0, -90, `· ${subTitle} ·`, {
+      size: 12,
+      color: InkText.faint,
+      originX: 0.5,
+      originY: 0.5
+    })
+    container.add([cityTxt, subTxt])
+
+    // --- 锚点 2：镇守主帅（浓墨书法） & 古籍朱批破盾弱点 ---
+    const bossTitleStr = meta ? `镇守 · ${meta.bossTitle}` : '守关主帅'
+    const bossNameStr = meta ? meta.bossName : '统帅'
+    const weakClean = meta ? meta.weaknessReactionName.replace(/[【】]/g, '') : '五行相生'
+
+    const bossRoleTxt = inkText(this, 0, -50, bossTitleStr, {
+      size: 12,
+      color: InkText.faint,
+      originX: 0.5,
+      originY: 0.5
+    })
+    const bossNameTxt = inkText(this, 0, -15, bossNameStr, {
+      size: 30,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+
+    // 古籍朱砂双竖线批注条（替代现代胶囊框）
+    const weakG = this.add.graphics()
+    const weakY = 34
+    const weakW = w - 42
+    weakG.fillStyle(InkColor.cinnabar, isSelected ? 0.11 : 0.07)
+    weakG.fillRect(-weakW / 2, weakY - 13, weakW, 26)
+    weakG.lineStyle(2, InkColor.cinnabar, 0.75)
+    weakG.lineBetween(-weakW / 2, weakY - 13, -weakW / 2, weakY + 13)
+    weakG.lineBetween(weakW / 2, weakY - 13, weakW / 2, weakY + 13)
+    weakG.lineStyle(0.8, InkColor.cinnabar, 0.35)
+    weakG.lineBetween(-weakW / 2, weakY - 13, weakW / 2, weakY - 13)
+    weakG.lineBetween(-weakW / 2, weakY + 13, weakW / 2, weakY + 13)
+
+    const weakTxt = inkText(this, 0, weakY, `破壁 · ${weakClean}`, {
+      size: 12,
+      color: InkText.cinnabar,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    container.add([bossRoleTxt, bossNameTxt, weakG, weakTxt])
+
+    // --- 锚点 3：宿命神兵 & 将魂题跋 ---
+    const dropHeader = inkText(this, 0, 88, '─ 宿 命 神 兵 ─', {
+      size: 11,
+      color: InkText.faint,
+      originX: 0.5,
+      originY: 0.5
+    })
+
+    const heroWeaponStr = meta
+      ? `${meta.targetHeroName} · ${meta.exclusiveWeaponName}`
+      : '五虎专属神兵'
+    const matSoulStr = meta
+      ? `${meta.divineMaterialName} · ${meta.soulStoneName.replace(/[【】]/g, '')}`
+      : '神兵主材 · 将魂'
+
+    const heroWeaponTxt = inkText(this, 0, 118, heroWeaponStr, {
+      size: 15,
+      color: InkText.strong,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    const matSoulTxt = inkText(this, 0, 146, matSoulStr, {
+      size: 12,
+      color: InkText.wash,
+      originX: 0.5,
+      originY: 0.5
+    })
+    container.add([dropHeader, heroWeaponTxt, matSoulTxt])
+
+    // --- 锚点 4：地脚唯一破关/无尽篆刻钤印（无 Emoji，纯正金石朱印 vs 淡墨题签） ---
+    const resumeWave = Math.max(16, mapBestWave)
+    const footerY = h / 2 - 26
+    const footerW = w - 24
+    const footerH = 28
+    const footerG = this.add.graphics()
+
+    if (isCompleted) {
+      // 已破关：朱砂横匾金石印章（阴刻白文）
+      footerG.fillStyle(InkColor.cinnabar, isSelected ? 0.94 : 0.84)
+      footerG.fillRoundedRect(-footerW / 2, footerY - footerH / 2, footerW, footerH, 2)
+      footerG.lineStyle(1, 0xf6f0e4, 0.65)
+      footerG.strokeRect(-footerW / 2 + 2.5, footerY - footerH / 2 + 2.5, footerW - 5, footerH - 5)
+    } else {
+      // 未破关：宣纸墨框题签
+      footerG.fillStyle(InkColor.paperDeep, 0.9)
+      footerG.fillRoundedRect(-footerW / 2, footerY - footerH / 2, footerW, footerH, 2)
+      footerG.lineStyle(isSelected ? 1.4 : 1, isSelected ? InkColor.inkStrong : InkColor.inkFaint, 0.7)
+      footerG.strokeRect(-footerW / 2, footerY - footerH / 2, footerW, footerH)
+    }
+
+    const statusStr = isCompleted
+      ? `已破关 · 无尽第 ${resumeWave} 波`
+      : '未破关 · 自第 1 波起'
+
+    const footerTxt = inkText(this, 0, footerY, statusStr, {
+      size: 12,
+      color: isCompleted ? '#f8f4ea' : InkText.ink,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    container.add([footerG, footerTxt])
+
+    // 交互区域
+    const hitArea = this.add.rectangle(0, 0, w, h, 0xffffff, 0.001)
+    hitArea.setInteractive({ useHandCursor: true })
+    container.add(hitArea)
+
+    hitArea.on('pointerover', () => {
+      if (!isSelected) {
+        drawScrollFrame(true)
+      }
+    })
+    hitArea.on('pointerout', () => {
+      if (!isSelected) {
+        drawScrollFrame(false)
+      }
+    })
+    hitArea.on('pointerdown', () => {
+      if (this.selectedLevelId !== level.id) {
+        SoundFX.stamp(0.25)
+        this.selectedLevelId = level.id
+        this.renderFiveScrolls(allLevels)
+        this.renderBottomCommandBar(allLevels)
+      }
+    })
+  }
+
+  /**
+   * 在画心底部绘制每卷专属的五行古战场写意水墨剪影
+   */
+  private drawScrollBattlefieldInkArt(
+    g: Phaser.GameObjects.Graphics,
+    w: number,
+    h: number,
+    wx: WuXing,
+    isSelected: boolean
+  ): void {
+    const baseAlpha = isSelected ? 0.11 : 0.06
+    const inkColor = INK_WUXING[wx].border
+    const bottomY = h / 2 - 48
+
+    // 远山基底
+    g.fillStyle(inkColor, baseAlpha)
+    g.beginPath()
+    g.moveTo(-w / 2 + 8, bottomY)
+    g.lineTo(-w / 2 + 48, bottomY - 46)
+    g.lineTo(-w / 2 + 102, bottomY - 22)
+    g.lineTo(w / 2 - 46, bottomY - 58)
+    g.lineTo(w / 2 - 8, bottomY - 24)
+    g.lineTo(w / 2 - 8, bottomY)
+    g.closePath()
+    g.fillPath()
+
+    // 按五行绘制意境剪影细部
+    g.lineStyle(1.4, inkColor, baseAlpha * 1.6)
+    if (wx === 'wood') {
+      // 巨鹿：苍林古树与斜枝
+      g.beginPath()
+      g.moveTo(-w / 2 + 32, bottomY)
+      g.lineTo(-w / 2 + 38, bottomY - 42)
+      g.lineTo(-w / 2 + 56, bottomY - 56)
+      g.strokePath()
+    } else if (wx === 'water') {
+      // 樊城：襄江叠浪水纹
+      for (let i = 0; i < 3; i++) {
+        const wy = bottomY - 10 - i * 8
+        g.lineBetween(-w / 2 + 22 + i * 12, wy, w / 2 - 24 - i * 10, wy)
+      }
+    } else if (wx === 'fire') {
+      // 合淝：断桥烽火升腾纹
+      g.beginPath()
+      g.moveTo(-20, bottomY)
+      g.lineTo(-8, bottomY - 38)
+      g.lineTo(6, bottomY - 18)
+      g.lineTo(18, bottomY - 48)
+      g.strokePath()
+    } else if (wx === 'earth') {
+      // 郿坞：崇垣城堞剪影
+      g.fillStyle(inkColor, baseAlpha * 1.2)
+      g.fillRect(w / 2 - 58, bottomY - 68, 28, 22)
+      g.fillRect(w / 2 - 58, bottomY - 73, 6, 5)
+      g.fillRect(w / 2 - 47, bottomY - 73, 6, 5)
+      g.fillRect(w / 2 - 36, bottomY - 73, 6, 5)
+    } else if (wx === 'metal') {
+      // 虎牢：险关双峰与画戟寒芒
+      g.beginPath()
+      g.moveTo(w / 2 - 42, bottomY - 12)
+      g.lineTo(w / 2 - 34, bottomY - 68)
+      g.strokePath()
     }
   }
 
   /**
-   * 绘制四角中式回纹/角饰
+   * 绘制古典四角回纹抱角
    */
-  private drawCornerBrackets(
+  private drawClassicalCornerBrackets(
     g: Phaser.GameObjects.Graphics,
     x: number,
     y: number,
     w: number,
     h: number,
-    len: number
+    len: number,
+    color: number,
+    alpha: number
   ): void {
-    g.lineStyle(2, InkColor.inkWash, 0.8)
-
-    // 左上角
+    g.lineStyle(1.4, color, alpha)
+    // 左上
     g.beginPath()
     g.moveTo(x, y + len)
     g.lineTo(x, y)
     g.lineTo(x + len, y)
     g.strokePath()
-
-    // 右上角
+    // 右上
     g.beginPath()
     g.moveTo(x + w - len, y)
     g.lineTo(x + w, y)
     g.lineTo(x + w, y + len)
     g.strokePath()
-
-    // 左下角
+    // 左下
     g.beginPath()
     g.moveTo(x, y + h - len)
     g.lineTo(x, y + h)
     g.lineTo(x + len, y + h)
     g.strokePath()
-
-    // 右下角
+    // 右下
     g.beginPath()
     g.moveTo(x + w - len, y + h)
     g.lineTo(x + w, y + h)
@@ -451,787 +855,151 @@ export default class LevelSelectScene extends Phaser.Scene {
   }
 
   /**
-   * 绘制水墨地形浅晕（远山群峦与险要黄河/汉水）
+   * 绘制毛笔中锋横线（中间实、两端微虚）
    */
-  private drawTerrainWash(
+  private drawBrushDivider(
     g: Phaser.GameObjects.Graphics,
-    x: number,
+    cx: number,
     y: number,
-    w: number,
-    h: number
+    width: number,
+    alpha: number
   ): void {
-    // 远山墨影（低透明度叠染）
-    g.fillStyle(0x2a2a2a, 0.04)
-    g.beginPath()
-    g.moveTo(x + 50, y + 260)
-    g.lineTo(x + 190, y + 130)
-    g.lineTo(x + 290, y + 210)
-    g.lineTo(x + 390, y + 105)
-    g.lineTo(x + 520, y + 220)
-    g.lineTo(x + 630, y + 120)
-    g.lineTo(x + 750, y + 240)
-    g.lineTo(x + 750, y + 360)
-    g.lineTo(x + 50, y + 360)
-    g.closePath()
-    g.fillPath()
-
-    // 更浅一层的近山
-    g.fillStyle(0x2a2a2a, 0.03)
-    g.beginPath()
-    g.moveTo(x + 260, y + 480)
-    g.lineTo(x + 380, y + 360)
-    g.lineTo(x + 510, y + 490)
-    g.closePath()
-    g.fillPath()
-
-    // 险要关河（浅青灰墨线，弯曲流经）
-    g.lineStyle(16, 0x3f5f7a, 0.07)
-    g.beginPath()
-    g.moveTo(x + 120, y + 90)
-    g.lineTo(x + 230, y + 170)
-    g.lineTo(x + 340, y + 280)
-    g.lineTo(x + 460, y + 350)
-    g.lineTo(x + 540, y + 490)
-    g.lineTo(x + 620, y + 530)
-    g.strokePath()
-
-    g.lineStyle(6, 0x3f5f7a, 0.12)
-    g.beginPath()
-    g.moveTo(x + 120, y + 90)
-    g.lineTo(x + 230, y + 170)
-    g.lineTo(x + 340, y + 280)
-    g.lineTo(x + 460, y + 350)
-    g.lineTo(x + 540, y + 490)
-    g.lineTo(x + 620, y + 530)
-    g.strokePath()
+    g.lineStyle(1, InkColor.inkFaint, alpha * 0.5)
+    g.lineBetween(cx - width / 2, y, cx + width / 2, y)
+    g.lineStyle(1.5, InkColor.ink, alpha)
+    g.lineBetween(cx - width * 0.3, y, cx + width * 0.3, y)
+    g.fillStyle(InkColor.ink, alpha)
+    g.fillCircle(cx, y, 1.8)
   }
 
-  /**
-   * 绘制经纬方阵细线
-   */
-  private drawTacticalGrid(
-    g: Phaser.GameObjects.Graphics,
-    x: number,
-    y: number,
-    w: number,
-    h: number
-  ): void {
-    g.lineStyle(1, 0x2a2a2a, 0.035)
-    // 纵线
-    for (let gx = x + 80; gx < x + w; gx += 80) {
-      g.beginPath()
-      g.moveTo(gx, y + 10)
-      g.lineTo(gx, y + h - 10)
-      g.strokePath()
-    }
-    // 横线
-    for (let gy = y + 70; gy < y + h; gy += 70) {
-      g.beginPath()
-      g.moveTo(x + 10, gy)
-      g.lineTo(x + w - 10, gy)
-      g.strokePath()
-    }
-  }
+  // ==========================================
+  // 4. 底部居中「虎符朱印帅令台」出征令按钮
+  // ==========================================
 
-  /**
-   * 绘制中式子午罗盘方位
-   */
-  private drawCompass(cx: number, cy: number): void {
-    const cg = this.add.graphics()
-    this.sandTableContainer.add(cg)
+  private renderBottomCommandBar(levels: LevelConfig[]): void {
+    this.bottomBarContainer.removeAll(true)
 
-    cg.lineStyle(1.5, InkColor.inkWash, 0.8)
-    cg.strokeCircle(cx, cy, 14)
-    cg.strokeCircle(cx, cy, 5)
+    const selectedLevel = levels.find(l => l.id === this.selectedLevelId) || levels[0]
+    if (!selectedLevel) return
 
-    // 十字线
-    cg.beginPath()
-    cg.moveTo(cx, cy - 19)
-    cg.lineTo(cx, cy + 19)
-    cg.moveTo(cx - 19, cy)
-    cg.lineTo(cx + 19, cy)
-    cg.strokePath()
+    const canvasW = this.cameras.main.width
+    const centerX = canvasW / 2
+    const btnY = 634
+    const btnW = 380
+    const btnH = 54
 
-    const northText = inkText(this, cx, cy - 26, '北', {
-      size: 11,
-      color: InkText.cinnabar,
-      bold: true,
-      originX: 0.5,
-      originY: 0.5
-    })
-    this.sandTableContainer.add(northText)
-  }
+    const savedWave = this.saveManager.getMapHighestWave(selectedLevel.id)
+    const isCompleted = this.completedLevels.includes(selectedLevel.id) || savedWave >= 15
+    const resumeWave = isCompleted ? Math.max(16, savedWave) : 1
+    const meta = getBattlefieldMapMeta(selectedLevel.id)
+    const shortName = meta ? meta.shortLabel : selectedLevel.name
 
-  /**
-   * 绘制折线行军虚线与方向指示微箭头
-   */
-  private drawDashedRoute(
-    g: Phaser.GameObjects.Graphics,
-    waypoints: { x: number; y: number }[],
-    isConquered: boolean,
-    isUnlocked: boolean
-  ): void {
-    const color = isConquered ? InkColor.cinnabar : isUnlocked ? InkColor.ink : 0x8a8577
-    const alpha = isUnlocked ? 0.9 : 0.4
-    const lineWidth = isConquered ? 3 : 2
-    g.lineStyle(lineWidth, color, alpha)
+    const btnContainer = this.add.container(centerX, btnY)
+    this.bottomBarContainer.add(btnContainer)
 
-    const dashLen = 7
-    const gapLen = 5
+    const bg = this.add.graphics()
+    const drawCommandSeal = (hover: boolean) => {
+      bg.clear()
+      const fillColor = hover ? 0xb53a32 : InkColor.cinnabar
+      const goldColor = hover ? 0xd4af37 : 0xa0782f
 
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const p1 = waypoints[i]
-      const p2 = waypoints[i + 1]
-      const dx = p2.x - p1.x
-      const dy = p2.y - p1.y
-      const dist = Math.hypot(dx, dy)
-      if (dist === 0) continue
+      // 印泥微晕阴影
+      bg.fillStyle(InkColor.inkStrong, 0.18)
+      bg.fillRoundedRect(-btnW / 2 + 3, -btnH / 2 + 4, btnW, btnH, 5)
 
-      const ux = dx / dist
-      const uy = dy / dist
+      // 朱砂帅令基底
+      bg.fillStyle(fillColor, 1)
+      bg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 5)
 
-      let traveled = 0
-      let drawing = true
-      let iterations = 0
-      while (traveled < dist && iterations++ < 500) {
-        const step = Math.min(drawing ? dashLen : gapLen, dist - traveled)
-        if (step <= 0.01) break
-        if (drawing) {
-          g.beginPath()
-          g.moveTo(p1.x + ux * traveled, p1.y + uy * traveled)
-          g.lineTo(p1.x + ux * (traveled + step), p1.y + uy * (traveled + step))
-          g.strokePath()
-        }
-        traveled += step
-        drawing = !drawing
-      }
+      // 外层鎏金框
+      bg.lineStyle(2, goldColor, 1)
+      bg.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 5)
 
-      // 中点绘制行军方向小箭头
-      if (isUnlocked) {
-        const midX = (p1.x + p2.x) / 2
-        const midY = (p1.y + p2.y) / 2
-        const angle = Math.atan2(dy, dx)
-        const arrowSize = 6
+      // 内层宣纸金丝框
+      bg.lineStyle(1, 0xdfd4bc, hover ? 0.75 : 0.45)
+      bg.strokeRoundedRect(-btnW / 2 + 4, -btnH / 2 + 4, btnW - 8, btnH - 8, 3)
 
-        g.fillStyle(color, alpha)
-        g.beginPath()
-        g.moveTo(midX + Math.cos(angle) * arrowSize, midY + Math.sin(angle) * arrowSize)
-        g.lineTo(
-          midX + Math.cos(angle + 2.3) * arrowSize,
-          midY + Math.sin(angle + 2.3) * arrowSize
-        )
-        g.lineTo(
-          midX + Math.cos(angle - 2.3) * arrowSize,
-          midY + Math.sin(angle - 2.3) * arrowSize
-        )
-        g.closePath()
-        g.fillPath()
-      }
-    }
-  }
+      // 四角祥云抱角
+      this.drawClassicalCornerBrackets(
+        bg,
+        -btnW / 2 + 6,
+        -btnH / 2 + 6,
+        btnW - 12,
+        btnH - 12,
+        7,
+        goldColor,
+        0.95
+      )
 
-  /**
-   * 绘制城寨关隘要塞徽章
-   */
-  private renderFortressNode(
-    x: number,
-    y: number,
-    level: LevelConfig,
-    index: number,
-    isCompleted: boolean,
-    isUnlocked: boolean,
-    isSelected: boolean,
-    isCurrentFrontier: boolean
-  ): void {
-    const nodeContainer = this.add.container(x, y)
-    this.sandTableContainer.add(nodeContainer)
-
-    const glyphs = ['鹿', '樊', '淝', '洛', '牢']
-    const glyph = glyphs[index] || '城'
-
-    // 阴影
-    const shadow = this.add.circle(2, 4, 30, 0x000000, 0.12)
-    nodeContainer.add(shadow)
-
-    // 烽火前线脉冲光环（未通关但可挑战的前线要塞）
-    if (isCurrentFrontier) {
-      const beaconGlow = this.add.graphics()
-      beaconGlow.lineStyle(3, InkColor.cinnabar, 0.8)
-      beaconGlow.strokeCircle(0, 0, 32)
-      nodeContainer.add(beaconGlow)
-
-      const pulseTween = this.tweens.add({
-        targets: beaconGlow,
-        scaleX: 1.45,
-        scaleY: 1.45,
-        alpha: 0,
-        duration: 1300,
-        repeat: -1,
-        ease: 'Cubic.easeOut'
-      })
-      this.activeTweens.push(pulseTween)
-
-      // 顶部"待征"令签
-      const beaconTagBg = this.add.rectangle(0, -42, 46, 18, InkColor.cinnabar)
-      beaconTagBg.setStrokeStyle(1, 0x7a1a15)
-      const beaconTagText = inkText(this, 0, -42, '【待征】', {
-        size: 11,
-        color: InkText.paper,
-        bold: true,
-        originX: 0.5,
-        originY: 0.5
-      })
-      nodeContainer.add([beaconTagBg, beaconTagText])
+      // 左右虎符铜铆钉
+      bg.fillStyle(goldColor, 0.95)
+      bg.fillCircle(-btnW / 2 + 16, 0, 3)
+      bg.fillCircle(btnW / 2 - 16, 0, 3)
     }
 
-    // 主徽章圆盘
-    const bgFill = isCompleted ? 0xdadfc9 : isUnlocked ? 0xe8e0cf : 0xd8d0be
-    const borderStroke = isSelected
-      ? InkColor.cinnabar
-      : isCompleted
-      ? 0x5f7a4a
-      : isUnlocked
-      ? InkColor.ink
-      : InkColor.inkFaint
-    const borderWidth = isSelected ? 3.5 : isCompleted ? 2.5 : isUnlocked ? 2 : 1.5
+    drawCommandSeal(false)
+    btnContainer.add(bg)
 
-    const baseCircle = this.add.circle(0, 0, 30, bgFill)
-    baseCircle.setStrokeStyle(borderWidth, borderStroke)
-    nodeContainer.add(baseCircle)
+    const mainLabel = isCompleted
+      ? `◆  再 战 烽 火 · ${shortName}  ◆`
+      : `◆  点 将 出 征 · ${shortName}  ◆`
 
-    // 内同心细环
-    const innerRing = this.add.circle(0, 0, 24)
-    innerRing.setStrokeStyle(1, isUnlocked ? InkColor.ink : InkColor.inkFaint, 0.6)
-    nodeContainer.add(innerRing)
+    const subLabel = isCompleted
+      ? `· 本卷已破关 · 接续上次折戟处自第 ${resumeWave} 波起征 ·`
+      : '· 本卷尚未破关 · 自第 1 波起征（破15波入无尽） ·'
 
-    // 居中关卡性质铭文（鹿/樊/淝/洛/牢）
-    const centerChar = inkText(this, 0, 0, glyph, {
+    const mainTxt = inkText(this, 0, -7, mainLabel, {
       size: 20,
-      color: isUnlocked ? (isSelected ? InkText.strong : InkText.ink) : InkText.faint,
+      color: '#fdfbf7',
       bold: true,
       originX: 0.5,
       originY: 0.5
     })
-    nodeContainer.add(centerChar)
-
-    // 选中准星（四角框与光标）
-    if (isSelected) {
-      const reticleG = this.add.graphics()
-      reticleG.lineStyle(2, InkColor.cinnabar, 0.95)
-      const rSize = 38
-      const rLen = 8
-      // 四角折线
-      reticleG.beginPath()
-      reticleG.moveTo(-rSize, -rSize + rLen)
-      reticleG.lineTo(-rSize, -rSize)
-      reticleG.lineTo(-rSize + rLen, -rSize)
-
-      reticleG.moveTo(rSize - rLen, -rSize)
-      reticleG.lineTo(rSize, -rSize)
-      reticleG.lineTo(rSize, -rSize + rLen)
-
-      reticleG.moveTo(-rSize, rSize - rLen)
-      reticleG.lineTo(-rSize, rSize)
-      reticleG.lineTo(-rSize + rLen, rSize)
-
-      reticleG.moveTo(rSize - rLen, rSize)
-      reticleG.lineTo(rSize, rSize)
-      reticleG.lineTo(rSize, rSize - rLen)
-      reticleG.strokePath()
-      nodeContainer.add(reticleG)
-    }
-
-    // 通关大捷朱砂方印 (Cinnabar Grand Victory Seal)
-    if (isCompleted) {
-      const sealContainer = this.add.container(24, -20)
-      sealContainer.setAngle(-12)
-
-      const sealBox = this.add.rectangle(0, 0, 34, 20, InkColor.cinnabar)
-      sealBox.setStrokeStyle(1, 0x6e1b15)
-      const sealTxt = inkText(this, 0, 0, '大捷', {
-        size: 11,
-        color: '#ffffff',
-        bold: true,
-        originX: 0.5,
-        originY: 0.5
-      })
-      sealContainer.add([sealBox, sealTxt])
-      nodeContainer.add(sealContainer)
-
-      // 金星评级
-      const starText = inkText(this, 0, 38, '★★★', {
-        size: 12,
-        color: InkText.gold,
-        originX: 0.5,
-        originY: 0.5
-      })
-      nodeContainer.add(starText)
-    } else if (!isUnlocked) {
-      // 锁定状态顶部标记
-      const lockBg = this.add.rectangle(0, -42, 46, 18, 0xd0c8b6)
-      lockBg.setStrokeStyle(1, InkColor.inkFaint)
-      const lockText = inkText(this, 0, -42, '🔒 待开', {
-        size: 11,
-        color: InkText.faint,
-        originX: 0.5,
-        originY: 0.5
-      })
-      nodeContainer.add([lockBg, lockText])
-    }
-
-    // 节点下方关卡名称
-    const meta = getBattlefieldMapMeta(level.id)
-    const levelLabelY = isCompleted ? 54 : 48
-    const shortTitle = meta ? `${meta.scrollTitle} · ${meta.guardianBossName}` : `第${index + 1}关 · ${level.name}`
-    const levelLabel = inkText(this, 0, levelLabelY, shortTitle, {
-      size: 12,
-      color: isUnlocked ? InkText.strong : InkText.faint,
-      bold: isSelected,
+    const subTxt = inkText(this, 0, 13, subLabel, {
+      size: 11,
+      color: '#e8dbbe',
       originX: 0.5,
       originY: 0.5
     })
-    nodeContainer.add(levelLabel)
+    btnContainer.add([mainTxt, subTxt])
 
-    // 点击交互区
-    const hitArea = this.add.circle(0, 0, 36, 0xffffff, 0.001)
-    hitArea.setInteractive({ useHandCursor: true })
-    nodeContainer.add(hitArea)
+    btnContainer.setSize(btnW, btnH)
+    btnContainer.setInteractive({ useHandCursor: true })
 
-    hitArea.on('pointerover', () => {
+    btnContainer.on('pointerover', () => {
+      drawCommandSeal(true)
       this.tweens.add({
-        targets: nodeContainer,
-        scaleX: 1.08,
-        scaleY: 1.08,
-        duration: 150,
-        ease: 'Quad.easeOut'
+        targets: btnContainer,
+        scaleX: 1.025,
+        scaleY: 1.025,
+        duration: 140,
+        ease: 'Sine.easeOut'
       })
+      SoundFX.whoosh(0.16)
     })
 
-    hitArea.on('pointerout', () => {
+    btnContainer.on('pointerout', () => {
+      drawCommandSeal(false)
       this.tweens.add({
-        targets: nodeContainer,
-        scaleX: 1.0,
-        scaleY: 1.0,
-        duration: 150,
-        ease: 'Quad.easeOut'
+        targets: btnContainer,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 160,
+        ease: 'Sine.easeOut'
       })
     })
 
-    hitArea.on('pointerup', () => {
-      if (this.selectedLevelId !== level.id) {
-        this.selectedLevelId = level.id
-        this.clearTweens()
-        this.renderSandTable()
-        this.renderIntelPanel()
-      }
+    btnContainer.on('pointerdown', () => {
+      SoundFX.gong(0.35)
+      SoundFX.stamp(0.5)
+      this.startLevel(selectedLevel.id, resumeWave)
     })
-  }
-
-  // ==========================================
-  // 3. 右侧《军机密报》情报卷轴卡 (Intel Panel)
-  // ==========================================
-
-  private renderIntelPanel(): void {
-    this.intelContainer.removeAll(true)
-
-    const chapters = getAllChapters()
-    const currentChapter = chapters[this.currentChapterIndex]
-    if (!currentChapter) return
-
-    const levels = getChapterLevels(currentChapter.id)
-    let selectedLevel = levels.find(l => l.id === this.selectedLevelId)
-    if (!selectedLevel && levels.length > 0) {
-      selectedLevel = levels[0]
-      this.selectedLevelId = selectedLevel.id
-    }
-
-    const IX = 860
-    const IY = 152
-    const IW = 380
-    const IH = 536
-
-    const ig = this.add.graphics()
-    this.intelContainer.add(ig)
-
-    // 上下卷轴木轴装裱
-    // 上木轴
-    ig.fillStyle(0x3e2723, 1)
-    ig.fillRoundedRect(IX - 8, IY - 5, IW + 16, 12, 5)
-    ig.fillStyle(0xa0782f, 1) // 铜轴帽
-    ig.fillCircle(IX - 8, IY + 1, 6)
-    ig.fillCircle(IX + IW + 8, IY + 1, 6)
-
-    // 下木轴
-    ig.fillStyle(0x3e2723, 1)
-    ig.fillRoundedRect(IX - 8, IY + IH - 7, IW + 16, 12, 5)
-    ig.fillStyle(0xa0782f, 1)
-    ig.fillCircle(IX - 8, IY + IH - 1, 6)
-    ig.fillCircle(IX + IW + 8, IY + IH - 1, 6)
-
-    // 卷轴宣纸主体
-    ig.fillStyle(InkColor.paperPanel, 0.98)
-    ig.fillRect(IX, IY + 5, IW, IH - 14)
-    ig.lineStyle(1.5, InkColor.inkWash, 0.9)
-    ig.strokeRect(IX, IY + 5, IW, IH - 14)
-
-    // 内框印记细线
-    ig.lineStyle(1, InkColor.inkFaint, 0.6)
-    ig.strokeRect(IX + 6, IY + 11, IW - 12, IH - 26)
-
-    if (!selectedLevel) {
-      const noData = inkText(this, IX + IW / 2, IY + IH / 2, '暂无军情密报', {
-        size: 15,
-        color: InkText.faint,
-        originX: 0.5,
-        originY: 0.5
-      })
-      this.intelContainer.add(noData)
-      return
-    }
-
-    const isCompleted = this.completedLevels.includes(selectedLevel.id)
-    const isUnlocked = isLevelUnlocked(selectedLevel.id, this.completedLevels)
-    const levelIndex = levels.findIndex(l => l.id === selectedLevel!.id)
-    const mapMeta = getBattlefieldMapMeta(selectedLevel.id)
-
-    let curY = IY + 22
-
-    // 1. 卷首印信与关隘名称
-    const sealBg = this.add.rectangle(IX + 58, curY + 6, 76, 22, InkColor.cinnabar)
-    sealBg.setStrokeStyle(1, 0x6e1b15)
-    const sealText = inkText(this, IX + 58, curY + 6, '军机密报', {
-      size: 12,
-      color: '#ffffff',
-      bold: true,
-      originX: 0.5,
-      originY: 0.5
-    })
-    this.intelContainer.add([sealBg, sealText])
-
-    const statusBadge = inkText(
-      this,
-      IX + IW - 24,
-      curY + 6,
-      isCompleted ? '【大捷 · 已平定】' : isUnlocked ? '【烽火 · 待发兵】' : '【险隘 · 封锁中】',
-      {
-        size: 12,
-        color: isCompleted ? InkText.green : isUnlocked ? InkText.cinnabar : InkText.faint,
-        bold: true,
-        originX: 1,
-        originY: 0.5
-      }
-    )
-    this.intelContainer.add(statusBadge)
-
-    curY += 26
-
-    const titleText = inkText(
-      this,
-      IX + 20,
-      curY,
-      mapMeta ? `${mapMeta.scrollTitle} · ${selectedLevel.name}` : `第 ${levelIndex + 1} 关 · ${selectedLevel.name}`,
-      {
-        size: 18,
-        color: InkText.strong,
-        bold: true
-      }
-    )
-    this.intelContainer.add(titleText)
-
-    curY += 26
-
-    // 分割线
-    ig.lineStyle(1, InkColor.ink, 0.4)
-    ig.beginPath()
-    ig.moveTo(IX + 18, curY)
-    ig.lineTo(IX + IW - 18, curY)
-    ig.strokePath()
-
-    curY += 10
-
-    // 2. 战地密报与战役背景
-    const briefingBg = this.add.rectangle(IX + IW / 2, curY + 26, IW - 36, 52, InkColor.paperDeep)
-    briefingBg.setStrokeStyle(1, InkColor.inkFaint, 0.5)
-    this.intelContainer.add(briefingBg)
-
-    const briefingContent = this.getLevelBriefing(selectedLevel.id)
-    const briefingText = inkText(this, IX + 26, curY + 7, briefingContent, {
-      size: 11,
-      color: InkText.wash,
-      wrapWidth: IW - 56
-    })
-    this.intelContainer.add(briefingText)
-
-    curY += 60
-
-    // 3. 敌情侦察与镇守主帅命脉弱点
-    const enemyAnalysis = this.analyzeEnemyIntel(selectedLevel)
-
-    const reconHeader = inkText(this, IX + 20, curY, '◈ 敌情侦察 & 镇守主帅', {
-      size: 13,
-      color: InkText.wash,
-      bold: true
-    })
-    this.intelContainer.add(reconHeader)
-
-    curY += 20
-
-    const scaleText = inkText(
-      this,
-      IX + 24,
-      curY,
-      `敌势规模: 共 ${selectedLevel.waves.length} 波冲阵 · 约 ${enemyAnalysis.totalCount} 众敌兵`,
-      {
-        size: 11,
-        color: InkText.ink
-      }
-    )
-    this.intelContainer.add(scaleText)
-
-    curY += 18
-
-    if (mapMeta) {
-      const bossLine = inkText(
-        this,
-        IX + 24,
-        curY,
-        `镇守主帅: ${mapMeta.guardianBossName} (${INK_WUXING[mapMeta.guardianBossElement].label}) · 命脉弱点: ${mapMeta.weaknessReactionDesc}`,
-        {
-          size: 11,
-          color: InkText.cinnabar,
-          bold: true
-        }
-      )
-      this.intelContainer.add(bossLine)
-      curY += 18
-    }
-
-    const wuxingIntro = inkText(this, IX + 24, curY, '敌众五行: ', {
-      size: 11,
-      color: InkText.ink
-    })
-    this.intelContainer.add(wuxingIntro)
-
-    // 绘制五行徽章
-    let badgeX = IX + 88
-    for (const wx of enemyAnalysis.elements) {
-      const wxStyle = INK_WUXING[wx]
-      if (!wxStyle) continue
-
-      const bBg = this.add.rectangle(badgeX + 16, curY + 8, 32, 18, wxStyle.fill)
-      bBg.setStrokeStyle(1, wxStyle.border)
-      const bTxt = inkText(this, badgeX + 16, curY + 8, wxStyle.label, {
-        size: 11,
-        color: wxStyle.text,
-        bold: true,
-        originX: 0.5,
-        originY: 0.5
-      })
-      this.intelContainer.add([bBg, bTxt])
-      badgeX += 38
-    }
-
-    curY += 24
-
-    // 孙子兵策：克敌制胜要略卡
-    const stratBg = this.add.rectangle(IX + IW / 2, curY + 26, IW - 36, 52, 0xf0ebd9)
-    stratBg.setStrokeStyle(1, 0xb08a52, 0.7)
-    this.intelContainer.add(stratBg)
-
-    const stratTitle = inkText(this, IX + 26, curY + 6, '【破敌兵法 · 命脉破壁】', {
-      size: 11,
-      color: InkText.cinnabar,
-      bold: true
-    })
-    const adviceText = mapMeta
-      ? `第15波决战【${mapMeta.guardianBossName}】拥有五行铁壁；以【${mapMeta.weaknessReactionDesc}】命中可双倍破壁并瘫痪3s！`
-      : enemyAnalysis.counterAdvice
-    const stratAdvice = inkText(this, IX + 26, curY + 21, adviceText, {
-      size: 11,
-      color: InkText.wash,
-      wrapWidth: IW - 56
-    })
-    this.intelContainer.add([stratTitle, stratAdvice])
-
-    curY += 60
-
-    // 4. 守军军资备给、宿命主材与将魂定向悬赏
-    const prepHeader = inkText(this, IX + 20, curY, '◈ 军备与定向悬赏（选图即定主帅）', {
-      size: 13,
-      color: InkText.wash,
-      bold: true
-    })
-    this.intelContainer.add(prepHeader)
-
-    curY += 20
-
-    const prepRow1 = inkText(
-      this,
-      IX + 24,
-      curY,
-      `帅旗耐久: ❤️ ${selectedLevel.playerStartHealth} 点   战备资粮: 🪙 ${selectedLevel.playerStartCost} 钱`,
-      {
-        size: 11,
-        color: InkText.ink
-      }
-    )
-    this.intelContainer.add(prepRow1)
-
-    curY += 18
-
-    const prepRow2 = inkText(
-      this,
-      IX + 24,
-      curY,
-      `凯旋酬银: 💰 ${selectedLevel.rewards.gold} 金币   功勋军绩: ⭐ ${selectedLevel.rewards.experience} 军勋`,
-      {
-        size: 11,
-        color: InkText.gold
-      }
-    )
-    this.intelContainer.add(prepRow2)
-
-    curY += 18
-
-    if (mapMeta) {
-      const matRow = inkText(
-        this,
-        IX + 24,
-        curY,
-        `🛠️ 必掉主材: 【${mapMeta.divineMaterialName}】→ 铸 ${mapMeta.targetHeroName}${mapMeta.exclusiveWeaponName}`,
-        {
-          size: 11,
-          color: InkText.cinnabar,
-          bold: true
-        }
-      )
-      this.intelContainer.add(matRow)
-      curY += 18
-
-      const soulRow = inkText(
-        this,
-        IX + 24,
-        curY,
-        `💎 必掉将魂: ${mapMeta.soulStoneName} ×1（通达第15波可择【凯旋】或【乘胜北伐】）`,
-        {
-          size: 11,
-          color: InkText.green
-        }
-      )
-      this.intelContainer.add(soulRow)
-      curY += 28
-    } else {
-      curY += 28
-    }
-
-    // 5. 出征按钮
-    if (isUnlocked) {
-      const btnLabel = isCompleted ? '⚔️ 扫荡 / 北伐再战' : '⚔️ 点将出征'
-      const startBtn = createInkButton(
-        this,
-        IX + IW / 2,
-        curY,
-        260,
-        42,
-        btnLabel,
-        {
-          fill: InkColor.cinnabar,
-          hoverFill: 0xb53a32,
-          textColor: '#ffffff',
-          fontSize: 16,
-          onClick: () => {
-            this.startLevel(selectedLevel!.id)
-          }
-        }
-      )
-      this.intelContainer.add(startBtn)
-    } else {
-      const lockedBox = this.add.rectangle(IX + IW / 2, curY, 260, 42, InkColor.paperDeep)
-      lockedBox.setStrokeStyle(1, InkColor.inkFaint)
-      const lockedText = inkText(this, IX + IW / 2, curY, '🔒 关隘封锁 · 需克复前置', {
-        size: 14,
-        color: InkText.faint,
-        originX: 0.5,
-        originY: 0.5
-      })
-      this.intelContainer.add([lockedBox, lockedText])
-    }
   }
 
   /**
-   * 获取战役关卡历史探报背景文案
+   * 开始关卡出征（未破关从第 1 波起，已破关从上次折戟的无尽波次起）
    */
-  private getLevelBriefing(levelId: string): string {
-    switch (levelId) {
-      case 'chapter1_level1':
-        return '卷一《巨鹿破黄巾》：天公将军张角据守巨鹿中军大帐，以黄天回春之术愈合部曲。善用木生火【燎原·焚尽】破其五行铁壁！'
-      case 'chapter1_level2':
-        return '卷二《樊城破八门》：曹仁于樊城布下八门金锁重甲铁阵，防御高达120%。唯有土生金【淬刃·锋芒】可震碎其玄铁金锁！'
-      case 'chapter1_level3':
-        return '卷三《合淝威逍遥》：张辽率八百铁骑疾风突袭逍遥津，移速极快。当以金生水【寒芒·碎冰】或水生木藤蔓硬控锁其锋芒！'
-      case 'chapter1_level4':
-        return '卷四《焚城讨董卓》：董卓率西凉飞熊重骑盘踞洛阳，暴击抗性极高。以火生土【熔岩·焦土】削其韧性刚毅，方可一击克敌！'
-      case 'chapter1_level5':
-        return '卷五《虎牢战温侯》：无双温侯吕布立马虎牢雄关，五格铁壁威震天下。集五虎上将之力，以水生木【滋养·蔓延】锁拿温侯！'
-      default:
-        return '密探急报：贼兵据险设防，阵中旗帜林立。诸将当深察五行相生，审度虚实，奇兵制胜！'
-    }
-  }
-
-  /**
-   * 综合分析关卡敌情侦察（数量统计与五行生克建议）
-   */
-  private analyzeEnemyIntel(level: LevelConfig): {
-    totalCount: number
-    elements: WuXing[]
-    counterAdvice: string
-  } {
-    let totalCount = 0
-    const elemCounts: Record<WuXing, number> = {
-      metal: 0,
-      wood: 0,
-      water: 0,
-      fire: 0,
-      earth: 0
-    }
-
-    for (const wave of level.waves) {
-      for (const enemy of wave.enemies) {
-        totalCount += enemy.count
-        const cfg = getEnemyConfig(enemy.enemyId)
-        if (cfg && cfg.wuXing) {
-          elemCounts[cfg.wuXing] = (elemCounts[cfg.wuXing] || 0) + enemy.count
-        }
-      }
-    }
-
-    // 筛选出场五行并按数量排序
-    const sortedElems = (Object.keys(elemCounts) as WuXing[])
-      .filter(w => elemCounts[w] > 0)
-      .sort((a, b) => elemCounts[b] - elemCounts[a])
-
-    // 提取前2种主力五行，精准推荐相生相克武将
-    const dominantElems = sortedElems.slice(0, 2)
-    const dominantLabels = dominantElems.map(e => INK_WUXING[e]?.label || '').filter(Boolean).join('、')
-    const counterLabels = Array.from(
-      new Set(dominantElems.map(e => INK_WUXING[COUNTERED_BY[e]]?.label || ''))
-    ).filter(Boolean).join('、')
-
-    const counterAdvice = dominantLabels
-      ? `探报敌众主力多属【${dominantLabels}】。遣【${counterLabels}】系良将克之，五行相克可收【克制】奇效！`
-      : '敌阵虚实未定，遣各系精锐审时度势，善用五行生克以奇制胜！'
-
-    return {
-      totalCount,
-      elements: sortedElems,
-      counterAdvice
-    }
-  }
-
-  /**
-   * 开始关卡出征
-   */
-  private startLevel(levelId: string): void {
+  private startLevel(levelId: string, startWave?: number): void {
     if (this.isTransitioning) return
     this.isTransitioning = true
     this.time.delayedCall(600, () => {
@@ -1240,10 +1008,9 @@ export default class LevelSelectScene extends Phaser.Scene {
         if (this.input) this.input.enabled = true
       }
     })
-    console.log(`[战役沙盘] 出征关卡: ${levelId}`)
-    this.clearTweens()
+    console.log(`[五轴选卷] 出征关卡: ${levelId}, 起始波次: ${startWave ?? 1}`)
     try {
-      this.scene.start('BattleScene', { levelId })
+      this.scene.start('BattleScene', { levelId, startWave })
     } catch (err) {
       console.error('[LevelSelectScene] 出征关卡异常:', err)
       this.isTransitioning = false

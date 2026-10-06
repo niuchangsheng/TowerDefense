@@ -10,7 +10,6 @@ import {
   inkText
 } from '@/ui/InkTheme'
 import { SoundFX } from '@/effects/SoundFX'
-import { SaveManager } from '@/core/save/SaveManager'
 
 /**
  * 标题场景（水墨国风盛典版）
@@ -394,9 +393,9 @@ export default class TitleScene extends Phaser.Scene {
    */
   private createMasterTitle(width: number): void {
     const centerX = width / 2
-    const plaqueY = 135
-    const plaqueW = 710
-    const plaqueH = 175
+    const plaqueY = 160
+    const plaqueW = 768
+    const plaqueH = 180
 
     const titleGroup = this.add.container(centerX, plaqueY)
     titleGroup.setDepth(10)
@@ -404,7 +403,7 @@ export default class TitleScene extends Phaser.Scene {
     // A. 古风匾额画幅衬底与双框
     const plaqueG = this.add.graphics()
     // 宣纸半透底面板
-    plaqueG.fillStyle(InkColor.paperPanel, 0.65)
+    plaqueG.fillStyle(InkColor.paperPanel, 0.68)
     plaqueG.fillRoundedRect(-plaqueW / 2, -plaqueH / 2, plaqueW, plaqueH, 6)
 
     // 外粗内细古典双线墨框
@@ -415,7 +414,7 @@ export default class TitleScene extends Phaser.Scene {
     plaqueG.strokeRoundedRect(-plaqueW / 2 + 5, -plaqueH / 2 + 5, plaqueW - 10, plaqueH - 10, 4)
 
     // 四角回纹纹饰
-    this.drawCornerBrackets(plaqueG, -plaqueW / 2 + 5, -plaqueH / 2 + 5, plaqueW - 10, plaqueH - 10, 10)
+    this.drawCornerBrackets(plaqueG, -plaqueW / 2 + 5, -plaqueH / 2 + 5, plaqueW - 10, plaqueH - 10, 12)
 
     // 匾额上下中轴铜钉
     plaqueG.fillStyle(InkColor.cinnabar, 0.75)
@@ -425,13 +424,13 @@ export default class TitleScene extends Phaser.Scene {
     titleGroup.add(plaqueG)
 
     // B. "三国" 巨榜大字（位于中心左侧）
-    const sangokuX = -135
-    const sangokuY = -12
+    const sangokuX = -142
+    const sangokuY = -14
 
     // 墨影层（营造宣纸吃墨浸染的立体苍劲质感）
     const shadowText = this.add.text(sangokuX + 2, sangokuY + 2, '三国', {
       fontFamily: INK_FONT,
-      fontSize: '66px',
+      fontSize: '68px',
       color: '#655e52',
       fontStyle: 'bold'
     }).setOrigin(0.5, 0.5)
@@ -440,7 +439,7 @@ export default class TitleScene extends Phaser.Scene {
     // 主墨字
     const mainText = this.add.text(sangokuX, sangokuY, '三国', {
       fontFamily: INK_FONT,
-      fontSize: '66px',
+      fontSize: '68px',
       color: InkText.strong,
       fontStyle: 'bold'
     }).setOrigin(0.5, 0.5)
@@ -454,8 +453,8 @@ export default class TitleScene extends Phaser.Scene {
     titleGroup.add(wuxingSeal)
 
     // D. "TD" 以古代战塔形式呈现（位于中心右侧）
-    const towerX = 135
-    const towerY = -10
+    const towerX = 142
+    const towerY = -12
     const tdTower = this.createTDPagodaTower(towerX, towerY)
     titleGroup.add(tdTower)
 
@@ -464,12 +463,12 @@ export default class TitleScene extends Phaser.Scene {
     const bannerG = this.add.graphics()
     // 左右细墨分界线
     bannerG.lineStyle(1, InkColor.ink, 0.25)
-    bannerG.lineBetween(-plaqueW / 2 + 30, ruleY, -140, ruleY)
-    bannerG.lineBetween(140, ruleY, plaqueW / 2 - 30, ruleY)
+    bannerG.lineBetween(-plaqueW / 2 + 36, ruleY, -148, ruleY)
+    bannerG.lineBetween(148, ruleY, plaqueW / 2 - 36, ruleY)
     // 墨线两端朱红小印记
     bannerG.fillStyle(InkColor.cinnabar, 0.8)
-    bannerG.fillRect(-144, ruleY - 3, 6, 6)
-    bannerG.fillRect(138, ruleY - 3, 6, 6)
+    bannerG.fillRect(-152, ruleY - 3, 6, 6)
+    bannerG.fillRect(146, ruleY - 3, 6, 6)
     titleGroup.add(bannerG)
 
     const mottoText = inkText(this, 0, ruleY, '「 乾坤五行 · 阵破千军 · 奇策定鼎 」', {
@@ -791,9 +790,27 @@ export default class TitleScene extends Phaser.Scene {
    */
   private createHeroBattleButton(width: number): void {
     const btnX = width / 2
-    const btnY = 278
-    const btnW = 340
-    const btnH = 58
+    const btnY = 332
+    const btnW = 380
+    const btnH = 66
+
+    // 左右礼制仪仗墨线翼饰（与 768px 主视觉中轴等宽对齐）
+    const wingG = this.add.graphics()
+    wingG.setDepth(9)
+    const halfSpan = 384 // 768 / 2
+    const innerEdge = btnW / 2 + 18
+    wingG.lineStyle(1.2, InkColor.ink, 0.3)
+    wingG.lineBetween(btnX - halfSpan, btnY, btnX - innerEdge, btnY)
+    wingG.lineBetween(btnX + innerEdge, btnY, btnX + halfSpan, btnY)
+    wingG.lineStyle(1, 0xa0782f, 0.35)
+    wingG.lineBetween(btnX - halfSpan + 24, btnY - 5, btnX - innerEdge - 8, btnY - 5)
+    wingG.lineBetween(btnX + innerEdge + 8, btnY - 5, btnX + halfSpan - 24, btnY - 5)
+    wingG.lineBetween(btnX - halfSpan + 24, btnY + 5, btnX - innerEdge - 8, btnY + 5)
+    wingG.lineBetween(btnX + innerEdge + 8, btnY + 5, btnX + halfSpan - 24, btnY + 5)
+    // 翼端朱砂方印点缀
+    wingG.fillStyle(InkColor.cinnabar, 0.65)
+    wingG.fillRect(btnX - halfSpan - 3, btnY - 3, 6, 6)
+    wingG.fillRect(btnX + halfSpan - 3, btnY - 3, 6, 6)
 
     const container = this.add.container(btnX, btnY)
     container.setDepth(10)
@@ -817,27 +834,27 @@ export default class TitleScene extends Phaser.Scene {
       bg.strokeRoundedRect(-btnW / 2 + 4, -btnH / 2 + 4, btnW - 8, btnH - 8, 4)
 
       // 四角祥云小抱角
-      this.drawCornerBrackets(bg, -btnW / 2 + 4, -btnH / 2 + 4, btnW - 8, btnH - 8, 8, strokeColor)
+      this.drawCornerBrackets(bg, -btnW / 2 + 4, -btnH / 2 + 4, btnW - 8, btnH - 8, 9, strokeColor)
 
       // 左右对称军令小铆钉
       bg.fillStyle(strokeColor, 0.9)
-      bg.fillCircle(-btnW / 2 + 14, 0, 3)
-      bg.fillCircle(btnW / 2 - 14, 0, 3)
+      bg.fillCircle(-btnW / 2 + 16, 0, 3.2)
+      bg.fillCircle(btnW / 2 - 16, 0, 3.2)
     }
 
     drawBtnBg(false)
     container.add(bg)
 
     // 文字：主字 + 副标题
-    const mainTitle = inkText(this, 0, -6, '◆  出 师 征 战  ◆', {
-      size: 23,
+    const mainTitle = inkText(this, 0, -7, '◆  出 师 征 战  ◆', {
+      size: 24,
       color: '#fdfbf7',
       bold: true,
       originX: 0.5,
       originY: 0.5
     })
 
-    const subTitle = inkText(this, 0, 15, '· 五大古战场 · 15波决战无缝北伐 ·', {
+    const subTitle = inkText(this, 0, 16, '· 挥师破敌 · 15波破关与百战无尽烽火合一 ·', {
       size: 11,
       color: '#e8dbbe',
       bold: false,
@@ -901,66 +918,67 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建 2×2 功能名片矩阵
-   * [ 聚贤武将 ]  [ 神兵灵石 ]
-   * [ 水墨博物志 ] [ 无尽北伐 ]
+   * 创建三大核心系统入口（1×3 三才并列横阵，总宽 768px 与顶部主匾额严丝合缝对齐）
+   * [将 · 聚贤武将]   [兵 · 神兵灵石]   [策 · 天命锦囊]
    */
   private createFeatureGrid(width: number): void {
-    const colSpacing = 270
-    const rowSpacing = 68
-    const leftColX = width / 2 - colSpacing / 2
-    const rightColX = width / 2 + colSpacing / 2
+    const centerX = width / 2
+    const cardW = 240
+    const gap = 24
+    const stepX = cardW + gap // 264 -> 3*240 + 2*24 = 768px
+    const rowY = 462
 
-    const row1Y = 360
-    const row2Y = row1Y + rowSpacing
+    // 军机三枢分界题眉
+    const headerY = 404
+    const divG = this.add.graphics()
+    divG.setDepth(9)
+    divG.lineStyle(1, InkColor.ink, 0.2)
+    divG.lineBetween(centerX - 384, headerY, centerX - 76, headerY)
+    divG.lineBetween(centerX + 76, headerY, centerX + 384, headerY)
+    divG.fillStyle(InkColor.ink, 0.35)
+    divG.fillCircle(centerX - 76, headerY, 2)
+    divG.fillCircle(centerX + 76, headerY, 2)
 
-    // 1. 武将
+    const sectionLabel = inkText(this, centerX, headerY, '· 军 机 三 枢 ·', {
+      size: 12,
+      color: InkText.faint,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    sectionLabel.setDepth(9)
+
+    // 1. 左枢：聚贤武将（含四阶技能演武 & 将星命盘）
     this.createClassicalFeatureCard(
-      leftColX,
-      row1Y,
+      centerX - stepX,
+      rowY,
       '将',
       '聚贤武将',
-      '将星命盘 · 传记试炼',
+      '将星命盘 · 四阶演武',
       InkColor.cinnabar,
       () => this.transitionTo('HeroListScene')
     )
 
-    // 2. 装备
+    // 2. 中枢：神兵灵石（含三才共鸣预览 & 词条区间表）
     this.createClassicalFeatureCard(
-      rightColX,
-      row1Y,
+      centerX,
+      rowY,
       '兵',
       '神兵灵石',
-      '蒲元铸剑 · 灵砂淬炼',
-      InkColor.cinnabar,
+      '三才共鸣 · 灵砂淬炼',
+      0x9a3b26,
       () => this.transitionTo('EquipmentScene')
     )
 
-    // 3. 水墨博物志（名将录/神兵谱/灵石鉴/锦囊）
+    // 3. 右枢：天命锦囊（30计三国典故 · 无品质平权）
     this.createClassicalFeatureCard(
-      leftColX,
-      row2Y,
-      '志',
-      '水墨博物志',
-      '名将录 · 神兵谱 · 灵石鉴',
-      0x4a5f6d,
-      () => this.transitionTo('AugmentCompendiumScene')
-    )
-
-    // 4. 无尽北伐（展示最高波次记录）
-    const currentWave = SaveManager.getInstance().getEndlessCurrentWave()
-    const record = SaveManager.getInstance().getEndlessRecord()
-    const displayWave = currentWave > 1 ? currentWave : (record && record.highestWave > 0 ? record.highestWave : 0)
-    const endlessTitle = displayWave > 0 ? `北伐第${displayWave}阵` : '乘胜北伐'
-
-    this.createClassicalFeatureCard(
-      rightColX,
-      row2Y,
-      '伐',
-      endlessTitle,
-      '无尽烽火 · 极品灵石',
+      centerX + stepX,
+      rowY,
+      '策',
+      '天命锦囊',
+      '三十典故 · 奇谋平权',
       0x8a6230,
-      () => this.transitionToBattle('level_endless_tower', currentWave)
+      () => this.transitionTo('AugmentCompendiumScene')
     )
   }
 
@@ -976,8 +994,8 @@ export default class TitleScene extends Phaser.Scene {
     badgeColor: number,
     onClick: () => void
   ): Phaser.GameObjects.Container {
-    const cardW = 250
-    const cardH = 56
+    const cardW = 240
+    const cardH = 68
     const container = this.add.container(x, y)
     container.setDepth(10)
 
@@ -989,49 +1007,49 @@ export default class TitleScene extends Phaser.Scene {
 
       // 底板
       bg.fillStyle(fillColor, 0.95)
-      bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 4)
+      bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 5)
 
       // 外线
-      bg.lineStyle(hover ? 1.6 : 1.2, strokeColor, 0.85)
-      bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 4)
+      bg.lineStyle(hover ? 1.8 : 1.3, strokeColor, 0.85)
+      bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 5)
 
       // 内线
       bg.lineStyle(1, InkColor.inkFaint, hover ? 0.6 : 0.3)
-      bg.strokeRoundedRect(-cardW / 2 + 3, -cardH / 2 + 3, cardW - 6, cardH - 6, 3)
+      bg.strokeRoundedRect(-cardW / 2 + 3.5, -cardH / 2 + 3.5, cardW - 7, cardH - 7, 3)
 
       // 四角折角装饰
-      this.drawCornerBrackets(bg, -cardW / 2 + 3, -cardH / 2 + 3, cardW - 6, cardH - 6, 6, strokeColor)
+      this.drawCornerBrackets(bg, -cardW / 2 + 3.5, -cardH / 2 + 3.5, cardW - 7, cardH - 7, 7, strokeColor)
 
-      // 左侧印章徽标小底块
-      const badgeX = -cardW / 2 + 24
-      bg.fillStyle(badgeColor, hover ? 1 : 0.88)
-      bg.fillRoundedRect(badgeX - 13, -13, 26, 26, 3)
-      bg.lineStyle(1, 0xf6f0e4, 0.6)
-      bg.strokeRoundedRect(badgeX - 11, -11, 22, 22, 2)
+      // 左侧印章徽标底块
+      const badgeX = -cardW / 2 + 30
+      bg.fillStyle(badgeColor, hover ? 1 : 0.9)
+      bg.fillRoundedRect(badgeX - 16, -16, 32, 32, 4)
+      bg.lineStyle(1, 0xf6f0e4, 0.65)
+      bg.strokeRoundedRect(badgeX - 13.5, -13.5, 27, 27, 2)
     }
 
     renderCard(false)
     container.add(bg)
 
     // 左侧徽标文字
-    const badgeText = this.add.text(-cardW / 2 + 24, 0, badgeChar, {
+    const badgeText = this.add.text(-cardW / 2 + 30, 0, badgeChar, {
       fontFamily: INK_FONT,
-      fontSize: '15px',
+      fontSize: '17px',
       color: '#fbf8f0',
       fontStyle: 'bold'
     }).setOrigin(0.5, 0.5)
 
     // 主标题与副标题
-    const titleText = this.add.text(-cardW / 2 + 48, -7, title, {
+    const titleText = this.add.text(-cardW / 2 + 58, -9, title, {
       fontFamily: INK_FONT,
-      fontSize: '17px',
+      fontSize: '18px',
       color: InkText.strong,
       fontStyle: 'bold'
     }).setOrigin(0, 0.5)
 
-    const descText = this.add.text(-cardW / 2 + 49, 13, desc, {
+    const descText = this.add.text(-cardW / 2 + 59, 13, desc, {
       fontFamily: INK_FONT,
-      fontSize: '11px',
+      fontSize: '12px',
       color: InkText.faint
     }).setOrigin(0, 0.5)
 
@@ -1074,63 +1092,13 @@ export default class TitleScene extends Phaser.Scene {
     return container
   }
 
-  // ==================== 4. 底栏与辅助控制 ====================
+  // ==================== 4. 底栏题跋 ====================
 
   /**
-   * 创建底栏控制器（军机密档 · 载录千秋 与版本题款）
+   * 创建底栏版本与水墨题款小注
    */
   private createFooterControls(width: number): void {
     const centerX = width / 2
-    const saveY = 496
-    const saveW = 280
-    const saveH = 36
-
-    const saveContainer = this.add.container(centerX, saveY)
-    saveContainer.setDepth(10)
-
-    const bg = this.add.graphics()
-    const renderSave = (hover: boolean) => {
-      bg.clear()
-      // 古卷轴扁平条
-      bg.fillStyle(hover ? InkColor.paperDeep : InkColor.paperPanel, 0.85)
-      bg.fillRoundedRect(-saveW / 2, -saveH / 2, saveW, saveH, 4)
-
-      bg.lineStyle(1, hover ? InkColor.cinnabar : InkColor.ink, hover ? 0.8 : 0.4)
-      bg.strokeRoundedRect(-saveW / 2, -saveH / 2, saveW, saveH, 4)
-
-      // 卷轴两头木轴小凸起
-      bg.fillStyle(InkColor.inkWash, 0.6)
-      bg.fillRect(-saveW / 2 - 3, -saveH / 2 + 4, 3, saveH - 8)
-      bg.fillRect(saveW / 2, -saveH / 2 + 4, 3, saveH - 8)
-    }
-
-    renderSave(false)
-    saveContainer.add(bg)
-
-    const label = inkText(this, 0, 0, '军机档阁 · 载录千秋  [ 存 档 ]', {
-      size: 14,
-      color: InkText.wash,
-      bold: true,
-      originX: 0.5,
-      originY: 0.5
-    })
-    saveContainer.add(label)
-
-    saveContainer.setSize(saveW, saveH)
-    saveContainer.setInteractive({ useHandCursor: true })
-    saveContainer.on('pointerover', () => {
-      renderSave(true)
-      label.setColor(InkText.cinnabar)
-      SoundFX.bowSnap(0.15)
-    })
-    saveContainer.on('pointerout', () => {
-      renderSave(false)
-      label.setColor(InkText.wash)
-    })
-    saveContainer.on('pointerdown', () => {
-      SoundFX.stamp(0.4)
-      this.transitionTo('SaveScene')
-    })
 
     // 最底部版权与水墨题款小注
     const footNote = inkText(this, centerX, 686, '水墨宣纸 · 五行连携 · 肉鸽策略塔防', {
@@ -1150,11 +1118,11 @@ export default class TitleScene extends Phaser.Scene {
    */
   private createWuxingRunes(width: number): void {
     const atmosphericSpots: { wx: WuXing; x: number; y: number }[] = [
-      { wx: 'metal', x: width * 0.12, y: 155 },
-      { wx: 'wood',  x: width * 0.13, y: 510 },
-      { wx: 'water', x: width * 0.28, y: 645 },
-      { wx: 'fire',  x: width * 0.87, y: 520 },
-      { wx: 'earth', x: width * 0.88, y: 165 }
+      { wx: 'metal', x: width * 0.11, y: 160 },
+      { wx: 'wood',  x: width * 0.11, y: 462 },
+      { wx: 'water', x: width * 0.50, y: 632 },
+      { wx: 'fire',  x: width * 0.89, y: 462 },
+      { wx: 'earth', x: width * 0.89, y: 160 }
     ]
 
     for (const spot of atmosphericSpots) {
@@ -1248,7 +1216,7 @@ export default class TitleScene extends Phaser.Scene {
   /**
    * 安全场景跳转
    */
-  private transitionTo(sceneKey: string): void {
+  private transitionTo(sceneKey: string, data?: Record<string, any>): void {
     if (this.isTransitioning) return
     this.isTransitioning = true
 
@@ -1261,22 +1229,9 @@ export default class TitleScene extends Phaser.Scene {
 
     this.clearAllTweens()
     try {
-      this.scene.start(sceneKey)
+      this.scene.start(sceneKey, data)
     } catch (err) {
       console.error(`[TitleScene] 跳转场景 ${sceneKey} 发生异常:`, err)
-      this.isTransitioning = false
-      if (this.input) this.input.enabled = true
-    }
-  }
-
-  private transitionToBattle(levelId: string, startWave?: number): void {
-    if (this.isTransitioning) return
-    this.isTransitioning = true
-    this.clearAllTweens()
-    try {
-      this.scene.start('BattleScene', { levelId, startWave })
-    } catch (err) {
-      console.error(`[TitleScene] 启动无尽试炼 ${levelId} 异常:`, err)
       this.isTransitioning = false
       if (this.input) this.input.enabled = true
     }
