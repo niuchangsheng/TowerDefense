@@ -1,9 +1,11 @@
 import { WuXing } from '@/types'
 
 /**
- * 机制分类标签（五行状态与相生衍化已深度合并为统一的【五行相生】）
+ * 机制分类标签
+ * 1. 【五行相生】(wuxing)：纯粹五行基础状态与双向相生化学连锁体系（独立完整大屏展示）
+ * 2. 【乾坤算法】(damage)：四独立伤害乘区算法、具体属性对冲与 7 步细化端到端结算流程
  */
-export type MechanicsTab = 'wuxing' | 'damage' | 'attributes' | 'elemental' | 'reaction'
+export type MechanicsTab = 'wuxing' | 'damage'
 
 export interface MechanicsTabDef {
   key: MechanicsTab
@@ -17,19 +19,13 @@ export const MECHANICS_TABS: MechanicsTabDef[] = [
     key: 'wuxing',
     title: '五行相生',
     seal: '生',
-    subtitle: '五行基础状态 · 双向化学连锁 · 160px相生阵脉'
-  },
-  {
-    key: 'attributes',
-    title: '五维对位',
-    seal: '位',
-    subtitle: '敌我基础属性 · 一对一精准对位 · 破韧破刚'
+    subtitle: '五大五行基础状态 · 双向化学连锁 · 160px相生阵脉'
   },
   {
     key: 'damage',
-    title: '乘区算法',
+    title: '乾坤算法',
     seal: '算',
-    subtitle: '四独立伤害乘区 · 防御抵扣 · 数值底线铁律'
+    subtitle: '四独立伤害乘区 · 7步细化结算 · 防御折算 · 底层铁律'
   }
 ]
 
@@ -37,88 +33,38 @@ export const MECHANICS_TABS: MechanicsTabDef[] = [
  * 五虎上将五行归属
  */
 export const ELEMENT_GENERAL_MAP: Record<WuXing, { name: string; title: string }> = {
-  metal: { name: '马超', title: '神威天将军' },
-  water: { name: '赵云', title: '常山赵子龙' },
-  wood: { name: '关羽', title: '武圣' },
-  fire: { name: '黄忠', title: '定军神箭' },
-  earth: { name: '张飞', title: '万人敌' }
+  metal: { name: '马超', title: '西凉神威锦马超' },
+  water: { name: '赵云', title: '常山常胜赵子龙' },
+  wood:  { name: '关羽', title: '汉寿亭侯美髯公' },
+  fire:  { name: '黄忠', title: '百步穿杨汉升弓' },
+  earth: { name: '张飞', title: '燕颔虎须翼德矛' }
 }
 
-/**
- * 五行华丽高饱和水墨调色板（好看明艳的边框与底色系统）
- */
 export interface WuXingColorSet {
   name: string
+  char: string
   color: number
   hex: string
   border: number
-  borderHex: string
   fill: number
-  lightBg: number
   glow: number
-  tagBg: number
-}
-
-export const WUXING_PALETTE: Record<WuXing, WuXingColorSet> = {
-  metal: {
-    name: '金',
-    color: 0xc59b27,
-    hex: '#c59b27',
-    border: 0xd4af37,
-    borderHex: '#d4af37',
-    fill: 0xfcf8ee,
-    lightBg: 0xfaf5e8,
-    glow: 0xffd700,
-    tagBg: 0xf6ecd2
-  },
-  water: {
-    name: '水',
-    color: 0x206095,
-    hex: '#206095',
-    border: 0x2b79b8,
-    borderHex: '#2b79b8',
-    fill: 0xedf4fa,
-    lightBg: 0xe8f1f8,
-    glow: 0x40c4ff,
-    tagBg: 0xd8e8f5
-  },
-  wood: {
-    name: '木',
-    color: 0x2e7d32,
-    hex: '#2e7d32',
-    border: 0x388e3c,
-    borderHex: '#388e3c',
-    fill: 0xeef6ee,
-    lightBg: 0xe8f4e8,
-    glow: 0x00e676,
-    tagBg: 0xdbeedd
-  },
-  fire: {
-    name: '火',
-    color: 0xc62828,
-    hex: '#c62828',
-    border: 0xd32f2f,
-    borderHex: '#d32f2f',
-    fill: 0xfdf0ee,
-    lightBg: 0xfce8e6,
-    glow: 0xff5252,
-    tagBg: 0xfad6d2
-  },
-  earth: {
-    name: '土',
-    color: 0x8d5b28,
-    hex: '#8d5b28',
-    border: 0xa06d3b,
-    borderHex: '#a06d3b',
-    fill: 0xf8f2e8,
-    lightBg: 0xf5ede0,
-    glow: 0xffb74d,
-    tagBg: 0xede0cb
-  }
+  faint: number
+  lightBg: number
 }
 
 /**
- * 1. 五行元素基础状态
+ * 五行调色板常量
+ */
+export const WUXING_PALETTE: Record<WuXing, WuXingColorSet> = {
+  wood:  { name: '木', char: '木', color: 0x2e7d32, hex: '#2e7d32', border: 0x388e3c, fill: 0xedf7ed, glow: 0x66bb6a, faint: 0xc8e6c9, lightBg: 0xedf7ed },
+  fire:  { name: '火', char: '火', color: 0xc62828, hex: '#c62828', border: 0xd32f2f, fill: 0xfdecea, glow: 0xef5350, faint: 0xffcdd2, lightBg: 0xfdecea },
+  earth: { name: '土', char: '土', color: 0x8d5b28, hex: '#8d5b28', border: 0x9a6735, fill: 0xfbf2e9, glow: 0xbcaaa4, faint: 0xd7ccc8, lightBg: 0xfbf2e9 },
+  metal: { name: '金', char: '金', color: 0xb8860b, hex: '#b8860b', border: 0xcda832, fill: 0xfef9e7, glow: 0xffd54f, faint: 0xffecb3, lightBg: 0xfef9e7 },
+  water: { name: '水', char: '水', color: 0x0277bd, hex: '#0277bd', border: 0x0288d1, fill: 0xe1f5fe, glow: 0x4fc3f7, faint: 0xb3e5fc, lightBg: 0xe1f5fe }
+}
+
+/**
+ * 1. 五大五行基础状态（严格一对一边界：专克对应敌军属性）
  */
 export interface ElementStatusItem {
   element: WuXing
@@ -136,55 +82,55 @@ export interface ElementStatusItem {
 export const ELEMENT_STATUS_LIST: ElementStatusItem[] = [
   {
     element: 'wood',
-    name: '木 · 毒 (寄生腐蚀)',
+    name: '木 · 毒 (噬生青藤)',
     char: '毒',
-    targetStat: '生命 (HP)',
-    color: 0x3d7a48,
-    textColor: '#3d7a48',
-    summary: '按目标最大生命值百分比持续腐蚀，并施加禁疗压制。',
+    targetStat: '生命 (HP 百分比腐蚀)',
+    color: 0x2e7d32,
+    textColor: '#2e7d32',
+    summary: '专克敌军生命上限。按最大生命值百分比腐蚀，并施加禁疗压制。',
     duration: '2.5 秒',
     details: [
-      '专克属性：【敌军最大生命】。',
-      '腐蚀机制：每 0.5s 造成一次基于最大生命值的木属性伤害，无视护甲与韧性。',
-      '禁疗压制：中毒期间目标无法受到任何治疗或生命恢复效果。'
+      '专克属性：【敌军生命 (HP)】。按最大生命值百分比持续腐蚀真实伤害。',
+      '腐蚀与禁疗：每 0.5s 造成敌军最大生命值 2.0% 的真实腐蚀伤害，且压制敌军 50% 回血效果。',
+      '层数堆叠：最多可叠加至 3 层（最高每秒 12% 最大生命值腐蚀）。'
     ],
     rules: [
-      '附着时长固定为 2.5s。',
-      '触发相生反应绝不抹除木毒层数。'
+      '严禁附带破甲或减速，严格锁定生命压制职能。',
+      '水生木可将其升级为定身藤蔓并向周围扩散。'
     ]
   },
   {
     element: 'metal',
-    name: '金 · 裂 (锋刃破甲)',
+    name: '金 · 裂 (裂甲锋刃)',
     char: '裂',
-    targetStat: '防御 (Defense)',
-    color: 0x9c7a2f,
-    textColor: '#9c7a2f',
-    summary: '唯一具备破甲削防能力的基础状态，敌军移动时结算流血真伤。',
+    targetStat: '防御 (Armor 削减破甲)',
+    color: 0xc59b27,
+    textColor: '#a67c1e',
+    summary: '全场唯一具备破甲能力的基础状态。大幅撕裂护甲并随移动触发流血真伤。',
     duration: '2.5 秒',
     details: [
-      '专克属性：【敌军物理防御】。',
-      '破甲机制：大幅削弱目标的护甲值，使后续所有攻击与相生伤害显著提升。',
-      '移动流血：处于裂隙撕裂状态的敌人，每移动一定像素即结算一次无视防御的流血真伤。'
+      '专克属性：【敌军防御 (Defense)】。大幅削减敌军护甲值。',
+      '唯一破甲：撕裂敌军 35% 物理与法术护甲，使后续所有伤害大幅提升。',
+      '位移流血：目标移动时触发割裂，每移动 50px 额外受到攻击者 45% 攻击力的流血真伤。'
     ],
     rules: [
-      '基础五行中唯一具备破甲能力的状态。',
-      '相生反应不清除破甲，保持易伤窗口。'
+      '全场五大基础状态中唯一具备破甲职能的状态。',
+      '削减后敌军防御底线绝不低于初始值的 40% 保底。'
     ]
   },
   {
     element: 'water',
-    name: '水 · 湿 (泥泞软控)',
+    name: '水 · 湿 (润下迟滞)',
     char: '湿',
-    targetStat: '移动速度 (MoveSpeed)',
-    color: 0x2b638f,
-    textColor: '#2b638f',
-    summary: '唯一具备移速削减的基础状态，延缓敌军行军节拍。',
+    targetStat: '移动速度 (MoveSpeed 软控)',
+    color: 0x206095,
+    textColor: '#206095',
+    summary: '全场唯一具备移速削减的基础状态。水墨漫足，造成强力减速软控。',
     duration: '2.5 秒',
     details: [
-      '专克属性：【敌军移动速度】。',
-      '软控延缓：降低敌军 35% 行进速度，为我方阵型争取充足蓄力与射击时间。',
-      '硬控基底：水湿本身不含冰冻硬控，仅作为相生冰封/定身的前置引信。'
+      '专克属性：【敌军移动速度 (MoveSpeed)】。',
+      '唯一软控：水流滞足，直接削减目标 35% 移动速度。',
+      '相生媒介：为水生木【滋养定身】与金生水【绝对冰封】提供核心反应媒介。'
     ],
     rules: [
       '基础状态中唯一具备减速效果的状态。',
@@ -252,71 +198,71 @@ export const REACTION_LIST: ReactionItem[] = [
     id: 'nourish',
     name: '水生木【滋养 · 蔓延】',
     elements: ['water', 'wood'],
-    title: '藤蔓缠绕 · 剧毒扩散',
+    title: '水生木',
     color: 0x2e7d32,
     textColor: '#2e7d32',
-    type: '强力硬控 + 范围剧毒',
-    summary: '将水湿软控升级为 2.0s 藤蔓定身硬控，并向周围敌群扩散木毒。',
+    type: '强力控制 + 状态扩散',
+    summary: '将【水·湿】软控升级为 2.0s 藤蔓绝对定身，并向周围扩散【木·毒】。',
     icd: '1.5 秒同目标冷却',
     details: [
-      '双向触发：无论先水后木，还是先木后水，命中即触发滋养反应。',
-      '硬控升级：突破单一减速，将目标牢牢禁锢在原地 2.0 秒。',
-      '木毒蔓延：在目标脚底绽开青墨毒藤，扩散 150px 范围木毒腐蚀。'
+      '绝对定身：敌军被墨藤彻底缠绕 2.0 秒，无法移动与冲锋。',
+      '群体剧毒：定身时向周围 120px 范围内的所有敌军扩散一层【木·毒】。',
+      '相生共鸣：基数取水木双将最高攻击力 + 另一武将 25% 协同攻击力。'
     ]
   },
   {
     id: 'wildfire',
     name: '木生火【燎原 · 焚尽】',
     elements: ['wood', 'fire'],
-    title: '引爆生命 · 烈焰焚海',
+    title: '木生火',
     color: 0xc62828,
     textColor: '#c62828',
-    type: '巨额生命斩杀 + 范围火海',
-    summary: '引爆木毒腐蚀，造成瞬间最大生命百分比巨额爆发，并点燃范围火海。',
+    type: '巨额斩杀 + 范围火海',
+    summary: '引爆【木·毒】造成瞬发目标最大生命 8% 巨额爆发，并生成 3.5s 烈焰火海。',
     icd: '1.5 秒同目标冷却',
     details: [
-      '极高斩杀：直接依据敌军最大生命值引爆，专门克制高血量重装精英。',
-      '烈火留存：爆炸后在地面留下 3 秒赤焰火海，持续附加火灼。',
-      '相生不抹除：引爆后原始木毒依然按计时器继续生效，不被强行清除。'
+      '瞬发斩杀：引爆目标体内的木毒，造成相当于目标最大生命值 8% 的巨额相生爆发伤害。',
+      '烈焰火海：在目标脚下留下持续 3.5 秒的火海，踏入者每秒受 60% 攻击力火焰伤害并挂【火·灼】。',
+      '清场利器：针对高血量精英怪与成群小兵的终极清场反应。'
     ]
   },
   {
     id: 'magma',
     name: '火生土【熔岩 · 焦土】',
     elements: ['fire', 'earth'],
-    title: '焦土重域 · 暴击内震',
-    color: 0xd84315,
-    textColor: '#d84315',
-    type: '范围阵地战 + 韧性剥离',
-    summary: '引爆火灼生成 4.0s 熔岩焦土，持续削减敌军韧性刚毅，受暴击必内震。',
+    title: '火生土',
+    color: 0x8d5b28,
+    textColor: '#8d5b28',
+    type: '削韧破刚 + 震波易暴',
+    summary: '引爆【火·灼】生成 4.0s 熔岩焦土，大幅削减敌军韧性刚毅，受暴击必触发范围震波。',
     icd: '1.5 秒同目标冷却',
     details: [
-      '阵地重构：在交火热点留下熔岩焦土区域，踏入者持续承受火土复合伤害。',
-      '剥离反暴：处于焦土内的敌人反暴击率与反暴伤额外下降 50%。',
-      '受暴内震：焦土内受暴击必定触发十字墨波【负重内震】。'
+      '熔岩焦土：地脉熔岩喷发形成 4.0 秒焦土地带，区域内敌军持续承受火土双重灼烧。',
+      '剥离抗暴：进入焦土的敌人【韧性 (Tenacity)】与【刚毅 (Fortitude)】降低 40%。',
+      '暴击诱震：焦土内受到暴击时，必额外触发 100% 威力的【负重内震】群体物理冲击。'
     ]
   },
   {
     id: 'spikes',
     name: '土生金【淬刃 · 锋芒】',
     elements: ['earth', 'metal'],
-    title: '三道金虹 · 破甲真伤',
-    color: 0xc59b27,
-    textColor: '#c59b27',
-    type: '高暴穿透 + 真伤结算',
-    summary: '承接“土破韧刚、金破护甲”双重红利，主目标受穿透重击，迸射 3 道高暴金虹剑气并即时结算流血真伤。',
+    title: '土生金',
+    color: 0xb8860b,
+    textColor: '#a67c1e',
+    type: '高暴突刺 + 流血结算',
+    summary: '承接土破韧刚、金破护甲双重红利，迸射 3 道高暴淬刃剑气并即时结算流血真伤。',
     icd: '1.5 秒同目标冷却',
     details: [
-      '双重削弱红利：土系削弱目标韧性与刚毅，金系撕裂护甲，受暴击额外 +35% 暴击率与 +50% 暴伤。',
-      '三道金虹飞刃：从主目标体内向周围扇形弹射 3 枚淬金剑气，造成 100% 破甲穿透范围伤害。',
-      '即时真伤结算：即时结算目标身上积累的所有流血真伤，瞬间打出破甲爆发。'
+      '淬刃剑气：破土而出 3 道金石剑气，自带 +30% 额外暴击率与 +50% 额外暴击伤害。',
+      '附带金裂：被剑气命中的所有目标立即附着【金·裂】撕裂状态。',
+      '流血结算：若目标已在流血，立即瞬间结算其剩余流血的全部伤害。'
     ]
   },
   {
     id: 'shatter',
     name: '金生水【寒芒 · 碎冰】',
     elements: ['metal', 'water'],
-    title: '贯穿裂隙 · 绝对冰封',
+    title: '金生水',
     color: 0x0277bd,
     textColor: '#0277bd',
     type: '无视防御 + 绝对硬控',
@@ -331,51 +277,192 @@ export const REACTION_LIST: ReactionItem[] = [
 ]
 
 /**
- * 3. 五维攻防对位表
+ * 3. 结构化伤害乘区结算节点（清晰卡片化呈现：公式、面板字段、结算逻辑）
  */
-export interface AttributePair {
-  alliedStat: string
-  alliedDesc: string
-  enemyStat: string
-  enemyDesc: string
-  counterLogic: string
+export interface FormulaStepItem {
+  id: string
+  step: string
+  name: string
+  stageTag: string
+  formula: string
+  panelMapping: string
+  settlementLogic: string
+  color: number
+  textColor: string
 }
 
-export const ATTRIBUTE_PAIRS: AttributePair[] = [
+export const DAMAGE_FORMULA_STEPS: FormulaStepItem[] = [
   {
-    alliedStat: '攻击力 (Attack)',
-    alliedDesc: '我方武将与神兵输出伤害基数。',
-    enemyStat: '生命 (HP)',
-    enemyDesc: '敌军所能承受的总体伤害上限。',
-    counterLogic: '【木·毒】专克【生命】。按最大生命值百分比腐蚀真伤，禁疗 50%。'
+    id: 'base',
+    step: '步骤 ①',
+    name: '基础基数 (Base)',
+    stageTag: '输出源头',
+    formula: 'Base = 攻击力 × 技能倍率',
+    panelMapping: '面板 attack',
+    settlementLogic: '普攻取 attack × 1.0；战法取 attack × 倍率；相生取 max(A,B) + 0.25*min(A,B)；毒素取 enemy.maxHp × 2%',
+    color: 0x8a6230,
+    textColor: '#8a6230'
   },
   {
-    alliedStat: '攻击速度 (AttackSpeed)',
-    alliedDesc: '普通攻击与元素印章附着频率。',
-    enemyStat: '防御 (Defense)',
-    enemyDesc: '敌军减免常规物理与法术伤害。',
-    counterLogic: '【金·裂】专克【防御】。撕裂 35% 护甲，移动时受 45% 流血真伤。'
+    id: 'atk_boost',
+    step: '步骤 ②',
+    name: '攻击力加成 (AtkBoost)',
+    stageTag: '第一乘区',
+    formula: '系数 = 1 + ∑攻击力加成',
+    panelMapping: '面板 attackBoostSum',
+    settlementLogic: '武将星级升级、神兵基础攻击、宝石基础属性、军令百分比累加（区内加算；局外总增益硬封顶 ≤ +50%）',
+    color: 0xb53a32,
+    textColor: '#b53a32'
   },
   {
-    alliedStat: '攻击范围 (Range)',
-    alliedDesc: '武将索敌与相生阵脉覆盖半径。',
-    enemyStat: '移动速度 (MoveSpeed)',
-    enemyDesc: '敌军突进行军与冲破大营的速度。',
-    counterLogic: '【水·湿】专克【移速】。削减 35% 移速，全场唯一基础软控媒介。'
+    id: 'dmg_inc',
+    step: '步骤 ③',
+    name: '增伤加成 (DmgInc)',
+    stageTag: '第二乘区',
+    formula: '系数 = 1 + ∑增伤加成',
+    panelMapping: '面板 damageIncreaseSum',
+    settlementLogic: '相生倍率 + 天时顺天(+20%) + 160px相生阵脉(+35%) + 锦囊增伤累加（区内所有增伤收益加算，严格跨区乘算）',
+    color: 0x2e7d32,
+    textColor: '#2e7d32'
   },
   {
-    alliedStat: '暴击几率 (CritRate)',
-    alliedDesc: '触发高额暴击伤害的概率。',
-    enemyStat: '韧性 (Tenacity)',
-    enemyDesc: '直接抵扣我方的暴击几率（反暴率）。',
-    counterLogic: '【土·重】专克【韧性】。削减 25% 韧性，大幅解放我方暴击几率。'
+    id: 'vuln',
+    step: '步骤 ④',
+    name: '易伤加成 (Vuln)',
+    stageTag: '第三乘区',
+    formula: '系数 = 1 + ∑易伤加成',
+    panelMapping: '面板 vulnerabilitySum',
+    settlementLogic: 'Boss相生破壁瘫痪(+50%) + 《五气朝元》每态(+18%) + 受击易伤Debuff累加（目标承伤直接放大，区内加算）',
+    color: 0x8a3ab5,
+    textColor: '#8a3ab5'
   },
   {
-    alliedStat: '暴击伤害 (CritDamage)',
-    alliedDesc: '暴击时的伤害倍率加成。',
-    enemyStat: '刚毅 (Fortitude)',
-    enemyDesc: '直接抵扣我方的暴击伤害加成（反暴伤）。',
-    counterLogic: '【土·重】专克【刚毅】。削减 40% 刚毅，受暴击追 20% 负重内震。'
+    id: 'crit',
+    step: '步骤 ⑤',
+    name: '暴击对抗 (CritMult)',
+    stageTag: '第四乘区',
+    formula: '实暴率 = 暴率 - 韧性；实暴伤 = 1 + max(0, 暴伤 - 100% - 刚毅)',
+    panelMapping: '面板 critRate/critDamage vs 敌方 tenacity/fortitude',
+    settlementLogic: '敌军有效韧性与刚毅保底 ≥ 初始值 40%；未暴击乘区为 1.0；暴击计入 (1 + 超额暴伤倍率)',
+    color: 0xd97706,
+    textColor: '#d97706'
+  },
+  {
+    id: 'def_mit',
+    step: '步骤 ⑥',
+    name: '防御减免 (DefMit)',
+    stageTag: '抗性折算',
+    formula: '有效防御 = 初始防御 × (1 - 破甲%)；减免率 = 有效防御 / (有效防御 + 200)',
+    panelMapping: '敌方面板 defense (破甲削减后保底 ≥ 初始值 40%)',
+    settlementLogic: '真实伤害(金·裂流血 / 金生水碎冰 / 木·毒腐蚀)减免率 = 0 直接穿透；常规伤害经护甲曲线折算抵扣',
+    color: 0x2b638f,
+    textColor: '#2b638f'
+  },
+  {
+    id: 'final',
+    step: '步骤 ⑦',
+    name: '最终落地伤害 (Damage)',
+    stageTag: '终局结算',
+    formula: 'Damage = floor( Base × Mult_atk × Mult_dmg × Mult_vuln × Mult_crit × (1 - DefMit) )',
+    panelMapping: '直接扣除敌军当前生命值 (hp)',
+    settlementLogic: '四独立乘区严格乘算，真伤跳过护甲减免，单次结算保底 ≥ 1 点伤害',
+    color: 0x9e2b25,
+    textColor: '#9e2b25'
+  }
+]
+
+/**
+ * 4. 乾坤算法 6 大核心结算因子卡片（流水线卡片矩阵：序号、公式、对应面板、极简要点）
+ */
+export interface DamagePipelineCard {
+  id: string
+  stepBadge: string
+  title: string
+  formula: string
+  panelLabel: string
+  color: number
+  textColor: string
+  points: string[]
+}
+
+export const DAMAGE_PIPELINE_CARDS: DamagePipelineCard[] = [
+  {
+    id: 'base',
+    stepBadge: '① 基础基数',
+    title: '基础伤害 (Base)',
+    formula: 'Base = 攻方面板 attack × 技能倍率',
+    panelLabel: '【攻方面板】attack (攻击力)',
+    color: 0x8a6230,
+    textColor: '#8a6230',
+    points: [
+      '● 普攻 1.0x ｜ 战法按技能倍率加成',
+      '● 相生择优: max(A,B) + 0.25 × min(A,B)'
+    ]
+  },
+  {
+    id: 'atk_boost',
+    stepBadge: '② 攻击乘区',
+    title: '攻击加成 (AtkBoost)',
+    formula: '系数 = 1 + ∑攻击力百分比加成',
+    panelLabel: '【攻方面板】attackBoostSum',
+    color: 0xb53a32,
+    textColor: '#b53a32',
+    points: [
+      '● 武将冲穴 / 神兵基础攻 / 宝石词条 / 军令',
+      '● 区内加算 ｜ 局外总增益硬封顶 ≤ +50%'
+    ]
+  },
+  {
+    id: 'dmg_inc',
+    stepBadge: '③ 增伤乘区',
+    title: '增伤加成 (DmgInc)',
+    formula: '系数 = 1 + ∑增伤收益加成',
+    panelLabel: '【局内状态】damageIncreaseSum',
+    color: 0x2e7d32,
+    textColor: '#2e7d32',
+    points: [
+      '● 相生倍率 + 顺天天时(+20%) + 锦囊增伤',
+      '● 160px相生阵脉: 连线搭档反应威力 +35%'
+    ]
+  },
+  {
+    id: 'vuln',
+    stepBadge: '④ 易伤乘区',
+    title: '易伤加成 (Vuln)',
+    formula: '系数 = 1 + ∑目标受击易伤比例',
+    panelLabel: '【守方面板】vulnerabilitySum',
+    color: 0x8a3ab5,
+    textColor: '#8a3ab5',
+    points: [
+      '● Boss破铁壁瘫痪(+50%) ｜ 受击易伤Debuff',
+      '● 《五气朝元》每类状态放大 +18% 承伤'
+    ]
+  },
+  {
+    id: 'crit',
+    stepBadge: '⑤ 暴击对抗',
+    title: '暴击对抗 (Crit vs Ten/Fort)',
+    formula: '实暴率 = 暴率 - 韧性；实暴伤 = 1 + max(0, 暴伤 - 刚毅)',
+    panelLabel: '【攻防对冲】暴率/暴伤 vs 韧性/刚毅',
+    color: 0xd97706,
+    textColor: '#d97706',
+    points: [
+      '● 敌韧性抵扣暴率，敌刚毅抵扣暴伤 (未暴为1.0)',
+      '● 【土·重】削韧破刚，受暴必诱发【负重内震】'
+    ]
+  },
+  {
+    id: 'def_mit',
+    stepBadge: '⑥ 护甲折算',
+    title: '防御折算 (DefMit / TrueDmg)',
+    formula: '有效防 = 初始防 × (1 - 破甲%) ｜ 减免 = 有效防 / (有效防 + 200)',
+    panelLabel: '【守方面板】defense ｜ 破甲削减',
+    color: 0x2b638f,
+    textColor: '#2b638f',
+    points: [
+      '● 破甲关系：破甲压低有效防御，减免率下降，承伤(1-减免率)上升',
+      '● 机制边界：金·裂破甲 35% (保底≥初始40%) ｜ 真伤减免=0直穿！'
+    ]
   }
 ]
 
@@ -384,14 +471,15 @@ export const ATTRIBUTE_PAIRS: AttributePair[] = [
  */
 export const DAMAGE_FORMULA_GUIDE = {
   formula: '最终伤害 = floor( 基础基数 × (1 + ∑攻击加成) × (1 + ∑增伤) × (1 + ∑易伤) × (1 + 实际暴伤) × (1 - 防御减免率) )',
+  steps: DAMAGE_FORMULA_STEPS,
   coreComponents: [
     {
       title: '基础基数 (Base Damage)',
       content: '普攻取面板攻击力；主动战法取攻击力×倍率；相生反应取双将最高攻击力 + 另一将 25% 协同加成。'
     },
     {
-      title: '敌方防御 (Defense)',
-      content: '常规减免率 = 有效防御 / (有效防御 + 200)。金·裂破甲后抗性保底不低于初始值的 40%。'
+      title: '敌方防御与破甲 (Defense & Shred)',
+      content: '有效防御 = 初始防御 × (1 - 破甲%)。常规减免率 = 有效防御 / (有效防御 + 200)。破甲压低有效防御从而大幅降低减免率，最终承伤系数为 (1 - 减免率)。抗性保底不低于初始值的 40%。'
     },
     {
       title: '真实伤害 (Ignore Def)',
@@ -525,4 +613,3 @@ export function getElementMechanicsDetail(elem: WuXing): ElementMechanicsDetail 
     }
   }
 }
-

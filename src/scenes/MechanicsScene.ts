@@ -5,22 +5,19 @@ import {
   InkText,
   drawPaperBackground,
   inkText,
-  createPageBackButton,
-  INK_FONT,
-  INK_WUXING
+  createPageBackButton
 } from '@/ui/InkTheme'
 import { SoundFX } from '@/effects/SoundFX'
 import {
-  ensureWuxingDiagramTexture,
-  WUXING_DIAGRAM_TEXTURE_KEY
+  ensureWuxingDiagramTexture
 } from '@/rendering/WuxingDiagramRenderer'
 import {
   MechanicsTab,
   MECHANICS_TABS,
   ELEMENT_STATUS_LIST,
-  REACTION_LIST,
-  ATTRIBUTE_PAIRS,
   DAMAGE_FORMULA_GUIDE,
+  DAMAGE_FORMULA_STEPS,
+  DAMAGE_PIPELINE_CARDS,
   WUXING_PALETTE,
   getElementMechanicsDetail,
   ElementMechanicsDetail
@@ -29,7 +26,9 @@ import { InteractiveWuxingDiagram } from '@/ui/InteractiveWuxingDiagram'
 
 /**
  * 【乾坤经纬】独立图鉴场景（水墨国风版）
- * 集中展示游戏五行生克相生、五维对位与伤害乘区底层算法。
+ * 包含双主翼：
+ * 1. 【五行相生】(wuxing)：纯粹五行状态与双向相生连锁体系（左矢量图 + 右综合/聚焦卡片）
+ * 2. 【乾坤算法】(damage)：公式总览 + 四大乘区卡片网格 + 抵扣与终局卡片 + 战法实战推导演算 + 底层铁律
  */
 export default class MechanicsScene extends Phaser.Scene {
   private returnScene: string = 'TitleScene'
@@ -45,9 +44,8 @@ export default class MechanicsScene extends Phaser.Scene {
 
   init(data?: { returnScene?: string; tab?: string }): void {
     this.returnScene = data?.returnScene || 'TitleScene'
-    const tab = data?.tab
-    if (tab === 'attributes' || tab === 'damage') {
-      this.currentTab = tab
+    if (data?.tab === 'damage' || data?.tab === 'attributes') {
+      this.currentTab = 'damage'
     } else {
       this.currentTab = 'wuxing'
     }
@@ -70,11 +68,11 @@ export default class MechanicsScene extends Phaser.Scene {
     // 3. 顶部卷轴题眉
     this.createHeader(width)
 
-    // 4. 四大选项卡
+    // 4. 双翼选项卡（【五行相生】与【乾坤算法】）
     this.createTabs(width)
 
     // 5. 主体内容容器
-    this.bodyContainer = this.add.container(width / 2, 170)
+    this.bodyContainer = this.add.container(width / 2, 168)
     this.bodyContainer.setDepth(10)
 
     // 6. 渲染初始标签内容
@@ -129,12 +127,12 @@ export default class MechanicsScene extends Phaser.Scene {
     // 古典印章：理
     const sealG = this.add.graphics()
     sealG.fillStyle(InkColor.cinnabar, 0.95)
-    sealG.fillRoundedRect(-170, -18, 36, 36, 4)
+    sealG.fillRoundedRect(-180, -18, 36, 36, 4)
     sealG.lineStyle(1.5, 0xf6f0e4, 0.8)
-    sealG.strokeRoundedRect(-167, -15, 30, 30, 2)
+    sealG.strokeRoundedRect(-177, -15, 30, 30, 2)
     this.headerContainer.add(sealG)
 
-    const sealText = inkText(this, -152, 0, '理', {
+    const sealText = inkText(this, -162, 0, '理', {
       size: 18,
       color: '#fdfbf7',
       bold: true,
@@ -143,7 +141,7 @@ export default class MechanicsScene extends Phaser.Scene {
     })
 
     // 主标题
-    const titleText = inkText(this, -120, -2, '乾 坤 经 纬', {
+    const titleText = inkText(this, -130, -2, '乾 坤 经 纬', {
       size: 26,
       color: InkText.strong,
       bold: true,
@@ -152,7 +150,7 @@ export default class MechanicsScene extends Phaser.Scene {
     })
 
     // 副标题小注
-    const subText = inkText(this, 30, 1, '· 阵法相生 · 五维对位 · 伤害乘区 · 底层算法真诠 ·', {
+    const subText = inkText(this, 10, 1, '· 五行相生化学连锁 · 四独立伤害乘区 · 7步结算面板映射 ·', {
       size: 13,
       color: InkText.faint,
       originX: 0,
@@ -170,13 +168,13 @@ export default class MechanicsScene extends Phaser.Scene {
   }
 
   /**
-   * 水墨 Tab 切换器（【五行相生】与【乾坤经纬】双翼合并）
+   * 水墨 Tab 切换器（【五行相生】与【乾坤算法】）
    */
   private createTabs(width: number): void {
     const centerX = width / 2
     const tabY = 120
-    const tabW = 280
-    const gap = 24
+    const tabW = 340
+    const gap = 32
     const totalW = tabW * MECHANICS_TABS.length + gap * (MECHANICS_TABS.length - 1)
     const startX = centerX - totalW / 2 + tabW / 2
 
@@ -208,39 +206,49 @@ export default class MechanicsScene extends Phaser.Scene {
       renderTab()
 
       const sealChar = inkText(this, -tabW / 2 + 20, 0, tabDef.seal, {
-        size: 12,
-        color: '#fdfbf7',
+        size: 11,
+        color: '#ffffff',
         bold: true,
         originX: 0.5,
         originY: 0.5
       })
 
-      const titleTxt = inkText(this, -tabW / 2 + 40, 0, tabDef.title, {
-        size: 15,
-        color: InkText.strong,
+      const titleTxt = inkText(this, -tabW / 2 + 38, -2, tabDef.title, {
+        size: 14,
+        color: this.currentTab === tabDef.key ? InkText.cinnabar : InkText.strong,
         bold: true,
         originX: 0,
         originY: 0.5
       })
 
-      container.add([sealChar, titleTxt])
-      container.setSize(tabW, 36)
-      container.setInteractive({ useHandCursor: true })
+      const subTxt = inkText(this, -tabW / 2 + 106, 0, tabDef.subtitle, {
+        size: 9.5,
+        color: InkText.faint,
+        originX: 0,
+        originY: 0.5
+      })
 
-      container.on('pointerover', () => {
+      container.add([sealChar, titleTxt, subTxt])
+
+      // 交互
+      const hitArea = new Phaser.Geom.Rectangle(-tabW / 2, -18, tabW, 36)
+      bg.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains)
+      bg.on('pointerover', () => {
         if (this.currentTab !== tabDef.key) {
-          titleTxt.setColor(InkText.cinnabar)
+          bg.lineStyle(1.4, InkColor.cinnabar, 0.7)
+          bg.strokeRoundedRect(-tabW / 2, -18, tabW, 36, 4)
         }
       })
-      container.on('pointerout', () => {
+      bg.on('pointerout', () => {
         if (this.currentTab !== tabDef.key) {
-          titleTxt.setColor(InkText.strong)
+          renderTab()
         }
       })
-      container.on('pointerdown', () => {
+      bg.on('pointerdown', () => {
         if (this.currentTab === tabDef.key) return
+        SoundFX.stamp(0.3)
         this.currentTab = tabDef.key
-        SoundFX.stamp(0.4)
+        this.selectedElement = null
         this.refreshTabs()
         this.renderCurrentTabContent()
       })
@@ -250,7 +258,7 @@ export default class MechanicsScene extends Phaser.Scene {
   }
 
   private refreshTabs(): void {
-    const tabW = 280
+    const tabW = 340
     this.tabButtons.forEach((btn, index) => {
       const tabDef = MECHANICS_TABS[index]
       if (!tabDef) return
@@ -275,14 +283,10 @@ export default class MechanicsScene extends Phaser.Scene {
     })
   }
 
-  /**
-   * 渲染选中的内容
-   */
   private renderCurrentTabContent(): void {
     this.bodyContainer.removeAll(true)
 
-    const key = (this.currentTab === 'damage' || (this.currentTab as string) === 'attributes') ? 'damage' : 'wuxing'
-    if (key === 'wuxing') {
+    if (this.currentTab === 'wuxing') {
       this.renderWuxingContent()
     } else {
       this.renderDamageContent()
@@ -508,7 +512,6 @@ export default class MechanicsScene extends Phaser.Scene {
 
   /**
    * 渲染选定单个五行时的右侧专属详解（基础状态 + 双向相生连锁）
-   * 包含好看的高对比度边框与底色，完全解耦武将！
    */
   private renderSingleElementDetail(
     parent: Phaser.GameObjects.Container,
@@ -518,22 +521,22 @@ export default class MechanicsScene extends Phaser.Scene {
   ): void {
     const pal = WUXING_PALETTE[detail.element]
 
-    // 1. 对应基础状态卡片 (y: 62, h: 124)
-    const card1 = this.add.container(0, 62)
+    // 1. 对应基础状态卡片 (y: 60, h: 120)
+    const card1 = this.add.container(0, 60)
     const bg1 = this.add.graphics()
     bg1.fillStyle(pal.fill, 0.98)
-    bg1.fillRoundedRect(-cardW / 2, -62, cardW, 124, 6)
+    bg1.fillRoundedRect(-cardW / 2, -60, cardW, 120, 6)
     bg1.lineStyle(2.0, pal.border, 0.95)
-    bg1.strokeRoundedRect(-cardW / 2, -62, cardW, 124, 6)
+    bg1.strokeRoundedRect(-cardW / 2, -60, cardW, 120, 6)
     bg1.lineStyle(1.0, 0xffffff, 0.6)
-    bg1.strokeRoundedRect(-cardW / 2 + 2.5, -59.5, cardW - 5, 119, 4)
+    bg1.strokeRoundedRect(-cardW / 2 + 2.5, -57.5, cardW - 5, 115, 4)
 
     // 左侧五行法印印章
     bg1.fillStyle(pal.color, 0.95)
-    bg1.fillRoundedRect(-cardW / 2 + 16, -46, 46, 46, 5)
+    bg1.fillRoundedRect(-cardW / 2 + 16, -44, 44, 44, 5)
     card1.add(bg1)
 
-    const sealChar = inkText(this, -cardW / 2 + 39, -23, detail.status.char, {
+    const sealChar = inkText(this, -cardW / 2 + 38, -22, detail.status.char, {
       size: 24,
       color: '#ffffff',
       bold: true,
@@ -541,15 +544,15 @@ export default class MechanicsScene extends Phaser.Scene {
       originY: 0.5
     })
 
-    const title1 = inkText(this, -cardW / 2 + 74, -36, detail.status.name, {
-      size: 16.5,
+    const title1 = inkText(this, -cardW / 2 + 72, -35, detail.status.name, {
+      size: 16,
       color: pal.hex,
       bold: true,
       originX: 0,
       originY: 0.5
     })
 
-    const targetBadge = inkText(this, -cardW / 2 + 260, -36, `【专克：${detail.status.targetStat}】`, {
+    const targetBadge = inkText(this, -cardW / 2 + 260, -35, `【专克：${detail.status.targetStat}】`, {
       size: 13,
       color: InkText.cinnabar,
       bold: true,
@@ -559,13 +562,13 @@ export default class MechanicsScene extends Phaser.Scene {
 
     const durTag = inkText(
       this,
-      cardW / 2 - 16,
-      -36,
-      `附着时长：${detail.status.duration} (非抹除)`,
+      cardW / 2 - 18,
+      -35,
+      `附着时长：${detail.status.duration}`,
       { size: 12, color: InkText.faint, originX: 1, originY: 0.5 }
     )
 
-    const summary1 = inkText(this, -cardW / 2 + 18, 6, `核心职能：${detail.status.summary}`, {
+    const summary1 = inkText(this, -cardW / 2 + 72, -12, `核心效果：${detail.status.summary}`, {
       size: 12.5,
       color: InkText.strong,
       bold: true,
@@ -574,14 +577,14 @@ export default class MechanicsScene extends Phaser.Scene {
     })
 
     const detailsStr = detail.status.details.slice(0, 2).join(' ｜ ')
-    const details1 = inkText(this, -cardW / 2 + 18, 28, detailsStr, {
+    const details1 = inkText(this, -cardW / 2 + 18, 14, `机制细则：${detailsStr}`, {
       size: 11,
       color: InkText.wash,
       originX: 0,
       originY: 0.5
     })
 
-    const ruleText = inkText(this, -cardW / 2 + 18, 48, `● 机制铁律：${detail.status.rules.join('  ● ')}`, {
+    const ruleText = inkText(this, -cardW / 2 + 18, 36, `铁律遵循：${detail.status.rules.join('  ● ')}`, {
       size: 11,
       color: '#8a6230',
       bold: true,
@@ -592,32 +595,32 @@ export default class MechanicsScene extends Phaser.Scene {
     card1.add([sealChar, title1, targetBadge, durTag, summary1, details1, ruleText])
     parent.add(card1)
 
-    // 2. 对应相生状态信息卡片（双向相生：生我 & 我生） (y: 226, h: 168)
+    // 2. 对应双向相生连锁卡片（生我之合 & 我生之合） (y: 226, h: 172)
     const card2 = this.add.container(0, 226)
     const bg2 = this.add.graphics()
     bg2.fillStyle(InkColor.paperPanel, 0.95)
-    bg2.fillRoundedRect(-cardW / 2, -84, cardW, 168, 6)
+    bg2.fillRoundedRect(-cardW / 2, -86, cardW, 172, 6)
     bg2.lineStyle(1.6, 0xa0782f, 0.8)
-    bg2.strokeRoundedRect(-cardW / 2, -84, cardW, 168, 6)
+    bg2.strokeRoundedRect(-cardW / 2, -86, cardW, 172, 6)
     card2.add(bg2)
 
     const title2 = inkText(
       this,
       -cardW / 2 + 18,
-      -68,
+      -70,
       '【对应双向相生化学连锁】',
       { size: 13, color: '#8a6230', bold: true, originX: 0, originY: 0.5 }
     )
     const sub2 = inkText(
       this,
       cardW / 2 - 18,
-      -68,
-      '双向无序等效触发 · 1.5s ICD · 相生不抹除底层状态',
+      -70,
+      '双向无序等效 · 1.5s ICD · 相生不抹除底层状态',
       { size: 10.5, color: InkText.faint, originX: 1, originY: 0.5 }
     )
     card2.add([title2, sub2])
 
-    // 双栏对比：生我之合 vs 我生之合（使用好看的相生五行边框）
+    // 双栏对比：生我之合 vs 我生之合
     const halfW = (cardW - 46) / 2
     const fromPal = WUXING_PALETTE[detail.generatedBy.partnerElement]
     const toPal = WUXING_PALETTE[detail.generates.partnerElement]
@@ -642,19 +645,19 @@ export default class MechanicsScene extends Phaser.Scene {
     subConfigs.forEach((cfg) => {
       const subBg = this.add.graphics()
       subBg.fillStyle(cfg.pal.fill, 0.98)
-      subBg.fillRoundedRect(cfg.x - halfW / 2, -50, halfW, 122, 5)
+      subBg.fillRoundedRect(cfg.x - halfW / 2, -54, halfW, 128, 5)
       subBg.lineStyle(1.5, cfg.pal.border, 0.85)
-      subBg.strokeRoundedRect(cfg.x - halfW / 2, -50, halfW, 122, 5)
+      subBg.strokeRoundedRect(cfg.x - halfW / 2, -54, halfW, 128, 5)
 
-      const sTitle = inkText(this, cfg.x - halfW / 2 + 10, -36, cfg.title, {
-        size: 11.5,
+      const sTitle = inkText(this, cfg.x - halfW / 2 + 12, -40, cfg.title, {
+        size: 12,
         color: cfg.rx.textColor,
         bold: true,
         originX: 0,
         originY: 0.5
       })
 
-      const sCombo = inkText(this, cfg.x - halfW / 2 + 10, -18, cfg.combo, {
+      const sCombo = inkText(this, cfg.x - halfW / 2 + 12, -22, cfg.combo, {
         size: 10.5,
         color: InkText.strong,
         bold: true,
@@ -662,23 +665,23 @@ export default class MechanicsScene extends Phaser.Scene {
         originY: 0.5
       })
 
-      const sType = inkText(this, cfg.x - halfW / 2 + 10, -2, `质变：${cfg.rx.type}`, {
-        size: 10,
+      const sType = inkText(this, cfg.x - halfW / 2 + 12, -5, `质变：${cfg.rx.type}`, {
+        size: 10.5,
         color: InkText.cinnabar,
         bold: true,
         originX: 0,
         originY: 0.5
       })
 
-      const sSummary = inkText(this, cfg.x - halfW / 2 + 10, 18, cfg.rx.summary, {
+      const sSummary = inkText(this, cfg.x - halfW / 2 + 12, 16, cfg.rx.summary, {
         size: 10,
         color: InkText.ink,
-        wrapWidth: halfW - 20,
+        wrapWidth: halfW - 24,
         originX: 0,
         originY: 0.5
       })
 
-      const sIcd = inkText(this, cfg.x - halfW / 2 + 10, 52, `内置CD：${cfg.rx.icd}`, {
+      const sIcd = inkText(this, cfg.x - halfW / 2 + 12, 54, `内置CD：${cfg.rx.icd}`, {
         size: 9.5,
         color: InkText.faint,
         originX: 0,
@@ -687,15 +690,16 @@ export default class MechanicsScene extends Phaser.Scene {
 
       card2.add([subBg, sTitle, sCombo, sType, sSummary, sIcd])
     })
+
     parent.add(card2)
 
-    // 3. 空间阵脉与相生共鸣加成 (y: 340, h: 48)
-    const card3 = this.add.container(0, 340)
+    // 3. 底部规则要点 (y: 338, h: 48)
+    const card3 = this.add.container(0, 338)
     const bg3 = this.add.graphics()
     bg3.fillStyle(InkColor.paperPanel, 0.92)
-    bg3.fillRoundedRect(-cardW / 2, -24, cardW, 48, 5)
-    bg3.lineStyle(1.2, InkColor.inkFaint, 0.5)
-    bg3.strokeRoundedRect(-cardW / 2, -24, cardW, 48, 5)
+    bg3.fillRoundedRect(-cardW / 2, -24, cardW, 48, 4)
+    bg3.lineStyle(1.2, InkColor.ink, 0.4)
+    bg3.strokeRoundedRect(-cardW / 2, -24, cardW, 48, 4)
     card3.add(bg3)
 
     const rule1 = inkText(
@@ -717,7 +721,6 @@ export default class MechanicsScene extends Phaser.Scene {
 
     // 4. 底部快捷操作栏 (y: 388, h: 32)
     const bar = this.add.container(0, 388)
-    // 全部按钮
     const allBtn = this.add.container(-cardW / 2 + 55, 0)
     const allBg = this.add.graphics()
     allBg.fillStyle(InkColor.paperDeep, 0.95)
@@ -740,7 +743,6 @@ export default class MechanicsScene extends Phaser.Scene {
     })
     bar.add(allBtn)
 
-    // 5 个五行快捷切换胶囊（解耦武将，使用鲜艳五行色彩）
     const elements: Array<{ key: WuXing; label: string; seal: string }> = [
       { key: 'metal', label: '金', seal: '裂' },
       { key: 'water', label: '水', seal: '湿' },
@@ -782,392 +784,244 @@ export default class MechanicsScene extends Phaser.Scene {
     parent.add(bar)
   }
 
-  // ==================== 3. 五维攻防对位 ====================
-  private renderAttributesContent(): void {
-    const cardW = 1040
+  // ==================== 2. 乾坤算法（全新重铸清晰展示版：流水线卡片矩阵） ====================
+  private renderDamageContent(): void {
+    const cardW = 1140
     const startY = 0
 
-    const banner = this.createSummaryBanner(
-      cardW,
-      '◆ 敌我五大基础属性池严格一对一精准对位 · 职能边界严禁模糊重叠 · 破韧破刚方显暴击之威 ◆'
+    // 1. 顶部总公式流水线横幅
+    const formulaContainer = this.add.container(0, startY + 20)
+    const formulaBg = this.add.graphics()
+    formulaBg.fillStyle(InkColor.paperPanel, 0.98)
+    formulaBg.fillRoundedRect(-cardW / 2, -20, cardW, 40, 4)
+    formulaBg.lineStyle(1.8, InkColor.cinnabar, 0.85)
+    formulaBg.strokeRoundedRect(-cardW / 2, -20, cardW, 40, 4)
+
+    const fSeal = inkText(this, -cardW / 2 + 16, 0, '【总公式】', {
+      size: 13,
+      color: InkText.cinnabar,
+      bold: true,
+      originX: 0,
+      originY: 0.5
+    })
+
+    const formulaTxt = inkText(
+      this,
+      -cardW / 2 + 92,
+      0,
+      '最终伤害 = [① 基础基数] × [② 攻击乘区] × [③ 增伤乘区] × [④ 易伤乘区] × [⑤ 暴击对抗] × [⑥ 护甲折算]',
+      {
+        size: 12.5,
+        color: InkText.strong,
+        bold: true,
+        originX: 0,
+        originY: 0.5
+      }
     )
-    this.bodyContainer.add(banner)
 
-    const itemH = 76
-    const gap = 10
-    let currentY = startY + 36
+    const fNotice = inkText(this, cardW / 2 - 16, 0, '六步严格乘算 · 真伤直接跳过护甲', {
+      size: 11,
+      color: InkText.faint,
+      originX: 1,
+      originY: 0.5
+    })
 
-    ATTRIBUTE_PAIRS.forEach((pair) => {
-      const card = this.add.container(0, currentY + itemH / 2)
+    formulaContainer.add([formulaBg, fSeal, formulaTxt, fNotice])
+    this.bodyContainer.add(formulaContainer)
 
+    // 2. 中层：6 大核心结算因子卡片（3 列 × 2 行 工整流水线网格）
+    const gridY = startY + 48
+    const gapX = 14
+    const gapY = 10
+    const colW = (cardW - gapX * 2) / 3
+    const cellH = 124
+
+    DAMAGE_PIPELINE_CARDS.forEach((card, idx) => {
+      const col = idx % 3
+      const row = Math.floor(idx / 3)
+      const cx = -cardW / 2 + colW / 2 + col * (colW + gapX)
+      const cy = gridY + cellH / 2 + row * (cellH + gapY)
+      const cell = this.add.container(cx, cy)
+
+      // 卡片底板
       const bg = this.add.graphics()
-      bg.fillStyle(InkColor.paperPanel, 0.94)
-      bg.fillRoundedRect(-cardW / 2, -itemH / 2, cardW, itemH, 5)
-      bg.lineStyle(1.2, InkColor.ink, 0.45)
-      bg.strokeRoundedRect(-cardW / 2, -itemH / 2, cardW, itemH, 5)
+      bg.fillStyle(InkColor.paperPanel, 0.96)
+      bg.fillRoundedRect(-colW / 2, -cellH / 2, colW, cellH, 5)
+      bg.lineStyle(1.5, card.color, 0.85)
+      bg.strokeRoundedRect(-colW / 2, -cellH / 2, colW, cellH, 5)
+      cell.add(bg)
 
-      // 中轴对抗印章
-      bg.fillStyle(InkColor.cinnabar, 0.9)
-      bg.fillRoundedRect(-16, -11, 32, 22, 3)
-      card.add(bg)
+      // 标头行：阶段印章 + 因子标题 + 对应面板
+      const badge = this.add.graphics()
+      badge.fillStyle(card.color, 0.95)
+      badge.fillRoundedRect(-colW / 2 + 10, -cellH / 2 + 8, 76, 20, 3)
+      cell.add(badge)
 
-      const vsTxt = inkText(this, 0, 0, 'VS', {
-        size: 11,
-        color: '#fdfbf7',
+      const badgeTxt = inkText(this, -colW / 2 + 48, -cellH / 2 + 18, card.stepBadge, {
+        size: 10.5,
+        color: '#ffffff',
         bold: true,
         originX: 0.5,
         originY: 0.5
       })
 
-      // 我方属性
-      const alliedTitle = inkText(this, -cardW / 2 + 20, -16, `我军：${pair.alliedStat}`, {
-        size: 15,
-        color: '#2b638f',
+      const titleTxt = inkText(this, -colW / 2 + 92, -cellH / 2 + 18, card.title, {
+        size: 12.5,
+        color: card.textColor,
         bold: true,
         originX: 0,
         originY: 0.5
       })
 
-      const alliedDesc = inkText(this, -cardW / 2 + 20, 9, pair.alliedDesc, {
-        size: 12,
-        color: InkText.faint,
-        originX: 0,
-        originY: 0.5
-      })
-
-      // 敌军属性
-      const enemyTitle = inkText(this, 36, -16, `敌军：${pair.enemyStat}`, {
-        size: 15,
-        color: InkText.cinnabar,
-        bold: true,
-        originX: 0,
-        originY: 0.5
-      })
-
-      const enemyDesc = inkText(this, 36, 9, pair.enemyDesc, {
-        size: 12,
-        color: InkText.faint,
-        originX: 0,
-        originY: 0.5
-      })
-
-      const logicText = inkText(this, -cardW / 2 + 20, 27, `破除之道：${pair.counterLogic}`, {
-        size: 12,
-        color: InkText.strong,
-        originX: 0,
-        originY: 0.5
-      })
-
-      card.add([vsTxt, alliedTitle, alliedDesc, enemyTitle, enemyDesc, logicText])
-      this.bodyContainer.add(card)
-
-      currentY += itemH + gap
-    })
-  }
-
-  // ==================== 4. 乾坤经纬：五维对位与四乘区合并算法 ====================
-  private renderDamageContent(): void {
-    const cardW = 1040
-    const startY = 6
-
-    // 1. 公式华章看板
-    const formulaContainer = this.add.container(0, startY + 22)
-    const formulaBg = this.add.graphics()
-    formulaBg.fillStyle(InkColor.paperPanel, 0.96)
-    formulaBg.fillRoundedRect(-cardW / 2, -22, cardW, 44, 4)
-    formulaBg.lineStyle(1.8, InkColor.cinnabar, 0.85)
-    formulaBg.strokeRoundedRect(-cardW / 2, -22, cardW, 44, 4)
-
-    const fTitle = inkText(this, 0, -10, '【 乾坤经纬 · 攻守对位与四乘区合并总公式 】', {
-      size: 12,
-      color: InkText.cinnabar,
-      bold: true,
-      originX: 0.5,
-      originY: 0.5
-    })
-
-    const formulaTxt = inkText(this, 0, 10, DAMAGE_FORMULA_GUIDE.formula, {
-      size: 12,
-      color: InkText.strong,
-      bold: true,
-      originX: 0.5,
-      originY: 0.5
-    })
-    formulaContainer.add([formulaBg, fTitle, formulaTxt])
-    this.bodyContainer.add(formulaContainer)
-
-    // 2. 中层左右并列双栏（左栏：五维攻守对位；右栏：四乘区结算与面板对齐）
-    const leftW = 506
-    const rightW = 518
-    const colH = 296
-    const leftX = -cardW / 2 + leftW / 2
-    const rightX = cardW / 2 - rightW / 2
-    const colCenterY = startY + 196
-
-    // ---------- 左栏：五维攻守对位 ----------
-    const leftContainer = this.add.container(leftX, colCenterY)
-    const leftBg = this.add.graphics()
-    leftBg.fillStyle(InkColor.paperPanel, 0.92)
-    leftBg.fillRoundedRect(-leftW / 2, -colH / 2, leftW, colH, 5)
-    leftBg.lineStyle(1.2, InkColor.ink, 0.55)
-    leftBg.strokeRoundedRect(-leftW / 2, -colH / 2, leftW, colH, 5)
-    leftContainer.add(leftBg)
-
-    const leftTitle = inkText(this, 0, -colH / 2 + 16, '【 乾坤五维 · 攻守对位与克制链 】', {
-      size: 13,
-      color: InkText.strong,
-      bold: true,
-      originX: 0.5,
-      originY: 0.5
-    })
-    leftContainer.add(leftTitle)
-
-    const fiveDimensionRows = [
-      {
-        allied: '攻击力 (attack)',
-        enemy: '生命 (hp)',
-        tag: '【木·毒】',
-        tagColor: '#2e7d32',
-        desc: '腐蚀每秒 2.0% 最大生命真伤，叠 3 层，禁疗 50%'
-      },
-      {
-        allied: '攻速频率 (attackSpeed)',
-        enemy: '防御 (defense)',
-        tag: '【金·裂】',
-        tagColor: '#c59b27',
-        desc: '撕裂削减 35% 防御护甲；移动受 45% 流血真伤'
-      },
-      {
-        allied: '攻击范围 (range)',
-        enemy: '移速 (moveSpeed)',
-        tag: '【水·湿】',
-        tagColor: '#206095',
-        desc: '降低敌军 35% 行军移速（全场唯一基础软控媒介）'
-      },
-      {
-        allied: '暴击几率 (critRate)',
-        enemy: '韧性 (tenacity)',
-        tag: '【土·重】',
-        tagColor: '#8d5b28',
-        desc: '削减 25% 韧性（反暴率），大幅解放我方暴击几率'
-      },
-      {
-        allied: '暴击伤害 (critDamage)',
-        enemy: '刚毅 (fortitude)',
-        tag: '【土·重】',
-        tagColor: '#8d5b28',
-        desc: '削减 40% 刚毅（反暴伤），受暴击追 20% 负重内震'
-      }
-    ]
-
-    const itemH = 46
-    const rowGap = 6
-    const startRowY = -colH / 2 + 54
-
-    fiveDimensionRows.forEach((row, idx) => {
-      const ry = startRowY + idx * (itemH + rowGap)
-      const rContainer = this.add.container(0, ry)
-
-      const rBg = this.add.graphics()
-      rBg.fillStyle(InkColor.paperDeep, 0.9)
-      rBg.fillRoundedRect(-leftW / 2 + 10, -itemH / 2, leftW - 20, itemH, 4)
-      rBg.lineStyle(0.8, InkColor.ink, 0.25)
-      rBg.strokeRoundedRect(-leftW / 2 + 10, -itemH / 2, leftW - 20, itemH, 4)
-
-      const alliedTxt = inkText(this, -leftW / 2 + 20, -11, row.allied, {
-        size: 11.5,
-        color: '#206095',
-        bold: true,
-        originX: 0,
-        originY: 0.5
-      })
-
-      const vsArrow = inkText(this, -leftW / 2 + 180, -11, '⚔ 针对', {
+      const panelTxt = inkText(this, colW / 2 - 10, -cellH / 2 + 18, card.panelLabel, {
         size: 10,
         color: InkText.faint,
-        originX: 0,
-        originY: 0.5
-      })
-
-      const enemyTxt = inkText(this, -leftW / 2 + 235, -11, row.enemy, {
-        size: 11.5,
-        color: InkText.cinnabar,
-        bold: true,
-        originX: 0,
-        originY: 0.5
-      })
-
-      const tagTxt = inkText(this, -leftW / 2 + 20, 11, row.tag, {
-        size: 10.5,
-        color: row.tagColor,
-        bold: true,
-        originX: 0,
-        originY: 0.5
-      })
-
-      const descTxt = inkText(this, -leftW / 2 + 84, 11, row.desc, {
-        size: 10,
-        color: InkText.ink,
-        originX: 0,
-        originY: 0.5
-      })
-
-      rContainer.add([rBg, alliedTxt, vsArrow, enemyTxt, tagTxt, descTxt])
-      leftContainer.add(rContainer)
-    })
-    this.bodyContainer.add(leftContainer)
-
-    // ---------- 右栏：四乘区结算与面板对齐 ----------
-    const rightContainer = this.add.container(rightX, colCenterY)
-    const rightBg = this.add.graphics()
-    rightBg.fillStyle(InkColor.paperPanel, 0.92)
-    rightBg.fillRoundedRect(-rightW / 2, -colH / 2, rightW, colH, 5)
-    rightBg.lineStyle(1.2, InkColor.cinnabar, 0.55)
-    rightBg.strokeRoundedRect(-rightW / 2, -colH / 2, rightW, colH, 5)
-    rightContainer.add(rightBg)
-
-    const rightTitle = inkText(this, 0, -colH / 2 + 16, '【 伤害乘区 · 结算规则与面板对齐 】', {
-      size: 13,
-      color: InkText.cinnabar,
-      bold: true,
-      originX: 0.5,
-      originY: 0.5
-    })
-    rightContainer.add(rightTitle)
-
-    const bucketRows = [
-      {
-        title: '◆ 基础基数 Base',
-        panel: '面板: attack',
-        detail: '普攻取 attack；战法 attack×倍率；相生取 max(A,B)+0.25*min(A,B)'
-      },
-      {
-        title: '◆ 攻击与增伤 AtkBoost & DmgInc',
-        panel: '加成: attackBoost / dmgInc',
-        detail: '攻击加成(装备/军令) 与 增伤(天时+20%/阵脉+35%/锦囊) 区内加算'
-      },
-      {
-        title: '◆ 易伤加成 Vulnerability',
-        panel: '加深: vulnerabilitySum',
-        detail: 'Boss破壁瘫痪+50%、《五气朝元》每态+18%、受击易伤，区内加算'
-      },
-      {
-        title: '◆ 暴击对抗 CritMultiplier',
-        panel: '对冲: crit vs 韧性 / 刚毅',
-        detail: '实暴=max(0, 暴率-有效韧性)；暴伤=1+max(0, 暴伤-100%-有效刚毅)'
-      },
-      {
-        title: '◆ 防御抵扣 DefMitigation',
-        panel: '减免: defense (底线≥40%)',
-        detail: '减免=有效防御/(有效防御+200)；金裂流血/碎冰真伤减免为0直接穿透'
-      }
-    ]
-
-    bucketRows.forEach((row, idx) => {
-      const ry = startRowY + idx * (itemH + rowGap)
-      const rContainer = this.add.container(0, ry)
-
-      const rBg = this.add.graphics()
-      rBg.fillStyle(InkColor.paperDeep, 0.9)
-      rBg.fillRoundedRect(-rightW / 2 + 10, -itemH / 2, rightW - 20, itemH, 4)
-      rBg.lineStyle(0.8, InkColor.ink, 0.25)
-      rBg.strokeRoundedRect(-rightW / 2 + 10, -itemH / 2, rightW - 20, itemH, 4)
-
-      const tTitle = inkText(this, -rightW / 2 + 18, -11, row.title, {
-        size: 11.5,
-        color: InkText.strong,
-        bold: true,
-        originX: 0,
-        originY: 0.5
-      })
-
-      const tPanel = inkText(this, rightW / 2 - 18, -11, row.panel, {
-        size: 10,
-        color: '#8d5b28',
-        bold: true,
         originX: 1,
         originY: 0.5
       })
 
-      const tDetail = inkText(this, -rightW / 2 + 18, 11, row.detail, {
-        size: 10,
+      // 公式槽
+      const fBox = this.add.graphics()
+      fBox.fillStyle(InkColor.paperDeep, 0.9)
+      fBox.fillRoundedRect(-colW / 2 + 10, -cellH / 2 + 33, colW - 20, 22, 3)
+      cell.add(fBox)
+
+      const formTxt = inkText(this, -colW / 2 + 16, -cellH / 2 + 44, `● 算法: ${card.formula}`, {
+        size: 10.5,
+        color: InkText.strong,
+        bold: true,
+        originX: 0,
+        originY: 0.5
+      })
+
+      // 极简结算要点（不废话，点列短句）
+      const p1 = inkText(this, -colW / 2 + 12, -cellH / 2 + 68, card.points[0], {
+        size: 9.5,
         color: InkText.ink,
         originX: 0,
         originY: 0.5
       })
 
-      rContainer.add([rBg, tTitle, tPanel, tDetail])
-      rightContainer.add(rContainer)
-    })
-    this.bodyContainer.add(rightContainer)
+      const p2 = inkText(this, -colW / 2 + 12, -cellH / 2 + 88, card.points[1], {
+        size: 9.5,
+        color: InkText.wash,
+        originX: 0,
+        originY: 0.5
+      })
 
-    // 3. 底栏两大铁律高光框
-    const rulesY = startY + 370
+      cell.add([badgeTxt, titleTxt, panelTxt, formTxt, p1, p2])
+      this.bodyContainer.add(cell)
+    })
+
+    // 3. 实战数值推演横向展示框
+    const exampleY = gridY + cellH * 2 + gapY + 12
+    const exH = 48
+    const exContainer = this.add.container(0, exampleY + exH / 2)
+
+    const exBg = this.add.graphics()
+    exBg.fillStyle(InkColor.paperPanel, 0.96)
+    exBg.fillRoundedRect(-cardW / 2, -exH / 2, cardW, exH, 5)
+    exBg.lineStyle(1.4, 0x9e2b25, 0.75)
+    exBg.strokeRoundedRect(-cardW / 2, -exH / 2, cardW, exH, 5)
+    exContainer.add(exBg)
+
+    const exBadge = this.add.graphics()
+    exBadge.fillStyle(0x9e2b25, 0.95)
+    exBadge.fillRoundedRect(-cardW / 2 + 10, -exH / 2 + 8, 80, 32, 3)
+    exContainer.add(exBadge)
+
+    const exBadgeTxt = inkText(this, -cardW / 2 + 50, 0, '【实战演练】\n数值推导', {
+      size: 10,
+      color: '#ffffff',
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+
+    const exLine1 = inkText(
+      this,
+      -cardW / 2 + 100,
+      -10,
+      '关羽战法斩击：180 (①基数) × 1.20 (②攻击+20%) × 1.35 (③阵脉+35%) × 1.50 (④瘫痪+50%) × 1.50 (⑤暴伤+50%) = 656.1 原始伤害',
+      {
+        size: 10,
+        color: InkText.strong,
+        bold: true,
+        originX: 0,
+        originY: 0.5
+      }
+    )
+
+    const exLine2 = inkText(
+      this,
+      -cardW / 2 + 100,
+      10,
+      '破甲与减免联动：未破甲(防100, 减免33.3%) → 437 落地伤 ｜ 金·裂破甲35%(防降至65, 减免降至24.5%) → 495 伤 (+13.3%) ｜ 真伤(减免0%) → 656 直穿！',
+      {
+        size: 9.5,
+        color: InkText.cinnabar,
+        bold: true,
+        originX: 0,
+        originY: 0.5
+      }
+    )
+
+    exContainer.add([exBadgeTxt, exLine1, exLine2])
+    this.bodyContainer.add(exContainer)
+
+    // 4. 底栏：两大核心数值铁律
+    const rulesY = exampleY + exH + 10
     const rulesContainer = this.add.container(0, rulesY)
-    const ruleBoxW = cardW / 2 - 10
-    const ruleH = 36
+    const ruleBoxW = cardW / 2 - 8
+    const ruleH = 30
 
     // 铁律 1: 局外保底
     const r1Bg = this.add.graphics()
-    r1Bg.fillStyle(InkColor.paperPanel, 0.95)
-    r1Bg.fillRoundedRect(-cardW / 4 - 5 - ruleBoxW / 2, -ruleH / 2, ruleBoxW, ruleH, 4)
-    r1Bg.lineStyle(1.1, InkColor.cinnabar, 0.75)
-    r1Bg.strokeRoundedRect(-cardW / 4 - 5 - ruleBoxW / 2, -ruleH / 2, ruleBoxW, ruleH, 4)
+    r1Bg.fillStyle(InkColor.paperPanel, 0.96)
+    r1Bg.fillRoundedRect(-cardW / 2, -ruleH / 2, ruleBoxW, ruleH, 4)
+    r1Bg.lineStyle(1.2, InkColor.cinnabar, 0.8)
+    r1Bg.strokeRoundedRect(-cardW / 2, -ruleH / 2, ruleBoxW, ruleH, 4)
 
-    const r1Title = inkText(this, -cardW / 4 - 5 - ruleBoxW / 2 + 14, 0, '◆ 铁律 ① 局外上限 ≤ +50%', {
-      size: 11,
+    const r1Txt = inkText(this, -cardW / 2 + 14, 0, '◆ 铁律 ① 局外上限 ≤ +50%：武将星级/神兵/宝石累加总增益封顶 +50%，保下限定上限', {
+      size: 10,
       color: InkText.cinnabar,
       bold: true,
       originX: 0,
       originY: 0.5
     })
-    const r1Desc = inkText(
-      this,
-      -cardW / 4 - 5 - ruleBoxW / 2 + 176,
-      0,
-      '局外武将/神兵/宝石累加总增益封顶 +50%，保下限定上限。',
-      { size: 9.5, color: InkText.ink, originX: 0, originY: 0.5 }
-    )
-    rulesContainer.add([r1Bg, r1Title, r1Desc])
+    rulesContainer.add([r1Bg, r1Txt])
 
     // 铁律 2: 抗性保底
     const r2Bg = this.add.graphics()
-    r2Bg.fillStyle(InkColor.paperPanel, 0.95)
-    r2Bg.fillRoundedRect(cardW / 4 + 5 - ruleBoxW / 2, -ruleH / 2, ruleBoxW, ruleH, 4)
-    r2Bg.lineStyle(1.1, InkColor.ink, 0.75)
-    r2Bg.strokeRoundedRect(cardW / 4 + 5 - ruleBoxW / 2, -ruleH / 2, ruleBoxW, ruleH, 4)
+    r2Bg.fillStyle(InkColor.paperPanel, 0.96)
+    r2Bg.fillRoundedRect(-cardW / 2 + ruleBoxW + 16, -ruleH / 2, ruleBoxW, ruleH, 4)
+    r2Bg.lineStyle(1.2, InkColor.ink, 0.8)
+    r2Bg.strokeRoundedRect(-cardW / 2 + ruleBoxW + 16, -ruleH / 2, ruleBoxW, ruleH, 4)
 
-    const r2Title = inkText(this, cardW / 4 + 5 - ruleBoxW / 2 + 14, 0, '◆ 铁律 ② 抗性下限 ≥ 40%', {
-      size: 11,
+    const r2Txt = inkText(this, -cardW / 2 + ruleBoxW + 30, 0, '◆ 铁律 ② 敌方抗性保底 ≥ 40%：防御/韧性/刚毅削减最终生效值不得低于初始值 40%，严禁木桩', {
+      size: 10,
       color: InkText.strong,
       bold: true,
       originX: 0,
       originY: 0.5
     })
-    const r2Desc = inkText(
-      this,
-      cardW / 4 + 5 - ruleBoxW / 2 + 176,
-      0,
-      '防御/韧性/刚毅削减最多 60%，绝不沦为零防木桩。',
-      { size: 9.5, color: InkText.ink, originX: 0, originY: 0.5 }
-    )
-    rulesContainer.add([r2Bg, r2Title, r2Desc])
+    rulesContainer.add([r2Bg, r2Txt])
 
     this.bodyContainer.add(rulesContainer)
   }
 
   private createSummaryBanner(cardW: number, text: string): Phaser.GameObjects.Container {
     const container = this.add.container(0, 12)
-    const bg = this.add.rectangle(0, 0, cardW, 28, InkColor.paperPanel, 0.7)
-    bg.setStrokeStyle(1, InkColor.inkFaint, 0.35)
-
-    const label = inkText(this, 0, 0, text, {
-      size: 12,
-      color: InkText.faint,
+    const bg = this.add.rectangle(0, 0, cardW, 28, InkColor.paperPanel, 0.85)
+    bg.setStrokeStyle(1.2, InkColor.inkFaint, 0.45)
+    const txt = inkText(this, 0, 0, text, {
+      size: 11.5,
+      color: InkText.cinnabar,
+      bold: true,
       originX: 0.5,
       originY: 0.5
     })
-    container.add([bg, label])
+    container.add([bg, txt])
     return container
   }
 }

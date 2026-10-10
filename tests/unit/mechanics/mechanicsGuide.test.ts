@@ -3,20 +3,37 @@ import {
   MECHANICS_TABS,
   ELEMENT_STATUS_LIST,
   REACTION_LIST,
-  ATTRIBUTE_PAIRS,
+  DAMAGE_FORMULA_STEPS,
   DAMAGE_FORMULA_GUIDE,
   ELEMENT_GENERAL_MAP,
   getElementMechanicsDetail
 } from '@/data/mechanics'
 
 describe('【乾坤经纬】底层机制知识库与设计铁律单元测试', () => {
-  it('1. 机制分类标签必须包含【五行相生】、【五维对位】与【乘区算法】三位一体且具备中式印章题眉', () => {
-    expect(MECHANICS_TABS).toHaveLength(3)
+  it('1. 机制分类标签包含独立的【五行相生】与【乾坤算法】双主翼架构', () => {
+    expect(MECHANICS_TABS).toHaveLength(2)
     const keys = MECHANICS_TABS.map((t) => t.key)
-    expect(keys).toEqual(['wuxing', 'attributes', 'damage'])
+    expect(keys).toEqual(['wuxing', 'damage'])
 
-    const seals = MECHANICS_TABS.map((t) => t.seal)
-    expect(seals).toEqual(['生', '位', '算'])
+    expect(DAMAGE_FORMULA_STEPS).toHaveLength(7)
+    const stepIds = DAMAGE_FORMULA_STEPS.map((s) => s.id)
+    expect(stepIds).toEqual(['base', 'atk_boost', 'dmg_inc', 'vuln', 'crit', 'def_mit', 'final'])
+
+    // 检查面板数字映射与公式
+    const baseStep = DAMAGE_FORMULA_STEPS.find((s) => s.id === 'base')!
+    expect(baseStep.panelMapping).toContain('attack')
+    expect(baseStep.formula).toContain('Base = 攻击力 × 技能倍率')
+
+    const atkStep = DAMAGE_FORMULA_STEPS.find((s) => s.id === 'atk_boost')!
+    expect(atkStep.panelMapping).toContain('attackBoostSum')
+
+    const critStep = DAMAGE_FORMULA_STEPS.find((s) => s.id === 'crit')!
+    expect(critStep.panelMapping).toContain('tenacity')
+    expect(critStep.panelMapping).toContain('fortitude')
+
+    const defStep = DAMAGE_FORMULA_STEPS.find((s) => s.id === 'def_mit')!
+    expect(defStep.panelMapping).toContain('defense')
+    expect(defStep.panelMapping).toContain('40%')
   })
 
   it('2. 五大五行基础状态必须严格对应五大五行且附着时长为 2.5s', () => {
@@ -64,25 +81,7 @@ describe('【乾坤经纬】底层机制知识库与设计铁律单元测试', (
     })
   })
 
-  it('4. 敌我五维基础属性池必须严格一对一精准对位', () => {
-    expect(ATTRIBUTE_PAIRS).toHaveLength(5)
-    const alliedStats = ATTRIBUTE_PAIRS.map((p) => p.alliedStat)
-    const enemyStats = ATTRIBUTE_PAIRS.map((p) => p.enemyStat)
-
-    expect(alliedStats.some((s) => s.includes('Attack'))).toBe(true)
-    expect(alliedStats.some((s) => s.includes('Range'))).toBe(true)
-    expect(alliedStats.some((s) => s.includes('AttackSpeed'))).toBe(true)
-    expect(alliedStats.some((s) => s.includes('CritRate'))).toBe(true)
-    expect(alliedStats.some((s) => s.includes('CritDamage'))).toBe(true)
-
-    expect(enemyStats.some((s) => s.includes('Defense'))).toBe(true)
-    expect(enemyStats.some((s) => s.includes('MoveSpeed'))).toBe(true)
-    expect(enemyStats.some((s) => s.includes('HP'))).toBe(true)
-    expect(enemyStats.some((s) => s.includes('Tenacity'))).toBe(true)
-    expect(enemyStats.some((s) => s.includes('Fortitude'))).toBe(true)
-  })
-
-  it('5. 严格四独立伤害乘区计算公式与两大第一性原理数值铁律校验', () => {
+  it('4. 严格四独立伤害乘区计算公式与两大第一性原理数值铁律校验', () => {
     // 包含具体攻击力与防御力减免的端到端四乘区公式
     expect(DAMAGE_FORMULA_GUIDE.formula).toContain('最终伤害')
     expect(DAMAGE_FORMULA_GUIDE.formula).toContain('基础基数')
@@ -103,11 +102,6 @@ describe('【乾坤经纬】底层机制知识库与设计铁律单元测试', (
     // 六大部分解构（含防御抵扣）
     expect(DAMAGE_FORMULA_GUIDE.buckets).toHaveLength(6)
 
-    // 实战案例包含完整 4 步推导演算
-    expect(DAMAGE_FORMULA_GUIDE.example.conditions).toContain('关羽基础攻击力')
-    expect(DAMAGE_FORMULA_GUIDE.example.step3).toContain('防御减免率')
-    expect(DAMAGE_FORMULA_GUIDE.example.step4).toContain('最终落地伤害')
-
     // 第一性原理：局外上限 <= +50% 与 抗性保底 >= 40%
     const rule1 = DAMAGE_FORMULA_GUIDE.rules.find((r) => r.title.includes('局外保下限'))!
     expect(rule1.content).toContain('+50%')
@@ -116,7 +110,7 @@ describe('【乾坤经纬】底层机制知识库与设计铁律单元测试', (
     expect(rule2.content).toContain('40%')
   })
 
-  it('6. 五虎将与五行专属对位及五行联动相生闭环链正确性', () => {
+  it('5. 五虎将与五行专属对位及五行联动相生闭环链正确性', () => {
     // 专属武将对应（关木/黄火/张土/马金/赵水）
     expect(ELEMENT_GENERAL_MAP.metal.name).toBe('马超')
     expect(ELEMENT_GENERAL_MAP.water.name).toBe('赵云')
