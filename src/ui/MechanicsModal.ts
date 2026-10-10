@@ -404,7 +404,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
           bg.lineStyle(0.8, 0xffffff, 0.5)
           bg.strokeRoundedRect(-rightCardW / 2 + 2, -itemH / 2 + 2, rightCardW - 4, itemH - 4, 4)
 
-          // 左侧五行徽印
+          // 1. 左侧五行法印徽印
           bg.fillStyle(pal.color, 0.95)
           bg.fillRoundedRect(-rightCardW / 2 + 12, -20, 40, 40, 4)
           card.add(bg)
@@ -417,7 +417,8 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
             originY: 0.5
           })
 
-          const title = inkText(this.scene, -rightCardW / 2 + 62, -14, item.name, {
+          // 2. 第一行：名称 + 专克 + 附着时长
+          const title = inkText(this.scene, -rightCardW / 2 + 62, -15, item.name, {
             size: 14,
             color: pal.hex,
             bold: true,
@@ -425,7 +426,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
             originY: 0.5
           })
 
-          const targetTag = inkText(this.scene, -rightCardW / 2 + 225, -14, `【专克：${item.targetStat}】`, {
+          const targetTag = inkText(this.scene, -rightCardW / 2 + 225, -15, `【专克：${item.targetStat}】`, {
             size: 11.5,
             color: InkText.cinnabar,
             bold: true,
@@ -433,22 +434,23 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
             originY: 0.5
           })
 
-          const durationTag = inkText(this.scene, rightCardW / 2 - 14, -14, `附着: ${item.duration}`, {
+          const durationTag = inkText(this.scene, rightCardW / 2 - 14, -15, `附着时长：${item.duration}`, {
             size: 11,
             color: InkText.faint,
             originX: 1,
             originY: 0.5
           })
 
-          const summary = inkText(this.scene, -rightCardW / 2 + 62, 5, item.summary, {
+          // 3. 第二行：核心效果
+          const summary = inkText(this.scene, -rightCardW / 2 + 62, 4, item.summary, {
             size: 11,
-            color: InkText.ink,
-            bold: true,
+            color: InkText.strong,
             originX: 0,
             originY: 0.5
           })
 
-          const rxBadge1 = inkText(this.scene, -rightCardW / 2 + 62, 22, `【生我】${detail.generatedBy.relationLabel} · ${detail.generatedBy.reaction.name}`, {
+          // 4. 第三行：相生指引徽章
+          const rxBadge1 = inkText(this.scene, -rightCardW / 2 + 62, 22, `【生我之合】${detail.generatedBy.relationLabel} · ${detail.generatedBy.reaction.name}`, {
             size: 10,
             color: WUXING_PALETTE[detail.generatedBy.partnerElement].hex,
             bold: true,
@@ -456,7 +458,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
             originY: 0.5
           })
 
-          const rxBadge2 = inkText(this.scene, -rightCardW / 2 + 310, 22, `【我生】${detail.generates.relationLabel} · ${detail.generates.reaction.name}`, {
+          const rxBadge2 = inkText(this.scene, -rightCardW / 2 + 310, 22, `【我生之合】${detail.generates.relationLabel} · ${detail.generates.reaction.name}`, {
             size: 10,
             color: WUXING_PALETTE[detail.generates.partnerElement].hex,
             bold: true,
@@ -531,7 +533,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
       originY: 0.5
     })
 
-    const title1 = inkText(this.scene, -cardW / 2 + 68, -36, detail.status.name, {
+    const title1 = inkText(this.scene, -cardW / 2 + 68, -35, detail.status.name, {
       size: 15,
       color: pal.hex,
       bold: true,
@@ -539,7 +541,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
       originY: 0.5
     })
 
-    const targetBadge = inkText(this.scene, -cardW / 2 + 240, -36, `【专克：${detail.status.targetStat}】`, {
+    const targetBadge = inkText(this.scene, -cardW / 2 + 235, -35, `【专克：${detail.status.targetStat}】`, {
       size: 12,
       color: InkText.cinnabar,
       bold: true,
@@ -550,12 +552,12 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
     const durTag = inkText(
       this.scene,
       cardW / 2 - 14,
-      -36,
+      -35,
       `附着时长：${detail.status.duration}`,
       { size: 11, color: InkText.faint, originX: 1, originY: 0.5 }
     )
 
-    const summary1 = inkText(this.scene, -cardW / 2 + 14, 6, `核心效果：${detail.status.summary}`, {
+    const summary1 = inkText(this.scene, -cardW / 2 + 68, -12, `核心效果：${detail.status.summary}`, {
       size: 11.5,
       color: InkText.strong,
       bold: true,
@@ -564,14 +566,14 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
     })
 
     const detailsStr = detail.status.details.slice(0, 2).join(' ｜ ')
-    const details1 = inkText(this.scene, -cardW / 2 + 14, 26, detailsStr, {
+    const details1 = inkText(this.scene, -cardW / 2 + 14, 14, `机制细则：${detailsStr}`, {
       size: 10.5,
       color: InkText.wash,
       originX: 0,
       originY: 0.5
     })
 
-    const ruleText = inkText(this.scene, -cardW / 2 + 14, 44, `● 机制铁律：${detail.status.rules.join('  ● ')}`, {
+    const ruleText = inkText(this.scene, -cardW / 2 + 14, 35, `铁律遵循：${detail.status.rules.join('  ● ')}`, {
       size: 10.5,
       color: '#8a6230',
       bold: true,
@@ -582,26 +584,26 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
     card1.add([sealChar, title1, targetBadge, durTag, summary1, details1, ruleText])
     parent.add(card1)
 
-    // 2. 对应相生状态卡片（生我 & 我生） (y: 204, h: 156)
-    const card2 = this.scene.add.container(0, 204)
+    // 2. 对应双向相生连锁卡片（生我之合 & 我生之合） (y: 206, h: 160)
+    const card2 = this.scene.add.container(0, 206)
     const bg2 = this.scene.add.graphics()
     bg2.fillStyle(InkColor.paperPanel, 0.95)
-    bg2.fillRoundedRect(-cardW / 2, -78, cardW, 156, 5)
+    bg2.fillRoundedRect(-cardW / 2, -80, cardW, 160, 5)
     bg2.lineStyle(1.4, 0xa0782f, 0.75)
-    bg2.strokeRoundedRect(-cardW / 2, -78, cardW, 156, 5)
+    bg2.strokeRoundedRect(-cardW / 2, -80, cardW, 160, 5)
     card2.add(bg2)
 
     const title2 = inkText(
       this.scene,
       -cardW / 2 + 14,
-      -64,
+      -66,
       '【对应双向相生化学连锁】',
       { size: 12, color: '#8a6230', bold: true, originX: 0, originY: 0.5 }
     )
     const sub2 = inkText(
       this.scene,
       cardW / 2 - 14,
-      -64,
+      -66,
       '双向无序等效 · 1.5s ICD · 相生不抹除',
       { size: 10, color: InkText.faint, originX: 1, originY: 0.5 }
     )
@@ -614,14 +616,14 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
     const subConfigs = [
       {
         x: -cardW / 2 + 12 + halfW / 2,
-        title: `【生我】${detail.generatedBy.relationLabel} · ${detail.generatedBy.reaction.name}`,
+        title: `【生我之合】${detail.generatedBy.relationLabel} · ${detail.generatedBy.reaction.name}`,
         combo: `触发：【${fromPal.name}】 + 【${pal.name}】`,
         pal: fromPal,
         rx: detail.generatedBy.reaction
       },
       {
         x: cardW / 2 - 12 - halfW / 2,
-        title: `【我生】${detail.generates.relationLabel} · ${detail.generates.reaction.name}`,
+        title: `【我生之合】${detail.generates.relationLabel} · ${detail.generates.reaction.name}`,
         combo: `触发：【${pal.name}】 + 【${toPal.name}】`,
         pal: toPal,
         rx: detail.generates.reaction
@@ -631,11 +633,11 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
     subConfigs.forEach((cfg) => {
       const subBg = this.scene.add.graphics()
       subBg.fillStyle(cfg.pal.fill, 0.98)
-      subBg.fillRoundedRect(cfg.x - halfW / 2, -48, halfW, 114, 4)
+      subBg.fillRoundedRect(cfg.x - halfW / 2, -50, halfW, 120, 4)
       subBg.lineStyle(1.3, cfg.pal.border, 0.85)
-      subBg.strokeRoundedRect(cfg.x - halfW / 2, -48, halfW, 114, 4)
+      subBg.strokeRoundedRect(cfg.x - halfW / 2, -50, halfW, 120, 4)
 
-      const sTitle = inkText(this.scene, cfg.x - halfW / 2 + 8, -34, cfg.title, {
+      const sTitle = inkText(this.scene, cfg.x - halfW / 2 + 8, -36, cfg.title, {
         size: 11,
         color: cfg.rx.textColor,
         bold: true,
@@ -643,7 +645,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
         originY: 0.5
       })
 
-      const sPartner = inkText(this.scene, cfg.x - halfW / 2 + 8, -18, cfg.combo, {
+      const sPartner = inkText(this.scene, cfg.x - halfW / 2 + 8, -20, cfg.combo, {
         size: 10,
         color: InkText.strong,
         bold: true,
@@ -651,7 +653,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
         originY: 0.5
       })
 
-      const sType = inkText(this.scene, cfg.x - halfW / 2 + 8, -2, `质变：${cfg.rx.type}`, {
+      const sType = inkText(this.scene, cfg.x - halfW / 2 + 8, -4, `质变：${cfg.rx.type}`, {
         size: 9.5,
         color: InkText.cinnabar,
         bold: true,
@@ -659,7 +661,7 @@ export class MechanicsModal extends Phaser.GameObjects.Container {
         originY: 0.5
       })
 
-      const sSummary = inkText(this.scene, cfg.x - halfW / 2 + 8, 16, cfg.rx.summary, {
+      const sSummary = inkText(this.scene, cfg.x - halfW / 2 + 8, 15, cfg.rx.summary, {
         size: 9.5,
         color: InkText.ink,
         wrapWidth: halfW - 16,

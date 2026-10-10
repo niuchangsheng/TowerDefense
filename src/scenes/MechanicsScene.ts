@@ -399,12 +399,12 @@ export default class MechanicsScene extends Phaser.Scene {
           bg.lineStyle(1.0, 0xffffff, 0.5)
           bg.strokeRoundedRect(-cardW / 2 + 2.5, -itemH / 2 + 2.5, cardW - 5, itemH - 5, 4)
 
-          // 左侧五行徽章
+          // 1. 左侧五行法印徽章 (统一尺寸 44x44)
           bg.fillStyle(pal.color, 0.95)
-          bg.fillRoundedRect(-cardW / 2 + 12, -22, 44, 44, 5)
+          bg.fillRoundedRect(-cardW / 2 + 14, -22, 44, 44, 5)
           card.add(bg)
 
-          const sealTxt = inkText(this, -cardW / 2 + 34, 0, item.char, {
+          const sealTxt = inkText(this, -cardW / 2 + 36, 0, item.char, {
             size: 22,
             color: '#ffffff',
             bold: true,
@@ -412,8 +412,8 @@ export default class MechanicsScene extends Phaser.Scene {
             originY: 0.5
           })
 
-          // 标题与专克标签
-          const title = inkText(this, -cardW / 2 + 68, -18, item.name, {
+          // 2. 第一行：名称 + 专克属性 + 附着时长 (严格基线对齐 y = -17)
+          const title = inkText(this, -cardW / 2 + 70, -17, item.name, {
             size: 15,
             color: pal.hex,
             bold: true,
@@ -421,31 +421,31 @@ export default class MechanicsScene extends Phaser.Scene {
             originY: 0.5
           })
 
-          const targetTag = inkText(this, -cardW / 2 + 250, -18, `【专克：${item.targetStat}】`, {
-            size: 13,
+          const targetTag = inkText(this, -cardW / 2 + 250, -17, `【专克：${item.targetStat}】`, {
+            size: 12.5,
             color: InkText.cinnabar,
             bold: true,
             originX: 0,
             originY: 0.5
           })
 
-          const durationTag = inkText(this, cardW / 2 - 16, -18, `附着时长：${item.duration}`, {
+          const durationTag = inkText(this, cardW / 2 - 16, -17, `附着时长：${item.duration}`, {
             size: 11.5,
             color: InkText.faint,
             originX: 1,
             originY: 0.5
           })
 
-          const summary = inkText(this, -cardW / 2 + 68, 4, item.summary, {
+          // 3. 第二行：核心效果摘要 (严格基线对齐 y = 3)
+          const summary = inkText(this, -cardW / 2 + 70, 3, item.summary, {
             size: 12,
-            color: InkText.ink,
-            bold: true,
+            color: InkText.strong,
             originX: 0,
             originY: 0.5
           })
 
-          // 双向相生指引徽章
-          const rxBadge1 = inkText(this, -cardW / 2 + 68, 24, `【生我】${detail.generatedBy.relationLabel} · ${detail.generatedBy.reaction.name}`, {
+          // 4. 第三行：相生指引徽章 (严格基线对齐 y = 23)
+          const rxBadge1 = inkText(this, -cardW / 2 + 70, 23, `【生我之合】${detail.generatedBy.relationLabel} · ${detail.generatedBy.reaction.name}`, {
             size: 11,
             color: WUXING_PALETTE[detail.generatedBy.partnerElement].hex,
             bold: true,
@@ -453,7 +453,7 @@ export default class MechanicsScene extends Phaser.Scene {
             originY: 0.5
           })
 
-          const rxBadge2 = inkText(this, -cardW / 2 + 370, 24, `【我生】${detail.generates.relationLabel} · ${detail.generates.reaction.name}`, {
+          const rxBadge2 = inkText(this, -cardW / 2 + 370, 23, `【我生之合】${detail.generates.relationLabel} · ${detail.generates.reaction.name}`, {
             size: 11,
             color: WUXING_PALETTE[detail.generates.partnerElement].hex,
             bold: true,
@@ -518,22 +518,22 @@ export default class MechanicsScene extends Phaser.Scene {
   ): void {
     const pal = WUXING_PALETTE[detail.element]
 
-    // 1. 对应基础状态卡片 (y: 62, h: 124)
-    const card1 = this.add.container(0, 62)
+    // 1. 对应基础状态卡片 (y: 60, h: 120)
+    const card1 = this.add.container(0, 60)
     const bg1 = this.add.graphics()
     bg1.fillStyle(pal.fill, 0.98)
-    bg1.fillRoundedRect(-cardW / 2, -62, cardW, 124, 6)
+    bg1.fillRoundedRect(-cardW / 2, -60, cardW, 120, 6)
     bg1.lineStyle(2.0, pal.border, 0.95)
-    bg1.strokeRoundedRect(-cardW / 2, -62, cardW, 124, 6)
+    bg1.strokeRoundedRect(-cardW / 2, -60, cardW, 120, 6)
     bg1.lineStyle(1.0, 0xffffff, 0.6)
-    bg1.strokeRoundedRect(-cardW / 2 + 2.5, -59.5, cardW - 5, 119, 4)
+    bg1.strokeRoundedRect(-cardW / 2 + 2.5, -57.5, cardW - 5, 115, 4)
 
     // 左侧五行法印印章
     bg1.fillStyle(pal.color, 0.95)
-    bg1.fillRoundedRect(-cardW / 2 + 16, -46, 46, 46, 5)
+    bg1.fillRoundedRect(-cardW / 2 + 16, -44, 44, 44, 5)
     card1.add(bg1)
 
-    const sealChar = inkText(this, -cardW / 2 + 39, -23, detail.status.char, {
+    const sealChar = inkText(this, -cardW / 2 + 38, -22, detail.status.char, {
       size: 24,
       color: '#ffffff',
       bold: true,
@@ -541,15 +541,16 @@ export default class MechanicsScene extends Phaser.Scene {
       originY: 0.5
     })
 
-    const title1 = inkText(this, -cardW / 2 + 74, -36, detail.status.name, {
-      size: 16.5,
+    // 第一行：标题 + 专克 + 附着时长
+    const title1 = inkText(this, -cardW / 2 + 72, -35, detail.status.name, {
+      size: 16,
       color: pal.hex,
       bold: true,
       originX: 0,
       originY: 0.5
     })
 
-    const targetBadge = inkText(this, -cardW / 2 + 260, -36, `【专克：${detail.status.targetStat}】`, {
+    const targetBadge = inkText(this, -cardW / 2 + 260, -35, `【专克：${detail.status.targetStat}】`, {
       size: 13,
       color: InkText.cinnabar,
       bold: true,
@@ -559,13 +560,14 @@ export default class MechanicsScene extends Phaser.Scene {
 
     const durTag = inkText(
       this,
-      cardW / 2 - 16,
-      -36,
-      `附着时长：${detail.status.duration} (非抹除)`,
+      cardW / 2 - 18,
+      -35,
+      `附着时长：${detail.status.duration}`,
       { size: 12, color: InkText.faint, originX: 1, originY: 0.5 }
     )
 
-    const summary1 = inkText(this, -cardW / 2 + 18, 6, `核心职能：${detail.status.summary}`, {
+    // 第二行：核心效果
+    const summary1 = inkText(this, -cardW / 2 + 72, -12, `核心效果：${detail.status.summary}`, {
       size: 12.5,
       color: InkText.strong,
       bold: true,
@@ -573,15 +575,17 @@ export default class MechanicsScene extends Phaser.Scene {
       originY: 0.5
     })
 
+    // 第三行：详细机制
     const detailsStr = detail.status.details.slice(0, 2).join(' ｜ ')
-    const details1 = inkText(this, -cardW / 2 + 18, 28, detailsStr, {
+    const details1 = inkText(this, -cardW / 2 + 18, 14, `机制细则：${detailsStr}`, {
       size: 11,
       color: InkText.wash,
       originX: 0,
       originY: 0.5
     })
 
-    const ruleText = inkText(this, -cardW / 2 + 18, 48, `● 机制铁律：${detail.status.rules.join('  ● ')}`, {
+    // 第四行：设计铁律
+    const ruleText = inkText(this, -cardW / 2 + 18, 36, `铁律遵循：${detail.status.rules.join('  ● ')}`, {
       size: 11,
       color: '#8a6230',
       bold: true,
@@ -592,32 +596,32 @@ export default class MechanicsScene extends Phaser.Scene {
     card1.add([sealChar, title1, targetBadge, durTag, summary1, details1, ruleText])
     parent.add(card1)
 
-    // 2. 对应相生状态信息卡片（双向相生：生我 & 我生） (y: 226, h: 168)
+    // 2. 对应双向相生连锁卡片（生我之合 & 我生之合） (y: 226, h: 172)
     const card2 = this.add.container(0, 226)
     const bg2 = this.add.graphics()
     bg2.fillStyle(InkColor.paperPanel, 0.95)
-    bg2.fillRoundedRect(-cardW / 2, -84, cardW, 168, 6)
+    bg2.fillRoundedRect(-cardW / 2, -86, cardW, 172, 6)
     bg2.lineStyle(1.6, 0xa0782f, 0.8)
-    bg2.strokeRoundedRect(-cardW / 2, -84, cardW, 168, 6)
+    bg2.strokeRoundedRect(-cardW / 2, -86, cardW, 172, 6)
     card2.add(bg2)
 
     const title2 = inkText(
       this,
       -cardW / 2 + 18,
-      -68,
+      -70,
       '【对应双向相生化学连锁】',
       { size: 13, color: '#8a6230', bold: true, originX: 0, originY: 0.5 }
     )
     const sub2 = inkText(
       this,
       cardW / 2 - 18,
-      -68,
-      '双向无序等效触发 · 1.5s ICD · 相生不抹除底层状态',
+      -70,
+      '双向无序等效 · 1.5s ICD · 相生不抹除底层状态',
       { size: 10.5, color: InkText.faint, originX: 1, originY: 0.5 }
     )
     card2.add([title2, sub2])
 
-    // 双栏对比：生我之合 vs 我生之合（使用好看的相生五行边框）
+    // 双栏对比：生我之合 vs 我生之合（使用规范卡片排版）
     const halfW = (cardW - 46) / 2
     const fromPal = WUXING_PALETTE[detail.generatedBy.partnerElement]
     const toPal = WUXING_PALETTE[detail.generates.partnerElement]
@@ -642,19 +646,21 @@ export default class MechanicsScene extends Phaser.Scene {
     subConfigs.forEach((cfg) => {
       const subBg = this.add.graphics()
       subBg.fillStyle(cfg.pal.fill, 0.98)
-      subBg.fillRoundedRect(cfg.x - halfW / 2, -50, halfW, 122, 5)
+      subBg.fillRoundedRect(cfg.x - halfW / 2, -54, halfW, 128, 5)
       subBg.lineStyle(1.5, cfg.pal.border, 0.85)
-      subBg.strokeRoundedRect(cfg.x - halfW / 2, -50, halfW, 122, 5)
+      subBg.strokeRoundedRect(cfg.x - halfW / 2, -54, halfW, 128, 5)
 
-      const sTitle = inkText(this, cfg.x - halfW / 2 + 10, -36, cfg.title, {
-        size: 11.5,
+      // 1. 标题行
+      const sTitle = inkText(this, cfg.x - halfW / 2 + 12, -40, cfg.title, {
+        size: 12,
         color: cfg.rx.textColor,
         bold: true,
         originX: 0,
         originY: 0.5
       })
 
-      const sCombo = inkText(this, cfg.x - halfW / 2 + 10, -18, cfg.combo, {
+      // 2. 触发五行组合
+      const sCombo = inkText(this, cfg.x - halfW / 2 + 12, -22, cfg.combo, {
         size: 10.5,
         color: InkText.strong,
         bold: true,
@@ -662,23 +668,26 @@ export default class MechanicsScene extends Phaser.Scene {
         originY: 0.5
       })
 
-      const sType = inkText(this, cfg.x - halfW / 2 + 10, -2, `质变：${cfg.rx.type}`, {
-        size: 10,
+      // 3. 质变特性
+      const sType = inkText(this, cfg.x - halfW / 2 + 12, -5, `质变：${cfg.rx.type}`, {
+        size: 10.5,
         color: InkText.cinnabar,
         bold: true,
         originX: 0,
         originY: 0.5
       })
 
-      const sSummary = inkText(this, cfg.x - halfW / 2 + 10, 18, cfg.rx.summary, {
+      // 4. 机制概述
+      const sSummary = inkText(this, cfg.x - halfW / 2 + 12, 16, cfg.rx.summary, {
         size: 10,
         color: InkText.ink,
-        wrapWidth: halfW - 20,
+        wrapWidth: halfW - 24,
         originX: 0,
         originY: 0.5
       })
 
-      const sIcd = inkText(this, cfg.x - halfW / 2 + 10, 52, `内置CD：${cfg.rx.icd}`, {
+      // 5. 内置冷却
+      const sIcd = inkText(this, cfg.x - halfW / 2 + 12, 54, `内置CD：${cfg.rx.icd}`, {
         size: 9.5,
         color: InkText.faint,
         originX: 0,
