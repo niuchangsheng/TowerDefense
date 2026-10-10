@@ -2,8 +2,8 @@ import { HeroStats, WuXing, Point } from '@/types'
 import { getCounterMultiplier } from '@/config/wuxing.config'
 
 /**
- * 四独立伤害乘区计算参数（严格遵循《三国五行塔防》第一性原理铁律）
- * 最终伤害 = 基础基数 × (1 + ∑攻击力加成) × (1 + ∑增伤加成) × (1 + ∑易伤加成) × (1 + 实际暴伤倍率)
+ * 【乾坤经纬】四独立伤害乘区与五维对位合并计算参数
+ * 最终伤害 = floor( 基础基数 × (1 + ∑攻击力加成) × (1 + ∑增伤加成) × (1 + ∑易伤加成) × (1 + 实际暴伤倍率) × (1 - 防御减免) )
  */
 export interface FourBucketDamageParams {
   /** 基础伤害基数（普攻取面板攻击力；战法取攻击力×技能系数；相生反应取 max(A,B)+0.25*min(A,B)） */

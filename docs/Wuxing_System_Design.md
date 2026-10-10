@@ -31,17 +31,42 @@
 * ❌ **Lv.5 宝石元素专属词条**（一期宝石仅生成 2 条基础面板属性，不开启裂/毒/湿/灼/重特殊词条）；
 * ❌ **关底双统帅同台**（【双帅同辕】与敌方合击机制）。
 
-### 3. 严格四大独立伤害乘区计算公式（严禁私设独立乘区）
-全游戏所有伤害结算统一遵循以下四大乘区计算体系，**区内加算、区间乘算**：
-$$\text{最终伤害} = \text{基础基数} \times (1 + \sum \text{攻击力加成}) \times (1 + \sum \text{增伤加成}) \times (1 + \sum \text{易伤加成}) \times (1 + \text{实际暴伤倍率})$$
+### 3. 【乾坤经纬】五维对位与四独立伤害乘区合并统一公式（严禁私设独立乘区）
+全游戏所有伤害结算统一遵循以下四大乘区与防御减免合并计算体系，**区内加算、区间乘算、五维对冲、双铁律保底**：
+$$\mathbf{Damage} = \lfloor \mathbf{Base} \times (\mathbf{1} + \sum \mathbf{AtkBoost}) \times (\mathbf{1} + \sum \mathbf{DmgInc}) \times (\mathbf{1} + \sum \mathbf{Vuln}) \times (\mathbf{1} + \mathbf{CritMult}) \times (\mathbf{1} - \mathbf{DefMit}) \rfloor$$
 
-1. **乘区 1：基础伤害基数（Base Damage）**：武将攻击力面板 $\times$ 技能/反应倍率；
-2. **乘区 2：攻击力加成（Attack Boost）**：装备/等级/锦囊提供的攻击力百分比加成（Additive）；
-3. **乘区 3：增伤加成（Damage Increase）**：相生倍率、天时顺天红利、160px 相生阵脉 $+35\%$、锦囊全伤害提升统一在此区加算（Additive）；
-4. **乘区 4：易伤加成（Vulnerability）**：Boss 破壁瘫痪 $+50\%$、状态削弱层数加深、锦囊《五气朝元》（每种状态 $+15\%$）统一在此区加算，严禁开辟独立乘区！
-* **暴击伤害折算**：
-  $$\text{实际暴击几率} = \max(0\%, \text{我方暴击率} - \text{目标韧性})$$
-  $$\text{实际暴击伤害倍率} = \max(0\%, \text{我方暴击伤害} - 100\% - \text{目标刚毅})$$
+#### （1）乾坤经纬：五维攻守对位图（面板字段与克制状态）
+
+| 我方进攻五维 (`HeroStats`) | 敌军对位五维 (`EnemyStats`) | 克制五行状态 (代码) | 对位结算机制 (面板对齐) |
+| :--- | :--- | :--- | :--- |
+| **攻击力** (`attack`) | **生命** (`hp`) | **【木·毒】** (`parasite`) | 每秒扣除敌方 `enemy.hp × 2.0%`（最多叠 3 层，禁疗 50%） |
+| **攻速/频率** (`attackSpeed`) | **防御** (`defense`) | **【金·裂】** (`bleed`) | 削减敌方 `enemy.defense × 35%`；移动时受 `attack × 45%` 流血真伤 |
+| **攻击范围** (`range`) | **移速** (`moveSpeed`) | **【水·湿】** (`wet`) | 削减敌方 `enemy.moveSpeed × 35%`（全场唯一基础软控） |
+| **暴击率** (`critRate`) | **韧性** (`tenacity`) | **【土·重】** (`heavy`) | 削减敌方 `enemy.tenacity × 25%`（降低敌方反暴击率） |
+| **暴击伤害** (`critDamage`) | **刚毅** (`fortitude`) | **【土·重】** (`heavy`) | 削减敌方 `enemy.fortitude × 40%`（降低敌方反暴伤，受暴击追 20% 内震） |
+
+#### （2）各乘区结算方式与面板数字对齐
+
+1. **基础基数区（$\mathbf{Base}$）**：
+   * **普攻直伤**：$\mathbf{Base} = \text{attacker.attack} \times 1.0$；
+   * **主动战法**：$\mathbf{Base} = \text{attacker.attack} \times \text{战法倍率}$；
+   * **相生反应（共鸣取优）**：$\mathbf{Base} = [\max(\text{Attack}_A, \text{Attack}_B) + 0.25 \times \min(\text{Attack}_A, \text{Attack}_B)] \times \text{反应基础倍率}$；
+   * **真伤/DoT**：跳过防御计算（$\mathbf{DefMit} = 0$）。
+2. **第一乘区：攻击力加成区（$\mathbf{1} + \sum \mathbf{AtkBoost}$）**：
+   * **面板来源**：局内锦囊百分比攻击、军令充能加成（区内加算），对应变量 `attackBoostSum`。
+3. **第二乘区：增伤加成区（$\mathbf{1} + \sum \mathbf{DmgInc}$）**：
+   * **面板来源**：相生倍率增幅、天时顺天得令 $+20\%$ (`0.20`)、160px 相生阵脉交叠区 $+35\%$ (`0.35`)、锦囊全伤害加成（区内加算），对应变量 `damageIncreaseSum`。
+4. **第三乘区：易伤加成区（$\mathbf{1} + \sum \mathbf{Vuln}$）**：
+   * **面板来源**：挂在敌军身上的承伤加深（区内加算），包含 Boss 破壁瘫痪 $+50\%$ (`0.50`)、锦囊《五气朝元》（每类状态 $+18\%$，最多 5 类 $+90\%$）、状态层数易伤，对应变量 `vulnerabilitySum`。
+5. **第四乘区：暴击与抗暴对抗区（$\mathbf{1} + \mathbf{CritMult}$）**：
+   * **有效韧性**：$\text{EffTenacity} = \text{enemy.tenacity} \times [1 - \min(0.60, \sum \text{削韧率})]$；
+   * **有效刚毅**：$\text{EffFortitude} = \text{enemy.fortitude} \times [1 - \min(0.60, \sum \text{削刚率})]$；
+   * **实际暴率**：$\text{ActualCritRate} = \text{clamp}(0, 1, \text{attacker.critRate} - \text{EffTenacity})$；
+   * **暴伤加成**：未暴击时 $\mathbf{CritMult} = 0$；暴击时 $\mathbf{CritMult} = \max(0, (\text{attacker.critDamage} - 1.0) - \text{EffFortitude})$。
+6. **防御减免区（$\mathbf{1} - \mathbf{DefMit}$）**：
+   * **有效防御**：$\text{EffDefense} = \text{enemy.defense} \times [1 - \min(0.60, \sum \text{破甲率})]$；
+   * **真伤类**（如金·裂流血、金生水碎冰）：$\mathbf{DefMit} = 0$；
+   * **常规伤害**：若 $\text{EffDefense} \le 1.0$ 取 $\min(0.85, \text{EffDefense})$；若 $> 1.0$ 取 $\dfrac{\text{EffDefense}}{\text{EffDefense} + 200}$。
 
 ### 4. 局外数值天花板与敌军抗性下限保底
 * **局外总数值增益上限 $\le +50\%$**：局外养成（武将等级、星级、专属神兵、宝石面板）全部叠加上限不得超过初始白板面板的 $150\%$（$+50\%$ 极限增幅），坚守“局外保下限、局内定上限”；

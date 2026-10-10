@@ -10,13 +10,13 @@ import {
 } from '@/data/mechanics'
 
 describe('【乾坤经纬】底层机制知识库与设计铁律单元测试', () => {
-  it('1. 四大机制分类标签必须完整完备且具备中式印章题眉', () => {
-    expect(MECHANICS_TABS).toHaveLength(4)
+  it('1. 机制分类标签必须包含【五行相生】、【五维对位】与【乘区算法】三位一体且具备中式印章题眉', () => {
+    expect(MECHANICS_TABS).toHaveLength(3)
     const keys = MECHANICS_TABS.map((t) => t.key)
-    expect(keys).toEqual(['elemental', 'reaction', 'attributes', 'damage'])
+    expect(keys).toEqual(['wuxing', 'attributes', 'damage'])
 
     const seals = MECHANICS_TABS.map((t) => t.seal)
-    expect(seals).toEqual(['象', '生', '位', '算'])
+    expect(seals).toEqual(['生', '位', '算'])
   })
 
   it('2. 五大五行基础状态必须严格对应五大五行且附着时长为 2.5s', () => {
@@ -85,18 +85,18 @@ describe('【乾坤经纬】底层机制知识库与设计铁律单元测试', (
   it('5. 严格四独立伤害乘区计算公式与两大第一性原理数值铁律校验', () => {
     // 包含具体攻击力与防御力减免的端到端四乘区公式
     expect(DAMAGE_FORMULA_GUIDE.formula).toContain('最终伤害')
-    expect(DAMAGE_FORMULA_GUIDE.formula).toContain('基础攻击力')
-    expect(DAMAGE_FORMULA_GUIDE.formula).toContain('防御减免率')
+    expect(DAMAGE_FORMULA_GUIDE.formula).toContain('基础基数')
+    expect(DAMAGE_FORMULA_GUIDE.formula).toContain('防御减免')
     expect(DAMAGE_FORMULA_GUIDE.formula).toContain('攻击加成')
     expect(DAMAGE_FORMULA_GUIDE.formula).toContain('增伤')
     expect(DAMAGE_FORMULA_GUIDE.formula).toContain('易伤')
-    expect(DAMAGE_FORMULA_GUIDE.formula).toContain('实暴')
+    expect(DAMAGE_FORMULA_GUIDE.formula).toContain('实际暴伤')
 
     // 攻击力/防御力/真伤/暴击四大支柱
     expect(DAMAGE_FORMULA_GUIDE.coreComponents).toHaveLength(4)
     const compTitles = DAMAGE_FORMULA_GUIDE.coreComponents.map((c) => c.title)
-    expect(compTitles.some((t) => t.includes('我方攻击力'))).toBe(true)
-    expect(compTitles.some((t) => t.includes('敌方防御力'))).toBe(true)
+    expect(compTitles.some((t) => t.includes('基础基数'))).toBe(true)
+    expect(compTitles.some((t) => t.includes('防御'))).toBe(true)
     expect(compTitles.some((t) => t.includes('真实伤害'))).toBe(true)
     expect(compTitles.some((t) => t.includes('暴击对抗'))).toBe(true)
 
@@ -117,11 +117,11 @@ describe('【乾坤经纬】底层机制知识库与设计铁律单元测试', (
   })
 
   it('6. 五虎将与五行专属对位及五行联动相生闭环链正确性', () => {
-    // 专属武将对应
-    expect(ELEMENT_GENERAL_MAP.metal.name).toBe('赵云')
-    expect(ELEMENT_GENERAL_MAP.water.name).toBe('关羽')
-    expect(ELEMENT_GENERAL_MAP.wood.name).toBe('黄忠')
-    expect(ELEMENT_GENERAL_MAP.fire.name).toBe('马超')
+    // 专属武将对应（关木/黄火/张土/马金/赵水）
+    expect(ELEMENT_GENERAL_MAP.metal.name).toBe('马超')
+    expect(ELEMENT_GENERAL_MAP.water.name).toBe('赵云')
+    expect(ELEMENT_GENERAL_MAP.wood.name).toBe('关羽')
+    expect(ELEMENT_GENERAL_MAP.fire.name).toBe('黄忠')
     expect(ELEMENT_GENERAL_MAP.earth.name).toBe('张飞')
 
     // 五行双向闭环相生链验证 (金 -> 水 -> 木 -> 火 -> 土 -> 金)

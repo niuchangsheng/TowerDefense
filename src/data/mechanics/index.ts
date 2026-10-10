@@ -1,9 +1,9 @@
 import { WuXing } from '@/types'
 
 /**
- * 机制分类标签
+ * 机制分类标签（五行状态与相生衍化已深度合并为统一的【五行相生】）
  */
-export type MechanicsTab = 'elemental' | 'reaction' | 'attributes' | 'damage'
+export type MechanicsTab = 'wuxing' | 'damage' | 'attributes' | 'elemental' | 'reaction'
 
 export interface MechanicsTabDef {
   key: MechanicsTab
@@ -14,30 +14,108 @@ export interface MechanicsTabDef {
 
 export const MECHANICS_TABS: MechanicsTabDef[] = [
   {
-    key: 'elemental',
-    title: '五行状态',
-    seal: '象',
-    subtitle: '五大五行基础状态 · 职能铁律与附着规范'
-  },
-  {
-    key: 'reaction',
-    title: '相生衍化',
+    key: 'wuxing',
+    title: '五行相生',
     seal: '生',
-    subtitle: '双向化学反应 · 160px相生阵脉 · 破铁壁'
+    subtitle: '五行基础状态 · 双向化学连锁 · 160px相生阵脉'
   },
   {
     key: 'attributes',
     title: '五维对位',
     seal: '位',
-    subtitle: '我军五维 vs 敌军五维 · 严格一对一克制链'
+    subtitle: '敌我基础属性 · 一对一精准对位 · 破韧破刚'
   },
   {
     key: 'damage',
     title: '乘区算法',
     seal: '算',
-    subtitle: '四独立伤害乘区 · 局外上限与抗性保底'
+    subtitle: '四独立伤害乘区 · 防御抵扣 · 数值底线铁律'
   }
 ]
+
+/**
+ * 五虎上将五行归属
+ */
+export const ELEMENT_GENERAL_MAP: Record<WuXing, { name: string; title: string }> = {
+  metal: { name: '马超', title: '神威天将军' },
+  water: { name: '赵云', title: '常山赵子龙' },
+  wood: { name: '关羽', title: '武圣' },
+  fire: { name: '黄忠', title: '定军神箭' },
+  earth: { name: '张飞', title: '万人敌' }
+}
+
+/**
+ * 五行华丽高饱和水墨调色板（好看明艳的边框与底色系统）
+ */
+export interface WuXingColorSet {
+  name: string
+  color: number
+  hex: string
+  border: number
+  borderHex: string
+  fill: number
+  lightBg: number
+  glow: number
+  tagBg: number
+}
+
+export const WUXING_PALETTE: Record<WuXing, WuXingColorSet> = {
+  metal: {
+    name: '金',
+    color: 0xc59b27,
+    hex: '#c59b27',
+    border: 0xd4af37,
+    borderHex: '#d4af37',
+    fill: 0xfcf8ee,
+    lightBg: 0xfaf5e8,
+    glow: 0xffd700,
+    tagBg: 0xf6ecd2
+  },
+  water: {
+    name: '水',
+    color: 0x206095,
+    hex: '#206095',
+    border: 0x2b79b8,
+    borderHex: '#2b79b8',
+    fill: 0xedf4fa,
+    lightBg: 0xe8f1f8,
+    glow: 0x40c4ff,
+    tagBg: 0xd8e8f5
+  },
+  wood: {
+    name: '木',
+    color: 0x2e7d32,
+    hex: '#2e7d32',
+    border: 0x388e3c,
+    borderHex: '#388e3c',
+    fill: 0xeef6ee,
+    lightBg: 0xe8f4e8,
+    glow: 0x00e676,
+    tagBg: 0xdbeedd
+  },
+  fire: {
+    name: '火',
+    color: 0xc62828,
+    hex: '#c62828',
+    border: 0xd32f2f,
+    borderHex: '#d32f2f',
+    fill: 0xfdf0ee,
+    lightBg: 0xfce8e6,
+    glow: 0xff5252,
+    tagBg: 0xfad6d2
+  },
+  earth: {
+    name: '土',
+    color: 0x8d5b28,
+    hex: '#8d5b28',
+    border: 0xa06d3b,
+    borderHex: '#a06d3b',
+    fill: 0xf8f2e8,
+    lightBg: 0xf5ede0,
+    glow: 0xffb74d,
+    tagBg: 0xede0cb
+  }
+}
 
 /**
  * 1. 五行元素基础状态
@@ -223,15 +301,15 @@ export const REACTION_LIST: ReactionItem[] = [
     name: '土生金【淬刃 · 锋芒】',
     elements: ['earth', 'metal'],
     title: '三道金虹 · 破甲真伤',
-    color: 0xf57f17,
-    textColor: '#f57f17',
-    type: '剑气迸射 + 即时结算',
-    summary: '承接土破韧刚与金破护甲双重红利，迸射 3 道高暴淬刃剑气并即时结算流血。',
+    color: 0xc59b27,
+    textColor: '#c59b27',
+    type: '高暴穿透 + 真伤结算',
+    summary: '承接“土破韧刚、金破护甲”双重红利，主目标受穿透重击，迸射 3 道高暴金虹剑气并即时结算流血真伤。',
     icd: '1.5 秒同目标冷却',
     details: [
-      '高暴飞刃：向目标扇形迸发 3 道锐金剑气，继承极高暴击率与暴击伤害。',
-      '真伤结算：即时结算目标身上积累的所有流血真伤，瞬间打出破甲爆发。',
-      '双将红利：张飞(土)与赵云(金)相遇时的经典王牌质变。'
+      '双重削弱红利：土系削弱目标韧性与刚毅，金系撕裂护甲，受暴击额外 +35% 暴击率与 +50% 暴伤。',
+      '三道金虹飞刃：从主目标体内向周围扇形弹射 3 枚淬金剑气，造成 100% 破甲穿透范围伤害。',
+      '即时真伤结算：即时结算目标身上积累的所有流血真伤，瞬间打出破甲爆发。'
     ]
   },
   {
@@ -247,7 +325,7 @@ export const REACTION_LIST: ReactionItem[] = [
     details: [
       '绝对冰封：将移动目标完全冻结成冰雕 2.5 秒，打断一切突进与施法。',
       '破冰真伤：完全无视目标护甲防御值的穿透碎冰伤害。',
-      '赵云(金)与关羽(水)联手时的终极控场王牌。'
+      '终极控场：金裂破甲为引，寒水渗透冰封，形成绝对压制控场。'
     ]
   }
 ]
@@ -267,37 +345,37 @@ export const ATTRIBUTE_PAIRS: AttributePair[] = [
   {
     alliedStat: '攻击力 (Attack)',
     alliedDesc: '我方武将与神兵输出伤害基数。',
+    enemyStat: '生命 (HP)',
+    enemyDesc: '敌军所能承受的总体伤害上限。',
+    counterLogic: '【木·毒】专克【生命】。按最大生命值百分比腐蚀真伤，禁疗 50%。'
+  },
+  {
+    alliedStat: '攻击速度 (AttackSpeed)',
+    alliedDesc: '普通攻击与元素印章附着频率。',
     enemyStat: '防御 (Defense)',
-    enemyDesc: '敌军减免直接物理与元素伤害。',
-    counterLogic: '【金·裂】专克【防御】。破除敌甲，使攻击力能无损穿透。'
+    enemyDesc: '敌军减免常规物理与法术伤害。',
+    counterLogic: '【金·裂】专克【防御】。撕裂 35% 护甲，移动时受 45% 流血真伤。'
   },
   {
     alliedStat: '攻击范围 (Range)',
     alliedDesc: '武将索敌与相生阵脉覆盖半径。',
     enemyStat: '移动速度 (MoveSpeed)',
     enemyDesc: '敌军突进行军与冲破大营的速度。',
-    counterLogic: '【水·湿】专克【移速】。减速敌军拉长其处于攻击范围的时间。'
-  },
-  {
-    alliedStat: '攻击速度 (AttackSpeed)',
-    alliedDesc: '普通攻击与元素印章附着频率。',
-    enemyStat: '生命 (HP)',
-    enemyDesc: '敌军所能承受的总体伤害上限。',
-    counterLogic: '【木·毒】专克【生命】。高频上毒按最大生命百分比持续蒸发。'
+    counterLogic: '【水·湿】专克【移速】。削减 35% 移速，全场唯一基础软控媒介。'
   },
   {
     alliedStat: '暴击几率 (CritRate)',
     alliedDesc: '触发高额暴击伤害的概率。',
     enemyStat: '韧性 (Tenacity)',
     enemyDesc: '直接抵扣我方的暴击几率（反暴率）。',
-    counterLogic: '【土·重】专克【韧性】。大幅压制韧性，恢复我军高额暴击率。'
+    counterLogic: '【土·重】专克【韧性】。削减 25% 韧性，大幅解放我方暴击几率。'
   },
   {
     alliedStat: '暴击伤害 (CritDamage)',
     alliedDesc: '暴击时的伤害倍率加成。',
     enemyStat: '刚毅 (Fortitude)',
     enemyDesc: '直接抵扣我方的暴击伤害加成（反暴伤）。',
-    counterLogic: '【土·重】专克【刚毅】。大幅削减刚毅，让暴击造成毁灭性打击。'
+    counterLogic: '【土·重】专克【刚毅】。削减 40% 刚毅，受暴击追 20% 负重内震。'
   }
 ]
 
@@ -305,53 +383,53 @@ export const ATTRIBUTE_PAIRS: AttributePair[] = [
  * 4. 伤害公式与底层铁律（包含具体攻击力与防御力数值结算）
  */
 export const DAMAGE_FORMULA_GUIDE = {
-  formula: '最终伤害 = [基础攻击力 × 技能/相生系数 × (1 + ∑攻击加成) × (1 + ∑增伤) × (1 + ∑易伤) × (1 + 实暴)] × (1 - 防御减免率)',
+  formula: '最终伤害 = floor( 基础基数 × (1 + ∑攻击加成) × (1 + ∑增伤) × (1 + ∑易伤) × (1 + 实际暴伤) × (1 - 防御减免率) )',
   coreComponents: [
     {
-      title: '我方攻击力 (Attack)',
-      content: '伤害根基。普攻取武将面板攻击力；绝技取攻击力 × 技能倍率；相生反应取双将最高攻击力 + 另一将 25% 协同攻击力。'
+      title: '基础基数 (Base Damage)',
+      content: '普攻取面板攻击力；主动战法取攻击力×倍率；相生反应取双将最高攻击力 + 另一将 25% 协同加成。'
     },
     {
-      title: '敌方防御力 (Defense)',
-      content: '减免物理与法术承伤。防御减免率 = 有效防御 / (有效防御 + 200)。有效防御经破甲后绝不低于初始值的 40% 保底。'
+      title: '敌方防御 (Defense)',
+      content: '常规减免率 = 有效防御 / (有效防御 + 200)。金·裂破甲后抗性保底不低于初始值的 40%。'
     },
     {
-      title: '真实伤害 (Ignore Defense)',
-      content: '【金·裂】流血真伤、【金生水·寒芒】碎冰真伤完全无视敌方防御力（防御减免率 = 0），刀刀穿透。'
+      title: '真实伤害 (Ignore Def)',
+      content: '【金·裂】位移流血真伤、【金生水·碎冰】穿透真伤完全跳过防御（防御减免 = 0）。'
     },
     {
       title: '暴击对抗 (Crit vs Tenacity/Fortitude)',
-      content: '实际暴率 = Max(0, 暴击几率 - 敌方有效韧性)；实际暴伤 = Max(0, 暴伤加成 - 敌方有效刚毅)。土·重可剥离敌方韧刚。'
+      content: '实暴率 = Max(0, 暴率 - 敌韧性)；实暴伤 = Max(0, 暴伤 - 100% - 敌刚毅)。土·重可削韧破刚。'
     }
   ],
   buckets: [
     {
-      name: '基础攻击力基数 (Base Attack)',
-      desc: '我方武将面板攻击力 × 技能系数 (普攻系数 1.0，战法如 1.5~2.2)。',
-      notes: '相生共鸣基数 = Max(攻A, 攻B) + 0.25 × Min(攻A, 攻B)，高攻先手后手均享高基数。'
+      name: '基础伤害基数 Base',
+      desc: '普攻面板攻击力；战法攻击力×倍率；相生 max(A,B)+0.25*min(A,B)。',
+      notes: '相生共鸣取优法则：双将中最高攻击为主基数，附加另一将 25% 协同。'
     },
     {
-      name: '第一乘区：攻击力加成 (Attack %)',
-      desc: '神兵词条加成、武将冲穴升级、五行灵石基础攻击词条。',
-      notes: '区内所有百分比加算（如 +15% 攻击与 +10% 攻击累加为 +25%）。'
+      name: '第一乘区：攻击加成 AtkBoost',
+      desc: '神兵词条加成、局内锦囊、军令充能百分比加成。',
+      notes: '区内百分比加算；局外面板累加总增益上限硬封顶 ≤ +50%。'
     },
     {
-      name: '第二乘区：增伤加成 (Damage Inc %)',
-      desc: '五行相生倍率、天时得令 (+20%)、160px 相生阵脉连线 (+35%)、锦囊增伤。',
+      name: '第二乘区：增伤加成 DmgInc',
+      desc: '相生倍率、天时顺天 (+20%)、160px 相生阵脉 (+35%)、锦囊增伤。',
       notes: '区内所有增伤收益加算，与攻击力区严格乘算。'
     },
     {
-      name: '第三乘区：易伤加成 (Vulnerability %)',
-      desc: '金·裂破甲撕裂易伤、Boss 铁壁击穿瘫痪 (+50%)、天命锦囊受击易伤。',
+      name: '第三乘区：易伤加成 Vuln',
+      desc: 'Boss 铁壁击穿瘫痪 (+50%)、锦囊《五气朝元》每态 (+18%)、受击易伤。',
       notes: '直接放大目标受到的伤害，区内加算。'
     },
     {
-      name: '第四乘区：实际暴击倍率 (Crit Multiplier)',
-      desc: '实暴率 = Max(0, 暴率 - 敌韧性)；实暴伤 = 1 + Max(0, 暴伤 - 敌刚毅)。',
+      name: '第四乘区：实际暴伤 CritMult',
+      desc: '实暴率 = Max(0, 暴率 - 敌韧性)；实暴伤 = Max(0, 暴伤 - 100% - 敌刚毅)。',
       notes: '未暴击时乘区为 1.0；触发暴击时计入 (1 + 实际额外暴伤)。'
     },
     {
-      name: '防御抵扣结算 (Defense Mitigation)',
+      name: '防御抵扣结算 DefMit',
       desc: '减免系数 = 1 - [有效防御 / (有效防御 + 200)]。若为真伤则系数为 1.0。',
       notes: '有效防御 = 初始防御 × (1 - 破甲比例)，底线保底不低于初始值的 40%。'
     }
@@ -385,78 +463,25 @@ export const DAMAGE_FORMULA_GUIDE = {
 }
 
 /**
- * 5. 五虎将与五行元素专属对应
- */
-export interface ElementGeneralInfo {
-  name: string
-  title: string
-  weapon: string
-  counterRole: string
-  coreQuote: string
-}
-
-export const ELEMENT_GENERAL_MAP: Record<WuXing, ElementGeneralInfo> = {
-  metal: {
-    name: '赵云',
-    title: '常山赵子龙',
-    weapon: '龙胆亮银枪',
-    counterRole: '专克【防御】 · 破甲流血',
-    coreQuote: '一点寒芒先到，枪出如龙，金裂破甲！'
-  },
-  water: {
-    name: '关羽',
-    title: '美髯公 · 武圣',
-    weapon: '青龙偃月刀',
-    counterRole: '专克【移速】 · 减速软控',
-    coreQuote: '水势连天，冷艳锯寒芒覆地，水湿延缓千军！'
-  },
-  wood: {
-    name: '黄忠',
-    title: '百步穿杨 · 老将',
-    weapon: '养由基弓',
-    counterRole: '专克【生命】 · 百分比禁疗',
-    coreQuote: '箭附木毒，藤蔓索命，敌军气血尽皆消蚀！'
-  },
-  fire: {
-    name: '马超',
-    title: '西凉锦马超 · 神威天将军',
-    weapon: '虎头湛金枪',
-    counterRole: '放大【攻击】 · 极攻余烬',
-    coreQuote: '炽烈战意，枪染烈焰，余烬爆燃焚尽八荒！'
-  },
-  earth: {
-    name: '张飞',
-    title: '万人之敌 · 猛张飞',
-    weapon: '丈八蛇矛',
-    counterRole: '专克【韧刚】 · 剥离暴击',
-    coreQuote: '当阳怒吼，泰山压顶，土重剥离反暴，受暴必震！'
-  }
-}
-
-/**
- * 获取指定五行的全部机制详情（基础状态 + 双向相生 + 专属神将）
+ * 5. 获取指定五行的全部机制详情（基础状态 + 双向相生，与武将完全解耦）
  */
 export interface ElementMechanicsDetail {
   element: WuXing
   status: ElementStatusItem
-  general: ElementGeneralInfo
   generatedBy: {
     reaction: ReactionItem
     partnerElement: WuXing
-    partnerGeneral: ElementGeneralInfo
     relationLabel: string
   }
   generates: {
     reaction: ReactionItem
     partnerElement: WuXing
-    partnerGeneral: ElementGeneralInfo
     relationLabel: string
   }
 }
 
 export function getElementMechanicsDetail(elem: WuXing): ElementMechanicsDetail {
   const status = ELEMENT_STATUS_LIST.find((s) => s.element === elem)!
-  const general = ELEMENT_GENERAL_MAP[elem]
 
   const relationMap: Record<WuXing, { generatedBy: { id: string; partner: WuXing; label: string }; generates: { id: string; partner: WuXing; label: string } }> = {
     metal: {
@@ -488,17 +513,14 @@ export function getElementMechanicsDetail(elem: WuXing): ElementMechanicsDetail 
   return {
     element: elem,
     status,
-    general,
     generatedBy: {
       reaction: genByRx,
       partnerElement: rel.generatedBy.partner,
-      partnerGeneral: ELEMENT_GENERAL_MAP[rel.generatedBy.partner],
       relationLabel: rel.generatedBy.label
     },
     generates: {
       reaction: genRx,
       partnerElement: rel.generates.partner,
-      partnerGeneral: ELEMENT_GENERAL_MAP[rel.generates.partner],
       relationLabel: rel.generates.label
     }
   }

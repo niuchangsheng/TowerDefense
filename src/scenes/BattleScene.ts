@@ -1759,7 +1759,7 @@ export default class BattleScene extends Phaser.Scene {
     }
     this.mechanicsModal = new MechanicsModal(
       this,
-      'elemental',
+      'wuxing',
       () => {
         this.mechanicsModal = null
         if (!wasPaused && this.battleSystem.isBattlePaused()) {
