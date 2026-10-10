@@ -128,14 +128,15 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
       from: WuXing
       to: WuXing
       name: string
+      tag: string
       startDeg: number
       endDeg: number
     }> = [
-      { from: 'metal', to: 'water', name: '寒芒·碎冰', startDeg: 270, endDeg: 342 },
-      { from: 'water', to: 'wood',  name: '滋养·蔓延', startDeg: 342, endDeg: 414 },
-      { from: 'wood',  to: 'fire',  name: '燎原·焚尽', startDeg: 54,  endDeg: 126 },
-      { from: 'fire',  to: 'earth', name: '熔岩·焦土', startDeg: 126, endDeg: 198 },
-      { from: 'earth', to: 'metal', name: '淬刃·锋芒', startDeg: 198, endDeg: 270 }
+      { from: 'metal', to: 'water', name: '寒芒·碎冰', tag: '冰封真伤', startDeg: 270, endDeg: 342 },
+      { from: 'water', to: 'wood',  name: '滋养·蔓延', tag: '藤蔓定身', startDeg: 342, endDeg: 414 },
+      { from: 'wood',  to: 'fire',  name: '燎原·焚尽', tag: '生命引爆', startDeg: 54,  endDeg: 126 },
+      { from: 'fire',  to: 'earth', name: '熔岩·焦土', tag: '削韧焦土', startDeg: 126, endDeg: 198 },
+      { from: 'earth', to: 'metal', name: '淬刃·锋芒', tag: '高暴剑气', startDeg: 198, endDeg: 270 }
     ]
 
     arcConfigs.forEach((cfg) => {
@@ -145,8 +146,8 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
       const midDeg = (cfg.startDeg + cfg.endDeg) / 2
       const midRad = Phaser.Math.DegToRad(midDeg)
 
-      // 弧线中点向外自然放置相生标签
-      const arcMidR = this.radius * 1.0
+      // 弧线中点向外略微凸出
+      const arcMidR = this.radius * 1.02
       const midX = Math.cos(midRad) * arcMidR
       const midY = Math.sin(midRad) * arcMidR
 
@@ -167,7 +168,7 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
         from: cfg.from,
         to: cfg.to,
         name: cfg.name,
-        tag: '',
+        tag: cfg.tag,
         startDeg: cfg.startDeg,
         endDeg: cfg.endDeg,
         midDeg,
@@ -226,7 +227,7 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
         arrowY - Math.sin(tanAngle + 0.45) * arrowLen
       )
 
-      // 标签底衬与边框颜色（简洁典雅）
+      // 标签底衬与边框颜色（鲜艳好看）
       arc.labelBg.clear()
       if (isRelated) {
         arc.labelBg.fillStyle(toPal.fill, 0.98)
@@ -247,7 +248,7 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
   }
 
   /**
-   * 创建五行节点（纯粹展示 5 个状态印章：金·裂、水·湿、木·毒、火·灼、土·重）
+   * 创建五行节点（完全与武将解耦，纯粹展示五行元素与克制属性）
    */
   private createNodes(): void {
     const elementDefs: Array<{
@@ -256,41 +257,47 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
       char: string
       sealChar: string
       counterTag: string
+      offsetLabel: { x: number; y: number; originX: number }
     }> = [
       {
         element: 'metal',
         angleDeg: 270,
         char: '金',
         sealChar: '裂',
-        counterTag: '专克防御'
+        counterTag: '专克防御 · 真伤',
+        offsetLabel: { x: 0, y: -this.nodeRadius - 15, originX: 0.5 }
       },
       {
         element: 'water',
         angleDeg: 342,
         char: '水',
         sealChar: '湿',
-        counterTag: '专克移速'
+        counterTag: '专克移速 · 软控',
+        offsetLabel: { x: this.nodeRadius + 8, y: 0, originX: 0 }
       },
       {
         element: 'wood',
         angleDeg: 54,
         char: '木',
         sealChar: '毒',
-        counterTag: '专克生命'
+        counterTag: '专克生命 · 禁疗',
+        offsetLabel: { x: this.nodeRadius + 6, y: 12, originX: 0 }
       },
       {
         element: 'fire',
         angleDeg: 126,
         char: '火',
         sealChar: '灼',
-        counterTag: '极攻爆燃'
+        counterTag: '极攻直伤 · 爆燃',
+        offsetLabel: { x: -this.nodeRadius - 6, y: 12, originX: 1 }
       },
       {
         element: 'earth',
         angleDeg: 198,
         char: '土',
         sealChar: '重',
-        counterTag: '专克反暴'
+        counterTag: '专克反暴 · 内震',
+        offsetLabel: { x: -this.nodeRadius - 8, y: 0, originX: 1 }
       }
     ]
 
@@ -310,9 +317,9 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
       const discGraphics = this.scene.add.graphics()
       container.add(discGraphics)
 
-      // 主元素字（金/木/水/火/土）
+      // 主字（金/木/水/火/土）
       const charText = inkText(this.scene, 0, -5, def.char, {
-        size: 18,
+        size: 19,
         color: pal.hex,
         bold: true,
         originX: 0.5,
@@ -322,7 +329,7 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
 
       // 状态印章徽标【裂/毒/湿/灼/重】
       const badgeText = inkText(this.scene, 0, 11, `【${def.sealChar}】`, {
-        size: 11,
+        size: 10.5,
         color: pal.hex,
         bold: true,
         originX: 0.5,
@@ -330,8 +337,28 @@ export class InteractiveWuxingDiagram extends Phaser.GameObjects.Container {
       })
       container.add(badgeText)
 
-      // 纯净模式：移除外围繁杂的重复字牌容器，保持图面精练纯粹
-      const labelContainer = this.scene.add.container(0, 0)
+      // 节点外围标签容器（展示：五行法印 · 专克目标）
+      const labelContainer = this.scene.add.container(def.offsetLabel.x, def.offsetLabel.y)
+
+      const headerText = inkText(this.scene, 0, -8, `${def.char} · ${def.sealChar}`, {
+        size: 11.5,
+        color: pal.hex,
+        bold: true,
+        originX: def.offsetLabel.originX,
+        originY: 0.5
+      })
+      labelContainer.add(headerText)
+
+      const counterText = inkText(this.scene, 0, 7, def.counterTag, {
+        size: 9.5,
+        color: InkText.wash,
+        bold: true,
+        originX: def.offsetLabel.originX,
+        originY: 0.5
+      })
+      labelContainer.add(counterText)
+
+      container.add(labelContainer)
 
       // 交互绑定：设置圆盘命中检测
       discGraphics.setInteractive(
