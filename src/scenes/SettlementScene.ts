@@ -3,8 +3,9 @@ import { BattleResult, Rarity, WuXing } from '@/types'
 import { SaveManager } from '@/core/save/SaveManager'
 import { EquipmentManager } from '@/core/equipment/EquipmentManager'
 import { EndlessModeManager } from '@/core/level/EndlessModeManager'
-import { getHeroConfig, calculateLevelFromExp } from '@/data/heroes'
+import { getHeroConfig } from '@/data/heroes'
 import { getBattlefieldMapMeta } from '@/data/levels'
+import { getWeaponsByRarity } from '@/data/equipment'
 import {
   InkColor,
   InkText,
@@ -197,27 +198,11 @@ export default class SettlementScene extends Phaser.Scene {
   }
 
   /**
-   * 获取装备池
+   * 获取装备池（直接从装备配置库按稀有度获取制式兵器，保证全局名称与属性严格一致）
    */
   private getEquipmentPool(rarity: Rarity): { id: string; name: string; rarity: Rarity }[] {
-    const pool: Record<Rarity, { id: string; name: string; rarity: Rarity }[]> = {
-      common: [
-        { id: 'weapon_common_1', name: '铁剑', rarity: 'common' },
-        { id: 'weapon_common_2', name: '木弓', rarity: 'common' }
-      ],
-      rare: [
-        { id: 'weapon_rare_1', name: '青铜剑', rarity: 'rare' },
-        { id: 'weapon_rare_2', name: '精钢刀', rarity: 'rare' }
-      ],
-      epic: [
-        { id: 'weapon_epic_1', name: '青龙偃月刀', rarity: 'epic' },
-        { id: 'weapon_epic_2', name: '丈八蛇矛', rarity: 'epic' }
-      ],
-      legendary: [
-        { id: 'weapon_legendary_1', name: '方天画戟', rarity: 'legendary' }
-      ]
-    }
-    return pool[rarity] || []
+    const list = getWeaponsByRarity(rarity)
+    return list.map(w => ({ id: w.id, name: w.name, rarity: w.rarity }))
   }
 
   /**
@@ -809,7 +794,7 @@ export default class SettlementScene extends Phaser.Scene {
     // 添加金币
     saveData.inventory.gold += this.rewards.gold
 
-    // 添加上场英雄经验并实时重算武将等级
+    // 添加上场英雄功勋历练（功勋用于在武道十境中冲穴修习）
     const deployedHeroIds = this.battleResult.deployedHeroIds || []
     const expPerHero = this.rewards.experience
 
@@ -817,10 +802,6 @@ export default class SettlementScene extends Phaser.Scene {
       const heroData = saveData.heroes.find(h => h.id === heroId)
       if (heroData) {
         heroData.experience += expPerHero
-        const newLevel = calculateLevelFromExp(heroData.experience)
-        if (newLevel > heroData.level) {
-          heroData.level = newLevel
-        }
       }
     }
 

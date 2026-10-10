@@ -920,17 +920,18 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * 创建三大核心系统入口（1×3 三才并列横阵，总宽 768px 与顶部主匾额严丝合缝对齐）
-   * [将 · 聚贤武将]   [兵 · 神兵灵石]   [策 · 天命锦囊]
+   * 创建四大核心系统入口（1×4 四才并列横阵，总宽 768px 与顶部主匾额严丝合缝对齐）
+   * [将 · 聚贤武将]   [兵 · 神兵灵石]   [策 · 天命锦囊]   [理 · 乾坤经纬]
    */
   private createFeatureGrid(width: number): void {
     const centerX = width / 2
-    const cardW = 240
-    const gap = 24
-    const stepX = cardW + gap // 264 -> 3*240 + 2*24 = 768px
+    const cardW = 180
+    const gap = 16
+    const stepX = cardW + gap // 196 -> 4*180 + 3*16 = 768px
+    const startX = centerX - 384 + cardW / 2 // centerX - 294
     const rowY = 462
 
-    // 军机三枢分界题眉
+    // 军机四枢分界题眉
     const headerY = 404
     const divG = this.add.graphics()
     divG.setDepth(9)
@@ -941,7 +942,7 @@ export default class TitleScene extends Phaser.Scene {
     divG.fillCircle(centerX - 76, headerY, 2)
     divG.fillCircle(centerX + 76, headerY, 2)
 
-    const sectionLabel = inkText(this, centerX, headerY, '· 军 机 三 枢 ·', {
+    const sectionLabel = inkText(this, centerX, headerY, '· 军 机 四 枢 ·', {
       size: 12,
       color: InkText.faint,
       bold: true,
@@ -950,37 +951,52 @@ export default class TitleScene extends Phaser.Scene {
     })
     sectionLabel.setDepth(9)
 
-    // 1. 左枢：聚贤武将（含四阶技能演武 & 将星命盘）
+    // 1. 聚贤武将（含四阶技能演武 & 将星命盘）
     this.createClassicalFeatureCard(
-      centerX - stepX,
+      startX,
       rowY,
       '将',
       '聚贤武将',
-      '将星命盘 · 四阶演武',
+      '将星命盘 · 演武',
       InkColor.cinnabar,
-      () => this.transitionTo('HeroListScene')
+      () => this.transitionTo('HeroListScene'),
+      cardW
     )
 
-    // 2. 中枢：神兵灵石（含三才共鸣预览 & 词条区间表）
+    // 2. 神兵灵石（含三才共鸣预览 & 词条区间表）
     this.createClassicalFeatureCard(
-      centerX,
+      startX + stepX,
       rowY,
       '兵',
       '神兵灵石',
-      '三才共鸣 · 灵砂淬炼',
+      '三才共鸣 · 淬炼',
       0x9a3b26,
-      () => this.transitionTo('EquipmentScene')
+      () => this.transitionTo('EquipmentScene'),
+      cardW
     )
 
-    // 3. 右枢：天命锦囊（30计三国典故 · 无品质平权）
+    // 3. 天命锦囊（30计三国典故 · 无品质平权）
     this.createClassicalFeatureCard(
-      centerX + stepX,
+      startX + stepX * 2,
       rowY,
       '策',
       '天命锦囊',
-      '三十典故 · 奇谋平权',
+      '三十典故 · 奇谋',
       0x8a6230,
-      () => this.transitionTo('AugmentCompendiumScene')
+      () => this.transitionTo('AugmentCompendiumScene'),
+      cardW
+    )
+
+    // 4. 乾坤经纬（五行相生 · 五维对位 · 伤害算法）
+    this.createClassicalFeatureCard(
+      startX + stepX * 3,
+      rowY,
+      '理',
+      '乾坤经纬',
+      '五行相生 · 算法',
+      0x2b638f,
+      () => this.transitionTo('MechanicsScene'),
+      cardW
     )
   }
 
@@ -994,14 +1010,15 @@ export default class TitleScene extends Phaser.Scene {
     title: string,
     desc: string,
     badgeColor: number,
-    onClick: () => void
+    onClick: () => void,
+    cardW: number = 180
   ): Phaser.GameObjects.Container {
-    const cardW = 240
     const cardH = 68
     const container = this.add.container(x, y)
     container.setDepth(10)
 
     const bg = this.add.graphics()
+    const badgeX = -cardW / 2 + 22
     const renderCard = (hover: boolean) => {
       bg.clear()
       const fillColor = hover ? InkColor.paperDeep : InkColor.paperPanel
@@ -1023,35 +1040,34 @@ export default class TitleScene extends Phaser.Scene {
       this.drawCornerBrackets(bg, -cardW / 2 + 3.5, -cardH / 2 + 3.5, cardW - 7, cardH - 7, 7, strokeColor)
 
       // 左侧印章徽标底块
-      const badgeX = -cardW / 2 + 30
       bg.fillStyle(badgeColor, hover ? 1 : 0.9)
-      bg.fillRoundedRect(badgeX - 16, -16, 32, 32, 4)
+      bg.fillRoundedRect(badgeX - 14, -14, 28, 28, 4)
       bg.lineStyle(1, 0xf6f0e4, 0.65)
-      bg.strokeRoundedRect(badgeX - 13.5, -13.5, 27, 27, 2)
+      bg.strokeRoundedRect(badgeX - 12, -12, 24, 24, 2)
     }
 
     renderCard(false)
     container.add(bg)
 
     // 左侧徽标文字
-    const badgeText = this.add.text(-cardW / 2 + 30, 0, badgeChar, {
+    const badgeText = this.add.text(badgeX, 0, badgeChar, {
       fontFamily: INK_FONT,
-      fontSize: '17px',
+      fontSize: '16px',
       color: '#fbf8f0',
       fontStyle: 'bold'
     }).setOrigin(0.5, 0.5)
 
     // 主标题与副标题
-    const titleText = this.add.text(-cardW / 2 + 58, -9, title, {
+    const titleText = this.add.text(-cardW / 2 + 44, -9, title, {
       fontFamily: INK_FONT,
-      fontSize: '18px',
+      fontSize: '15px',
       color: InkText.strong,
       fontStyle: 'bold'
     }).setOrigin(0, 0.5)
 
-    const descText = this.add.text(-cardW / 2 + 59, 13, desc, {
+    const descText = this.add.text(-cardW / 2 + 45, 13, desc, {
       fontFamily: INK_FONT,
-      fontSize: '12px',
+      fontSize: '11px',
       color: InkText.faint
     }).setOrigin(0, 0.5)
 

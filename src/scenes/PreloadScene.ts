@@ -144,7 +144,10 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('artifact_tongque', 'assets/images/weapons/铜雀.png')
     this.load.image('artifact_yuxi', 'assets/images/weapons/玉玺.png')
 
-    console.log('PreloadScene: 武将头像、暴击图、全身模型与神器素材加载完成')
+    // 加载五行相生相克图（SVG 高清矢量图）
+    this.load.svg('wuxing_cycle', 'assets/images/wuxing_cycle.svg', { width: 540, height: 560 })
+
+    console.log('PreloadScene: 武将头像、暴击图、全身模型、神器与五行相生图素材加载完成')
   }
 
   /**

@@ -29,6 +29,7 @@ import { WeatherAmbientFX } from '@/effects/WeatherAmbientFX'
 import { MilitarySituationModal } from '@/ui/MilitarySituationModal'
 import { MilitarySituationDetailModal } from '@/ui/MilitarySituationDetailModal'
 import { AugmentStatusModal } from '@/ui/AugmentStatusModal'
+import { MechanicsModal } from '@/ui/MechanicsModal'
 import { MilitarySituation } from '@/types/militarySituation'
 import { EndlessModeManager } from '@/core/level/EndlessModeManager'
 
@@ -89,6 +90,7 @@ export default class BattleScene extends Phaser.Scene {
   private augmentStatusBtnText!: Phaser.GameObjects.Text
   private augmentModal: AugmentSelectModal | null = null
   private augmentStatusModal: AugmentStatusModal | null = null
+  private mechanicsModal: MechanicsModal | null = null
   private militaryModal: MilitarySituationModal | null = null
   private militaryDetailModal: MilitarySituationDetailModal | null = null
   private militaryBadgeContainer?: Phaser.GameObjects.Container
@@ -121,6 +123,12 @@ export default class BattleScene extends Phaser.Scene {
   private dockHeroItems: Map<string, DockHeroItem> = new Map()
   private dockTroopItems: Map<string, DockTroopItem> = new Map()
   private dockHintText!: Phaser.GameObjects.Text
+  private dockHintBg: Phaser.GameObjects.Rectangle | null = null
+
+  // 战前部署环节状态与UI
+  private isDeploymentPhase: boolean = true
+  private deploymentBannerContainer: Phaser.GameObjects.Container | null = null
+  private deployStartBtn: Phaser.GameObjects.Container | null = null
 
   constructor() {
     super({ key: 'BattleScene' })
@@ -159,7 +167,12 @@ export default class BattleScene extends Phaser.Scene {
     this.unitDrag = null
     this.unitInfoContainer = null
     this.militaryModal = null
+    this.mechanicsModal = null
     this.wave15ChoiceModal = null
+    this.isDeploymentPhase = true
+    this.deploymentBannerContainer = null
+    this.deployStartBtn = null
+    this.dockHintBg = null
     this.dockHeroItems.clear()
     this.dockTroopItems.clear()
 
@@ -174,6 +187,8 @@ export default class BattleScene extends Phaser.Scene {
     this.weatherFX = new WeatherAmbientFX(this)
     this.events.once('shutdown', () => {
       this.weatherFX?.destroy()
+      this.mechanicsModal?.destroy()
+      this.mechanicsModal = null
     })
 
     // 1. 创建地形系统
@@ -209,10 +224,10 @@ export default class BattleScene extends Phaser.Scene {
     // 8.5 注册键盘快捷施法 (1, 2, 3 键强令施法)
     this.registerSkillShortcuts()
 
-    // 9. 启动战斗
-    this.battleSystem.startBattle()
+    // 9. 开启战前部署环节（待部署完毕后玩家再行点击出兵）
+    this.initDeploymentPhase()
 
-    console.log('BattleScene: 战斗系统初始化完成')
+    console.log('BattleScene: 战斗系统与战前部署环节初始化完成')
   }
 
   /**
@@ -264,7 +279,9 @@ export default class BattleScene extends Phaser.Scene {
       // 松开：收起射程与属性卡
       this.hideRange()
       this.hideUnitInfo()
-      this.deploymentZoneRenderer.setGridVisible(false)
+      if (!this.isDeploymentPhase) {
+        this.deploymentZoneRenderer.setGridVisible(false)
+      }
       this.deploymentZoneRenderer.clearCellHighlight()
     })
 
@@ -281,6 +298,7 @@ export default class BattleScene extends Phaser.Scene {
 
   /**
    * 注册键盘快捷施法监听 (1, 2, 3 键分别触发第 1, 2, 3 位已上阵名将的大招)
+   * 部署阶段支持 SPACE / ENTER 快速出兵
    */
   private registerSkillShortcuts(): void {
     if (!this.input.keyboard) return
@@ -290,12 +308,28 @@ export default class BattleScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-THREE', () => this.tryManualCastSkill(2))
     this.input.keyboard.on('keydown-FOUR', () => this.tryManualCastSkill(3))
     this.input.keyboard.on('keydown-FIVE', () => this.tryManualCastSkill(4))
+
+    // 空格键 / 回车键：战前部署阶段直接完成布阵开始出兵
+    this.input.keyboard.on('keydown-SPACE', () => {
+      if (this.isDeploymentPhase) {
+        this.completeDeployment()
+      }
+    })
+    this.input.keyboard.on('keydown-ENTER', () => {
+      if (this.isDeploymentPhase) {
+        this.completeDeployment()
+      }
+    })
   }
 
   /**
    * 快捷键或点击触发武将主动绝技
    */
   private tryManualCastSkill(heroIdentifier: string | number): void {
+    if (this.isDeploymentPhase) {
+      inkToast(this, '战前布防阶段，待开战后方可强令绝技', 60)
+      return
+    }
     const heroBattleManager = this.battleSystem.getHeroBattleManager()
     if (!heroBattleManager) return
 
@@ -356,7 +390,9 @@ export default class BattleScene extends Phaser.Scene {
     this.clearDragGhost()
     this.dragPayload = null
     this.deploymentZoneRenderer.clearCellHighlight()
-    this.deploymentZoneRenderer.setGridVisible(false)
+    if (!this.isDeploymentPhase) {
+      this.deploymentZoneRenderer.setGridVisible(false)
+    }
 
     if (!payload) return
     if (this.isPointerOverDock(pointer)) return
@@ -566,7 +602,9 @@ export default class BattleScene extends Phaser.Scene {
     this.hideRange()
     this.hideUnitInfo()
     this.deploymentZoneRenderer.clearCellHighlight()
-    this.deploymentZoneRenderer.setGridVisible(false)
+    if (!this.isDeploymentPhase) {
+      this.deploymentZoneRenderer.setGridVisible(false)
+    }
     drag.unit.setDepth(drag.originalDepth)
     drag.unit.setAlpha(1)
 
@@ -685,7 +723,11 @@ export default class BattleScene extends Phaser.Scene {
    * 底部栏状态：已上阵武将置灰
    */
   private updateDockState(): void {
-    this.dockHintText.setText('拖拽部署 · 按住单位看射程 · 拖回底栏撤下')
+    if (this.isDeploymentPhase) {
+      this.dockHintText.setText('战前布阵：拖拽武将布防 · 调整相生阵脉')
+    } else {
+      this.dockHintText.setText('拖拽部署 · 按住单位看射程 · 拖回底栏撤下')
+    }
     this.dockHintText.setColor(InkText.faint)
 
     for (const [heroId, item] of this.dockHeroItems) {
@@ -844,8 +886,8 @@ export default class BattleScene extends Phaser.Scene {
     })
     bar.add(this.waveText)
 
-    // 6. 击鼓迎敌按钮 (x: 1049 ~ 1135)
-    this.earlyWaveBtn = createInkButton(this, 1092, 26, 86, 30, '击鼓迎敌', {
+    // 6. 击鼓迎敌按钮
+    this.earlyWaveBtn = createInkButton(this, 1076, 26, 76, 30, '击鼓迎敌', {
       fill: InkColor.cinnabar,
       hoverFill: 0xb53a32,
       textColor: InkText.paper,
@@ -854,8 +896,8 @@ export default class BattleScene extends Phaser.Scene {
     })
     this.earlyWaveBtn.setDepth(26)
 
-    // 7. 倍速控制按钮 (1X / 2X / 3X / 5X) (x: 1144 ~ 1192)
-    const speedBtn = createInkButton(this, 1168, 26, 48, 30, '1X', {
+    // 7. 倍速控制按钮 (1X / 2X / 3X / 5X)
+    const speedBtn = createInkButton(this, 1134, 26, 40, 30, '1X', {
       fill: InkColor.paperDeep,
       hoverFill: InkColor.paper,
       textColor: InkText.ink,
@@ -867,8 +909,8 @@ export default class BattleScene extends Phaser.Scene {
     const speedTxt = speedBtn.getAt(1) as Phaser.GameObjects.Text
     if (speedTxt) this.speedBtnText = speedTxt
 
-    // 8. 暂停控制按钮 (⏸ / ▶) (x: 1200 ~ 1242)
-    const pauseBtn = createInkButton(this, 1221, 26, 42, 30, '⏸', {
+    // 8. 暂停控制按钮 (⏸ / ▶)
+    const pauseBtn = createInkButton(this, 1176, 26, 38, 30, '⏸', {
       fill: InkColor.paperDeep,
       hoverFill: InkColor.paper,
       textColor: InkText.ink,
@@ -879,6 +921,17 @@ export default class BattleScene extends Phaser.Scene {
     pauseBtn.setDepth(26)
     const pauseTxt = pauseBtn.getAt(1) as Phaser.GameObjects.Text
     if (pauseTxt) this.pauseBtnText = pauseTxt
+
+    // 9. 战法天机按钮（底层机制与相生算法速查手册）
+    const mechanicsBtn = createInkButton(this, 1228, 26, 54, 30, '天机', {
+      fill: InkColor.paperDeep,
+      hoverFill: InkColor.paper,
+      textColor: InkText.cinnabar,
+      fontSize: 13,
+      stroke: InkColor.cinnabar,
+      onClick: () => this.openMechanicsModal()
+    })
+    mechanicsBtn.setDepth(26)
   }
 
   /**
@@ -1015,9 +1068,165 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * 击鼓迎敌：提前召唤下一波敌人
+   * 开启战前部署环节
+   */
+  private initDeploymentPhase(): void {
+    this.isDeploymentPhase = true
+
+    // 部署网格常驻显现
+    this.deploymentZoneRenderer.setGridVisible(true)
+
+    // 初始化战斗系统处于战前部署状态
+    this.battleSystem.initDeploymentPhase()
+
+    // 创建战前布阵浮动横幅
+    const width = this.cameras.main.width
+    this.createDeploymentBanner(width)
+
+    // 底部栏展示「完成部署 · 开始出兵」按钮
+    if (this.deployStartBtn) {
+      this.deployStartBtn.setVisible(true)
+    }
+    if (this.dockHintBg) {
+      this.dockHintBg.setVisible(false)
+    }
+    if (this.dockHintText) {
+      this.dockHintText.setVisible(false)
+    }
+
+    // 顶部令台按钮呈现【开始出兵】
+    if (this.earlyWaveBtn) {
+      this.earlyWaveBtn.setVisible(true)
+      const earlyWaveTxt = this.earlyWaveBtn.getAt(1) as Phaser.GameObjects.Text
+      if (earlyWaveTxt) earlyWaveTxt.setText('开始出兵')
+    }
+
+    inkToast(this, '【战前布阵】请拖拽布防武将，布设完毕后点击【开始出兵】', 140)
+  }
+
+  /**
+   * 完成战前部署，正式开始出兵迎敌
+   */
+  private completeDeployment(): void {
+    if (!this.isDeploymentPhase) return
+    this.isDeploymentPhase = false
+
+    // 战鼓铜锣轰鸣音效与镜头微震
+    SoundFX.gong(0.8)
+    SoundFX.thud(0.6)
+    this.cameras.main.shake(200, 0.003)
+
+    // 墨韵战报
+    inkToast(this, '全军列阵 · 敌军来袭！', 100)
+
+    // 淡出并销毁战前布阵横幅
+    if (this.deploymentBannerContainer) {
+      const banner = this.deploymentBannerContainer
+      this.deploymentBannerContainer = null
+      this.tweens.add({
+        targets: banner,
+        alpha: 0,
+        y: banner.y - 10,
+        duration: 250,
+        onComplete: () => {
+          banner.destroy()
+        }
+      })
+    }
+
+    // 底部栏切换为常态操作提示
+    if (this.deployStartBtn) {
+      this.deployStartBtn.setVisible(false)
+    }
+    if (this.dockHintBg) {
+      this.dockHintBg.setVisible(true)
+    }
+    if (this.dockHintText) {
+      this.dockHintText.setVisible(true)
+    }
+
+    // 战场网格淡出为清爽水墨画卷
+    this.deploymentZoneRenderer.setGridVisible(false)
+
+    // 正式开启战斗与出兵
+    this.battleSystem.startBattle()
+  }
+
+  /**
+   * 创建战前布阵水墨提示横幅
+   */
+  private createDeploymentBanner(width: number): void {
+    if (this.deploymentBannerContainer) {
+      this.deploymentBannerContainer.destroy()
+      this.deploymentBannerContainer = null
+    }
+
+    const bannerW = 540
+    const bannerH = 38
+    const bannerX = width / 2
+    const bannerY = 82
+
+    const container = this.add.container(bannerX, bannerY)
+    container.setDepth(20)
+
+    const bg = this.add.graphics()
+    bg.fillStyle(InkColor.paperPanel, 0.94)
+    bg.fillRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 8)
+    bg.lineStyle(1.5, InkColor.cinnabar, 0.85)
+    bg.strokeRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 8)
+    bg.lineStyle(1, InkColor.ink, 0.25)
+    bg.strokeRoundedRect(-bannerW / 2 + 4, -bannerH / 2 + 4, bannerW - 8, bannerH - 8, 6)
+    container.add(bg)
+
+    // 装饰：左侧朱砂印「阵」
+    const seal = this.add.rectangle(-bannerW / 2 + 24, 0, 20, 20, InkColor.cinnabar)
+    const sealTxt = inkText(this, -bannerW / 2 + 24, 0, '阵', {
+      size: 11,
+      color: InkText.paper,
+      bold: true,
+      originX: 0.5,
+      originY: 0.5
+    })
+    container.add([seal, sealTxt])
+
+    // 提示文本
+    const tipTxt = inkText(
+      this,
+      8,
+      0,
+      '【战前布阵】拖拽武将布防 · 联结五行相生阵脉 · 就绪后出兵',
+      {
+        size: 13,
+        color: InkText.strong,
+        bold: true,
+        originX: 0.5,
+        originY: 0.5
+      }
+    )
+    container.add(tipTxt)
+
+    // 水墨呼吸轻微浮动
+    this.tweens.add({
+      targets: container,
+      alpha: { from: 0.88, to: 1 },
+      y: { from: bannerY, to: bannerY + 2 },
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+
+    this.deploymentBannerContainer = container
+  }
+
+  /**
+   * 击鼓迎敌：战前部署阶段触发开始出兵；战斗交火期则提前召唤下一波敌人
    */
   private handleEarlyWave(): void {
+    if (this.isDeploymentPhase) {
+      this.completeDeployment()
+      return
+    }
     const res = this.battleSystem.callNextWaveEarly()
     if (res.success) {
       inkToast(this, `擂鼓迎敌！士气大振，赏银 +${res.bonusCost}`, 120)
@@ -1081,9 +1290,9 @@ export default class BattleScene extends Phaser.Scene {
     const hintW = 280
     const hintH = 34
     const hintX = width - 175
-    const hintBg = this.add.rectangle(hintX, dockY, hintW, hintH, InkColor.paperDeep, 0.5)
-    hintBg.setStrokeStyle(1, InkColor.inkFaint, 0.4)
-    this.deployDock.add(hintBg)
+    this.dockHintBg = this.add.rectangle(hintX, dockY, hintW, hintH, InkColor.paperDeep, 0.5)
+    this.dockHintBg.setStrokeStyle(1, InkColor.inkFaint, 0.4)
+    this.deployDock.add(this.dockHintBg)
 
     this.dockHintText = inkText(this, hintX, dockY, '拖拽部署 · 按住看射程 · 拖回撤阵', {
       size: 11,
@@ -1092,6 +1301,24 @@ export default class BattleScene extends Phaser.Scene {
       originY: 0.5
     })
     this.deployDock.add(this.dockHintText)
+
+    // 战前部署阶段专属：底部显眼的「完成部署 · 开始出兵」按钮
+    this.deployStartBtn = createInkButton(
+      this,
+      hintX,
+      dockY,
+      hintW,
+      44,
+      '⚔️ 完成部署 · 开始出兵',
+      {
+        fill: InkColor.cinnabar,
+        hoverFill: 0xb53a32,
+        textColor: InkText.paper,
+        fontSize: 14,
+        onClick: () => this.completeDeployment()
+      }
+    )
+    this.deployDock.add(this.deployStartBtn)
   }
 
   private addDockHero(hero: Hero, x: number, y: number): void {
@@ -1516,6 +1743,37 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   /**
+   * 打开【乾坤经纬】底层机制速查手册
+   * 自动暂停战斗，闭卷时自适应恢复，亦支持切入全卷图鉴
+   */
+  private openMechanicsModal(): void {
+    if (this.mechanicsModal) {
+      this.mechanicsModal.destroy()
+      this.mechanicsModal = null
+      return
+    }
+    const wasPaused = this.battleSystem.isBattlePaused()
+    if (!wasPaused) {
+      this.battleSystem.pause()
+      if (this.pauseBtnText) this.pauseBtnText.setText('▶')
+    }
+    this.mechanicsModal = new MechanicsModal(
+      this,
+      'elemental',
+      () => {
+        this.mechanicsModal = null
+        if (!wasPaused && this.battleSystem.isBattlePaused()) {
+          this.battleSystem.resume()
+          if (this.pauseBtnText) this.pauseBtnText.setText('⏸')
+        }
+      },
+      () => {
+        this.scene.start('MechanicsScene', { returnScene: 'BattleScene' })
+      }
+    )
+  }
+
+  /**
    * 刷新观星台天时徽章显示
    */
   private updateMilitaryBadge(): void {
@@ -1567,12 +1825,30 @@ export default class BattleScene extends Phaser.Scene {
     this.costText.setText(`军费 ${state.currentCost}`)
     this.healthText.setText(`帅营 ${state.playerHealth}`)
 
-    // 无尽模式显示【三重烽火】标识 + 当前波次，普通模式显示 15 波进度
-    if (this.battleSystem.isEndlessMode()) {
-      const beacon = EndlessModeManager.getBeaconTierInfo(state.currentWave)
-      this.waveText.setText(`${beacon.icon} 第 ${state.currentWave} 波`)
+    // 部署阶段显示为战前布阵，正式战斗后显示当前波次
+    if (this.isDeploymentPhase) {
+      this.waveText.setText('战前布阵')
+      this.earlyWaveBtn.setVisible(true)
+      const earlyWaveTxt = this.earlyWaveBtn.getAt(1) as Phaser.GameObjects.Text
+      if (earlyWaveTxt && earlyWaveTxt.text !== '开始出兵') {
+        earlyWaveTxt.setText('开始出兵')
+      }
     } else {
-      this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
+      // 无尽模式显示【三重烽火】标识 + 当前波次，普通模式显示 15 波进度
+      if (this.battleSystem.isEndlessMode()) {
+        const beacon = EndlessModeManager.getBeaconTierInfo(state.currentWave)
+        this.waveText.setText(`${beacon.icon} 第 ${state.currentWave} 波`)
+      } else {
+        this.waveText.setText(`波次 ${state.currentWave}/${state.totalWaves}`)
+      }
+
+      // 动态更新击鼓迎敌按钮状态
+      const canEarly = this.battleSystem.canCallNextWaveEarly()
+      this.earlyWaveBtn.setVisible(canEarly)
+      const earlyWaveTxt = this.earlyWaveBtn.getAt(1) as Phaser.GameObjects.Text
+      if (earlyWaveTxt && earlyWaveTxt.text !== '击鼓迎敌') {
+        earlyWaveTxt.setText('击鼓迎敌')
+      }
     }
 
     // 动态刷新锦囊徽章已获得数量
@@ -1584,9 +1860,5 @@ export default class BattleScene extends Phaser.Scene {
     this.energyGaugeBar?.updateProgress()
     this.updateDockState()
     this.updateMilitaryBadge()
-
-    // 动态更新击鼓迎敌按钮状态
-    const canEarly = this.battleSystem.canCallNextWaveEarly()
-    this.earlyWaveBtn.setVisible(canEarly)
   }
 }

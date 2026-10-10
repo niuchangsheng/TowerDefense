@@ -20,9 +20,8 @@ import {
   getExpToNextLevel,
   getExpProgress,
   getExpRequiredForLevel,
-  getTotalInvestedExp,
   getLevelStatBonus,
-  calculateLevelFromExp
+  getMartialRealmName
 } from '@/data/heroes/levelConfig'
 import {
   getStarAttachmentRate,
@@ -203,8 +202,9 @@ export default class HeroListScene extends Phaser.Scene {
     // 左下：等级 + 军费
     const baseCost = cfg?.deploymentCost ?? hero.deploymentCost ?? 12
     const actualCost = baseCost - getStarDeploymentCostReduction(hero.star)
+    const realmName = getMartialRealmName(hero.level)
     card.add(
-      inkText(this, 104, 54, `Lv.${hero.level}   ·   军费 ${actualCost}`, {
+      inkText(this, 104, 54, `Lv.${hero.level} ${realmName}   ·   军费 ${actualCost}`, {
         size: 13,
         color: InkText.wash,
         bold: true
@@ -348,7 +348,7 @@ export default class HeroListScene extends Phaser.Scene {
   }
 
   /**
-   * 第一区：一眼看清【等级】【星级】与【五大属性】（点击等级/星级/属性按需查看经验、碎片差距与加成明细）
+   * 第一区：一眼看清【等级】【星级】与【五大属性】（点击等级/星级查看经验与碎片，点击【？ 属性明细】查看数值加成明细）
    */
   private renderHeroHeaderAndStats(
     panel: Phaser.GameObjects.Container,
@@ -379,21 +379,22 @@ export default class HeroListScene extends Phaser.Scene {
     panel.add(nameText)
     this.createWuXingBadge(panel, 104 + nameText.width + 10, y + 7, hero.wuXing, 21)
 
-    // 重点 1：大号【等级】胶囊按钮（点击查看当前经验、升级差多少经验、无损传功）
-    const lvPillX = 236
+    // 重点 1：大号【等级】胶囊按钮（展示具体武道十境境界，如 Lv.10 武道化境）
+    const realmName = getMartialRealmName(hero.level)
+    const lvPillX = 226
     const lvPillY = y + 18
     const lvBtn = createInkButton(
       this,
-      lvPillX + 62,
+      lvPillX + 71,
       lvPillY,
-      124,
+      142,
       28,
-      `Lv.${hero.level} 武道  ▾`,
+      `Lv.${hero.level} 武道${realmName}  ▾`,
       {
         fill: InkColor.paperDeep,
         hoverFill: 0xc5b795,
         textColor: InkText.strong,
-        fontSize: 14,
+        fontSize: 13,
         stroke: InkColor.ink,
         onClick: () => this.showLevelDetailDialog(hero)
       }
@@ -407,7 +408,7 @@ export default class HeroListScene extends Phaser.Scene {
     const starStr = `${'★'.repeat(hero.star)}${'☆'.repeat(5 - hero.star)}`
     const starLabel = canUpgrade ? `${starStr} 可升星!` : `${starStr} ${hero.star}★  ▾`
 
-    const starBtn = createInkButton(this, 456, lvPillY, 164, 28, starLabel, {
+    const starBtn = createInkButton(this, 462, lvPillY, 156, 28, starLabel, {
       fill: canUpgrade ? InkColor.cinnabar : InkColor.paperDeep,
       hoverFill: canUpgrade ? 0xb2362e : 0xc5b795,
       textColor: canUpgrade ? InkText.paper : InkText.gold,
@@ -437,7 +438,7 @@ export default class HeroListScene extends Phaser.Scene {
         ? canUpgrade
           ? `✨ 将魂已满 (${soulStones}/${required})，点击【${hero.star}★】按钮立即升至 ${hero.star + 1}★`
           : `将魂 ${soulStones}/${required}（升 ${hero.star + 1}★ 还差 ${diffStones} 碎片 · 点击星级免费领传记碎片）`
-        : '★ 已满 5★  ·  点击等级或属性卡片可查看详细数值构成'
+        : `★ 已满 5★  ·  点击【Lv.${hero.level} 武道${realmName}】或【？ 属性明细】可查看数值构成`
     panel.add(
       inkText(this, 104, y + 48, quickSub, {
         size: 11.5,
@@ -445,7 +446,18 @@ export default class HeroListScene extends Phaser.Scene {
       })
     )
 
-    // 重点 3：五大基础属性大字卡（只突出属性名 + 大号数值 + 增益百分比，点击按需看来源明细）
+    // 问号 / 属性明细小按钮：点击按需查看五维属性来源拆解与保底铁律
+    const statDetailBtn = createInkButton(this, 824 - 41, y + 48, 82, 22, '？ 属性明细', {
+      fill: InkColor.paperDeep,
+      hoverFill: 0xc5b795,
+      textColor: InkText.wash,
+      fontSize: 11.5,
+      stroke: InkColor.inkFaint,
+      onClick: () => this.showStatBreakdownDialog(hero)
+    })
+    panel.add(statDetailBtn)
+
+    // 重点 3：五大基础属性大字卡（只突出属性名 + 大号数值 + 增益百分比，纯信息展示不再触发弹窗）
     const statRowY = y + 72
     const cardW = 152
     const cardH = 54
@@ -517,10 +529,6 @@ export default class HeroListScene extends Phaser.Scene {
         0.65
       )
       bg.setStrokeStyle(1, sc.gain ? InkColor.cinnabar : InkColor.inkFaint, 0.6)
-      bg.setInteractive({ useHandCursor: true })
-      bg.on('pointerover', () => bg.setFillStyle(0xe2d7bc, 0.95))
-      bg.on('pointerout', () => bg.setFillStyle(InkColor.paperDeep, 0.65))
-      bg.on('pointerdown', () => this.showStatBreakdownDialog(hero))
       panel.add(bg)
 
       panel.add(
@@ -1654,9 +1662,9 @@ export default class HeroListScene extends Phaser.Scene {
         realm: '初阵',
         meridian: '任脉 · 下丹田正中',
         x: 215,
-        y: 314,
-        labelDx: -58,
-        labelDy: -6,
+        y: 318,
+        labelDx: -56,
+        labelDy: 0,
         desc: '先天元气汇聚之海，武者吐纳筑基之始。真气自丹田生发，四肢百骸初具战阵威仪。',
         effectText: '武道初境筑基 · 解锁武将出战与基础面板（攻击加成 +0%）'
       },
@@ -1666,9 +1674,9 @@ export default class HeroListScene extends Phaser.Scene {
         realm: '淬体',
         meridian: '任脉 · 丹田下三寸',
         x: 215,
-        y: 356,
-        labelDx: 58,
-        labelDy: -4,
+        y: 358,
+        labelDx: 56,
+        labelDy: 0,
         desc: '男子藏精、女子蓄血之处。冲开此穴可培元固本，淬炼筋骨皮膜，挥刃力道倍增。',
         effectText: '淬炼筋骨皮膜 · 武将基础攻击力永久提升至 +4%'
       },
@@ -1678,9 +1686,9 @@ export default class HeroListScene extends Phaser.Scene {
         realm: '凝气',
         meridian: '足少阴肾经 · 足底正中',
         x: 156,
-        y: 418,
-        labelDx: -62,
-        labelDy: -6,
+        y: 416,
+        labelDx: -52,
+        labelDy: 0,
         desc: '肾出于涌泉，如源泉自地底喷薄而出。贯通此穴可引大地厚重之气入体，下盘稳如泰山。',
         effectText: '引地脉精气凝练内息 · 武将基础攻击力永久提升至 +8%'
       },
@@ -1689,10 +1697,10 @@ export default class HeroListScene extends Phaser.Scene {
         name: '命门穴',
         realm: '破锋',
         meridian: '督脉 · 后腰脊柱正中',
-        x: 272,
-        y: 292,
-        labelDx: 60,
-        labelDy: -6,
+        x: 252,
+        y: 288,
+        labelDx: 52,
+        labelDy: 0,
         desc: '生命之门，督脉阳气生发之枢。真气由腹转背直透脊梁，腰马合一，破阵摧锋无坚不摧。',
         effectText: '腰马合一气透脊梁 · 武将基础攻击力永久提升至 +12%'
       },
@@ -1702,9 +1710,9 @@ export default class HeroListScene extends Phaser.Scene {
         realm: '贯通',
         meridian: '任脉 · 胸堂两乳之间',
         x: 215,
-        y: 234,
-        labelDx: -62,
-        labelDy: -6,
+        y: 224,
+        labelDx: -56,
+        labelDy: 0,
         desc: '中丹田宗气之所聚，心肺气机之枢纽。冲开膻中则胸中豪气干云，周身内息回环贯通。',
         effectText: '中丹田宗气大成 · 武将基础攻击力永久提升至 +16%'
       },
@@ -1713,10 +1721,10 @@ export default class HeroListScene extends Phaser.Scene {
         name: '肩井穴',
         realm: '宗师',
         meridian: '足少阳胆经 · 右肩脊枢',
-        x: 282,
-        y: 184,
-        labelDx: 58,
-        labelDy: -10,
+        x: 268,
+        y: 180,
+        labelDx: 52,
+        labelDy: -6,
         desc: '手足三阳经交会之要冲。气冲肩井，肩背劲力直达双臂，开合之间已具一代宗师气象。',
         effectText: '贯通肩臂三阳经脉 · 武将基础攻击力永久提升至 +20%'
       },
@@ -1725,10 +1733,10 @@ export default class HeroListScene extends Phaser.Scene {
         name: '曲池穴',
         realm: '止水',
         meridian: '手阳明大肠经 · 右肘弯处',
-        x: 314,
-        y: 244,
-        labelDx: 56,
-        labelDy: 0,
+        x: 310,
+        y: 238,
+        labelDx: 46,
+        labelDy: -8,
         desc: '经气至此如水入池。贯通曲池可令肘腕发劲圆转如意，沙场挽弓挥戈皆心如止水。',
         effectText: '气贯肘腕收放自如 · 武将基础攻击力永久提升至 +24%'
       },
@@ -1737,10 +1745,10 @@ export default class HeroListScene extends Phaser.Scene {
         name: '劳宫穴',
         realm: '天人',
         meridian: '手厥阴心包经 · 左掌中心',
-        x: 118,
+        x: 124,
         y: 256,
-        labelDx: -56,
-        labelDy: -6,
+        labelDx: -46,
+        labelDy: 0,
         desc: '心包经之火穴，掌心吐劲之门户。真气透掌而出，与天地五行交感共鸣，臻至天人合一。',
         effectText: '掌心吐劲五行共鸣 · 武将基础攻击力永久提升至 +28%'
       },
@@ -1749,10 +1757,10 @@ export default class HeroListScene extends Phaser.Scene {
         name: '玉枕穴',
         realm: '无双',
         meridian: '足太阳膀胱经 · 后脑枕骨',
-        x: 164,
-        y: 146,
-        labelDx: -60,
-        labelDy: -6,
+        x: 182,
+        y: 144,
+        labelDx: -56,
+        labelDy: 0,
         desc: '督脉与太阳经上脑之天关。冲破玉枕铁壁，神识清明敏锐，纵横疆场国士无双。',
         effectText: '冲破脑后天关神识无双 · 武将基础攻击力永久提升至 +32%'
       },
@@ -1762,9 +1770,9 @@ export default class HeroListScene extends Phaser.Scene {
         realm: '化境',
         meridian: '督脉 · 头顶正中天灵',
         x: 215,
-        y: 104,
-        labelDx: 58,
-        labelDy: -8,
+        y: 100,
+        labelDx: 56,
+        labelDy: 0,
         desc: '手足三阳与督脉之巅，百脉朝宗之会。贯通百会则三花聚顶、五气朝元，臻至武道十境大圆满！',
         effectText: '十境大圆满 · 武将基础攻击力达到局外武道上限 +36%！'
       }
@@ -1776,9 +1784,14 @@ export default class HeroListScene extends Phaser.Scene {
         return
       }
       const nextLv = hero.level + 1
+      const cost = getExpRequiredForLevel(nextLv)
+      if (hero.experience < cost) {
+        this.showMessage(`功勋不足（当前拥有 ${hero.experience}/${cost} 功勋），可通过派遣武将出战通关获取功勋！`)
+        return
+      }
       const pt = ACUPOINTS.find(a => a.lv === nextLv)!
+      hero.experience -= cost
       hero.level = nextLv
-      hero.experience = Math.max(hero.experience, getTotalInvestedExp(nextLv))
       selectedLv = nextLv < MAX_HERO_LEVEL ? nextLv + 1 : MAX_HERO_LEVEL
 
       SoundFX.thud(0.45)
@@ -1789,7 +1802,7 @@ export default class HeroListScene extends Phaser.Scene {
 
       const bonusPct = Math.round(getLevelStatBonus(hero.level) * 100)
       this.showMessage(
-        `冲穴成功！${hero.name} 贯通第 ${nextLv} 穴【${pt.name}】，晋升武道 Lv.${nextLv}（攻击 +${bonusPct}%）`
+        `冲穴成功！${hero.name} 消耗 ${cost} 功勋贯通第 ${nextLv} 穴【${pt.name}】，晋升武道 Lv.${nextLv}（攻击 +${bonusPct}%）`
       )
       closeAll()
       this.showLevelDetailDialog(hero, targetLv > nextLv ? targetLv : selectedLv)
@@ -1797,7 +1810,7 @@ export default class HeroListScene extends Phaser.Scene {
 
     const lvBonusPct = Math.round(getLevelStatBonus(hero.level) * 100)
 
-    // 标题栏
+    // 标题栏与当前功勋展示
     panel.add(
       inkText(
         this,
@@ -1817,7 +1830,7 @@ export default class HeroListScene extends Phaser.Scene {
         this,
         dialogW / 2,
         46,
-        '点击经脉图上的穴位或右侧【冲穴学习】按钮，依次打通奇经八脉十大要穴以提升武道等级',
+        `当前拥有功勋：🎖️ ${hero.experience}   ·   点击穴位或右侧【冲穴学习】按钮消耗功勋依次贯通要穴`,
         {
           size: 11.5,
           color: InkText.wash,
@@ -1854,36 +1867,36 @@ export default class HeroListScene extends Phaser.Scene {
       )
     }
 
-    // 绘制水墨人体盘坐/立姿武者轮廓（头颅、颈肩、躯干、双臂双掌、盘腿下盘、任督中脉）
+    // 绘制水墨人体盘坐武者轮廓
     chartBg.fillStyle(InkColor.paperPanel, 0.72)
     chartBg.lineStyle(1.8, InkColor.inkWash, 0.55)
 
     // 1. 头颅与发髻
-    chartBg.fillRoundedRect(cx - 10, 86, 20, 12, 4)
-    chartBg.strokeRoundedRect(cx - 10, 86, 20, 12, 4)
-    chartBg.fillCircle(cx, 126, 24)
-    chartBg.strokeCircle(cx, 126, 24)
+    chartBg.fillRoundedRect(cx - 10, 84, 20, 12, 4)
+    chartBg.strokeRoundedRect(cx - 10, 84, 20, 12, 4)
+    chartBg.fillCircle(cx, 124, 24)
+    chartBg.strokeCircle(cx, 124, 24)
 
     // 2. 颈部与双肩躯干
-    chartBg.fillRect(cx - 10, 148, 20, 18)
-    chartBg.fillRoundedRect(cx - 56, 166, 112, 168, 22)
-    chartBg.strokeRoundedRect(cx - 56, 166, 112, 168, 22)
+    chartBg.fillRect(cx - 10, 146, 20, 18)
+    chartBg.fillRoundedRect(cx - 56, 164, 112, 168, 22)
+    chartBg.strokeRoundedRect(cx - 56, 164, 112, 168, 22)
 
-    // 3. 左臂与左掌（对应劳宫穴 x=118, y=256）
+    // 3. 左臂与左掌（对应劳宫穴 x=124, y=256）
     chartBg.lineStyle(16, InkColor.paperPanel, 0.85)
-    chartBg.lineBetween(cx - 52, 184, 132, 226)
-    chartBg.lineBetween(132, 226, 118, 256)
+    chartBg.lineBetween(cx - 52, 182, 134, 226)
+    chartBg.lineBetween(134, 226, 124, 256)
     chartBg.lineStyle(1.6, InkColor.inkWash, 0.55)
-    chartBg.strokeCircle(118, 256, 12)
+    chartBg.strokeCircle(124, 256, 12)
 
-    // 4. 右肩、右肘与右掌（对应肩井 x=282,y=184 与曲池 x=314,y=244）
+    // 4. 右肩、右肘与右掌（对应肩井 x=268,y=180 与曲池 x=310,y=238）
     chartBg.lineStyle(16, InkColor.paperPanel, 0.85)
-    chartBg.lineBetween(cx + 52, 184, 314, 244)
-    chartBg.lineBetween(314, 244, 294, 286)
+    chartBg.lineBetween(cx + 52, 182, 310, 238)
+    chartBg.lineBetween(310, 238, 290, 280)
     chartBg.lineStyle(1.6, InkColor.inkWash, 0.55)
-    chartBg.strokeCircle(294, 286, 11)
+    chartBg.strokeCircle(290, 280, 11)
 
-    // 5. 盘坐下盘与足底（对应关元 x=215,y=356 与涌泉 x=156,y=418）
+    // 5. 盘坐下盘与足底（对应关元 x=215,y=358 与涌泉 x=156,y=416）
     chartBg.fillRoundedRect(cx - 88, 330, 176, 62, 26)
     chartBg.strokeRoundedRect(cx - 88, 330, 176, 62, 26)
     chartBg.fillRoundedRect(130, 392, 64, 34, 14)
@@ -1893,33 +1906,10 @@ export default class HeroListScene extends Phaser.Scene {
 
     // 6. 体内任督二脉中轴线（水墨暗脉）
     chartBg.lineStyle(1.2, InkColor.inkFaint, 0.45)
-    chartBg.lineBetween(cx, 104, cx, 366)
+    chartBg.lineBetween(cx, 100, cx, 366)
     panel.add(chartBg)
 
-    // 绘制经脉真气运行连线（1 -> 2 -> 3 -> ... -> 10）
-    const meridianGraphics = this.add.graphics()
-    for (let i = 0; i < ACUPOINTS.length - 1; i++) {
-      const a = ACUPOINTS[i]
-      const b = ACUPOINTS[i + 1]
-      const isChannelOpen = hero.level >= b.lv
-      const isNextChannel = hero.level + 1 === b.lv
-
-      if (isChannelOpen) {
-        meridianGraphics.lineStyle(5, 0xa0782f, 0.25)
-        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
-        meridianGraphics.lineStyle(2.4, InkColor.cinnabar, 0.92)
-        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
-      } else if (isNextChannel) {
-        meridianGraphics.lineStyle(2, 0xa0782f, 0.85)
-        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
-      } else {
-        meridianGraphics.lineStyle(1.3, InkColor.inkFaint, 0.45)
-        meridianGraphics.lineBetween(a.x, a.y, b.x, b.y)
-      }
-    }
-    panel.add(meridianGraphics)
-
-    // 绘制 10 个穴位节点与旁注名牌
+    // 绘制 10 个穴位节点与旁注名牌（仅点亮穴位，不画连线）
     for (const pt of ACUPOINTS) {
       const isUnlocked = hero.level >= pt.lv
       const isNext = hero.level + 1 === pt.lv
@@ -2026,12 +2016,14 @@ export default class HeroListScene extends Phaser.Scene {
       )
     )
 
-    // ==================== 右侧：选中穴位详解 + 一键学习冲穴 + 十大穴位总览 ====================
+    // ==================== 右侧：选中穴位详解 + 消耗功勋冲穴 + 十大穴位总览 ====================
     const rightX = 424
     const rightW = 394
     const curPt = ACUPOINTS.find(a => a.lv === selectedLv) || ACUPOINTS[0]
     const isCurUnlocked = hero.level >= curPt.lv
     const isCurNext = hero.level + 1 === curPt.lv
+    const curCost = getExpRequiredForLevel(curPt.lv)
+    const canAffordCur = hero.experience >= curCost
 
     // 1. 选中穴位详情卡
     const detailCardH = 226
@@ -2049,15 +2041,18 @@ export default class HeroListScene extends Phaser.Scene {
     const statusBadge = isCurUnlocked
       ? '✓ 已贯通'
       : isCurNext
-        ? '✨ 当前可冲穴修习'
+        ? canAffordCur
+          ? '✨ 当前可冲穴修习'
+          : `⚠️ 功勋不足（需 ${curCost}）`
         : `🔒 需先贯通前序穴位`
 
+    const curRealmName = curPt.realm.endsWith('境') ? curPt.realm : `${curPt.realm}境`
     panel.add(
       inkText(
         this,
         rightX + 16,
         chartY + 14,
-        `第 ${curPt.lv} 穴 · 【${curPt.name}】（武道${curPt.realm}境 · Lv.${curPt.lv}）`,
+        `第 ${curPt.lv} 穴 · 【${curPt.name}】（武道${curRealmName} · Lv.${curPt.lv}）`,
         {
           size: 15.5,
           color: InkText.strong,
@@ -2068,14 +2063,14 @@ export default class HeroListScene extends Phaser.Scene {
     panel.add(
       inkText(this, rightX + rightW - 16, chartY + 16, statusBadge, {
         size: 11.5,
-        color: isCurUnlocked ? InkText.green : isCurNext ? InkText.cinnabar : InkText.faint,
+        color: isCurUnlocked ? InkText.green : isCurNext && canAffordCur ? InkText.cinnabar : InkText.faint,
         bold: true,
         originX: 1
       })
     )
 
     panel.add(
-      inkText(this, rightX + 16, chartY + 42, `经脉部位：${curPt.meridian}`, {
+      inkText(this, rightX + 16, chartY + 42, `经脉部位：${curPt.meridian}   ｜   消耗功勋：🎖️ ${curCost}`, {
         size: 12,
         color: InkText.gold,
         bold: true
@@ -2128,9 +2123,12 @@ export default class HeroListScene extends Phaser.Scene {
       )
     } else {
       const nextPt = ACUPOINTS.find(a => a.lv === hero.level + 1)!
-      const btnLabel = isCurNext
-        ? `⚡ 点击学习 · 冲开【${curPt.name}】(升至 Lv.${curPt.lv})`
-        : `⚡ 点击学习 · 冲开下一穴【${nextPt.name}】(升至 Lv.${nextPt.lv})`
+      const cost = getExpRequiredForLevel(nextPt.lv)
+      const canAfford = hero.experience >= cost
+
+      const btnLabel = canAfford
+        ? `⚡ 消耗 ${cost} 功勋 · 冲开【${nextPt.name}】(晋升 Lv.${nextPt.lv})`
+        : `⚡ 功勋不足（需 ${cost} 功勋 · 当前拥有 ${hero.experience}）`
 
       const learnBtn = createInkButton(
         this,
@@ -2140,12 +2138,18 @@ export default class HeroListScene extends Phaser.Scene {
         36,
         btnLabel,
         {
-          fill: InkColor.cinnabar,
-          hoverFill: 0xb2362e,
-          textColor: InkText.paper,
-          fontSize: 13.5,
-          stroke: 0xa0782f,
-          onClick: () => learnAcupoint(curPt.lv)
+          fill: canAfford ? InkColor.cinnabar : InkColor.paperPanel,
+          hoverFill: canAfford ? 0xb2362e : InkColor.paperDeep,
+          textColor: canAfford ? InkText.paper : InkText.faint,
+          fontSize: 13,
+          stroke: canAfford ? 0xa0782f : InkColor.inkFaint,
+          onClick: () => {
+            if (!canAfford) {
+              this.showMessage(`功勋不足（当前拥有 ${hero.experience}/${cost} 功勋），可通过派遣武将出战通关获取功勋！`)
+              return
+            }
+            learnAcupoint(nextPt.lv)
+          }
         }
       )
       panel.add(learnBtn)
@@ -2166,7 +2170,7 @@ export default class HeroListScene extends Phaser.Scene {
     panel.add(gridBg)
 
     panel.add(
-      inkText(this, rightX + 14, gridTop + 10, '【奇经八脉 · 十大要穴修习进度（点击可切换查看或直接学习）】', {
+      inkText(this, rightX + 14, gridTop + 10, '【奇经八脉 · 十大要穴修习进度（点击可切换查看或消耗功勋学习）】', {
         size: 12,
         color: InkText.strong,
         bold: true
@@ -2188,6 +2192,7 @@ export default class HeroListScene extends Phaser.Scene {
       const unlocked = hero.level >= pt.lv
       const isNext = hero.level + 1 === pt.lv
       const isSel = selectedLv === pt.lv
+      const cost = getExpRequiredForLevel(pt.lv)
 
       const cBg = this.add.rectangle(
         cxCell,
@@ -2222,15 +2227,24 @@ export default class HeroListScene extends Phaser.Scene {
           originY: 0.5
         })
       )
+
+      const subLabel = unlocked
+        ? `✓ +${(pt.lv - 1) * 4}%`
+        : isNext
+          ? hero.experience >= cost
+            ? `可学·${cost}`
+            : `需${cost}`
+          : `+${(pt.lv - 1) * 4}%`
+
       panel.add(
         inkText(
           this,
           cxCell,
           cyCell + 18,
-          unlocked ? `✓ +${(pt.lv - 1) * 4}%` : isNext ? '可学习' : `+${(pt.lv - 1) * 4}%`,
+          subLabel,
           {
             size: 10,
-            color: unlocked ? InkText.green : isNext ? InkText.cinnabar : InkText.faint,
+            color: unlocked ? InkText.green : isNext && hero.experience >= cost ? InkText.cinnabar : InkText.faint,
             bold: unlocked || isNext,
             originX: 0.5,
             originY: 0.5
@@ -2240,6 +2254,10 @@ export default class HeroListScene extends Phaser.Scene {
 
       cBg.on('pointerdown', () => {
         if (isNext && isSel) {
+          if (hero.experience < cost) {
+            this.showMessage(`功勋不足（当前拥有 ${hero.experience}/${cost} 功勋），可通过派遣武将出战通关获取功勋！`)
+            return
+          }
           learnAcupoint(pt.lv)
         } else {
           closeAll()
@@ -2248,36 +2266,12 @@ export default class HeroListScene extends Phaser.Scene {
       })
     })
 
-    // 底部操作栏：无损传功 & 关闭
-    const hasInvestedExp = hero.level > 1 || hero.experience > 0
-    if (hasInvestedExp) {
-      const resetBtn = createInkButton(
-        this,
-        dialogW / 2 - 86,
-        dialogH - 28,
-        148,
-        30,
-        '🔄 无损传功/散功',
-        {
-          fill: InkColor.paperDeep,
-          hoverFill: 0xc5b795,
-          textColor: InkText.cinnabar,
-          fontSize: 12.5,
-          stroke: InkColor.cinnabar,
-          onClick: () => {
-            closeAll()
-            this.handleLosslessReset(hero)
-          }
-        }
-      )
-      panel.add(resetBtn)
-    }
-
+    // 底部操作栏：仅保留关闭经脉图（已移除散功/传功）
     const closeBtn = createInkButton(
       this,
-      hasInvestedExp ? dialogW / 2 + 76 : dialogW / 2,
+      dialogW / 2,
       dialogH - 28,
-      120,
+      140,
       30,
       '关闭经脉图',
       {
@@ -2820,7 +2814,7 @@ export default class HeroListScene extends Phaser.Scene {
         name: '攻击力 (Attack)',
         finalVal: `${stats.attack}`,
         baseVal: `${hero.baseStats.attack}`,
-        detail: `武道Lv.${hero.level} (+${lvBonusPct}%) + 灵石 (+${Math.round(gemBonuses.attackPercent * 100)}%) + 军备  →  局外合计 +${atkOutPct}% (上限+50%)`
+        detail: `武道Lv.${hero.level}${getMartialRealmName(hero.level)} (+${lvBonusPct}%) + 灵石 (+${Math.round(gemBonuses.attackPercent * 100)}%) + 军备  →  局外合计 +${atkOutPct}% (上限+50%)`
       },
       {
         name: '攻击速度 (Attack Speed)',
@@ -3525,9 +3519,10 @@ export default class HeroListScene extends Phaser.Scene {
     let rowY = 98
     for (const t of trials) {
       const claimed = this.claimedBioTrials.has(t.id)
+      const currentRowY = rowY
       const rowBg = this.add.rectangle(
         dialogW / 2,
-        rowY,
+        currentRowY,
         dialogW - 44,
         58,
         InkColor.paperDeep,
@@ -3537,14 +3532,14 @@ export default class HeroListScene extends Phaser.Scene {
       panel.add(rowBg)
 
       panel.add(
-        inkText(this, 36, rowY - 11, `${t.title}  （奖励: 💎 ${hero.name}将魂 ×${t.reward}）`, {
+        inkText(this, 36, currentRowY - 11, `${t.title}  （奖励: 💎 ${hero.name}将魂 ×${t.reward}）`, {
           size: 14,
           color: InkText.strong,
           bold: true
         })
       )
       panel.add(
-        inkText(this, 36, rowY + 11, t.desc, {
+        inkText(this, 36, currentRowY + 11, t.desc, {
           size: 11,
           color: InkText.wash
         })
@@ -3552,7 +3547,7 @@ export default class HeroListScene extends Phaser.Scene {
 
       if (claimed) {
         panel.add(
-          inkText(this, dialogW - 88, rowY, '✓ 已领取', {
+          inkText(this, dialogW - 88, currentRowY, '✓ 已领取', {
             size: 13,
             color: InkText.green,
             bold: true,
@@ -3561,7 +3556,7 @@ export default class HeroListScene extends Phaser.Scene {
           })
         )
       } else {
-        const claimBtn = createInkButton(this, dialogW - 88, rowY, 100, 30, '领取将魂', {
+        const claimBtn = createInkButton(this, dialogW - 88, currentRowY, 100, 30, '领取将魂', {
           fill: InkColor.cinnabar,
           hoverFill: 0xb53a32,
           textColor: '#ffffff',
@@ -3571,7 +3566,17 @@ export default class HeroListScene extends Phaser.Scene {
             this.addSoulStones(hero.id, t.reward)
             this.autoSave()
             inkToast(this, `完成【${t.title}】，获得 ${hero.name}将魂 ×${t.reward}！`)
-            closeAll()
+            claimBtn.destroy()
+            rowBg.setStrokeStyle(1, 0x5f7a4a)
+            panel.add(
+              inkText(this, dialogW - 88, currentRowY, '✓ 已领取', {
+                size: 13,
+                color: InkText.green,
+                bold: true,
+                originX: 0.5,
+                originY: 0.5
+              })
+            )
             this.renderRoster()
             this.updateCardSelection()
             this.updateDetailPanel(hero.id)
@@ -4069,40 +4074,6 @@ export default class HeroListScene extends Phaser.Scene {
       (hero.baseStats.critDamage ?? 0.5) + gemBonuses.critDamageBonus + equipCritDmg
 
     return { attack, attackSpeed, attackRange, critRate, critDamage }
-  }
-
-  private handleLosslessReset(hero: Hero): void {
-    const refundedExp = Math.max(hero.experience, getTotalInvestedExp(hero.level))
-    if (refundedExp <= 0) {
-      this.showMessage('当前武将尚无修为可传功')
-      return
-    }
-
-    const candidates = Array.from(this.heroes.values()).filter(
-      h => h.id !== hero.id && h.level < MAX_HERO_LEVEL
-    )
-    const targetHero = candidates[0] || Array.from(this.heroes.values()).find(h => h.id !== hero.id)
-
-    hero.level = 1
-    hero.experience = 0
-
-    if (targetHero) {
-      targetHero.experience += refundedExp
-      targetHero.level = calculateLevelFromExp(targetHero.experience)
-      this.autoSave()
-      this.renderRoster()
-      this.updateCardSelection()
-      this.updateDetailPanel(hero.id)
-      this.showMessage(
-        `【无损传功】已将 ${refundedExp} 修为全额传授予 ${targetHero.name}（Lv.${targetHero.level}）！`
-      )
-    } else {
-      this.autoSave()
-      this.renderRoster()
-      this.updateCardSelection()
-      this.updateDetailPanel(hero.id)
-      this.showMessage('【无损归元】已重置武道境界至 Lv.1')
-    }
   }
 
   private addSoulStones(heroId: string, amount: number): void {

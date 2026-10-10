@@ -137,7 +137,9 @@ export class EnemyEntity extends Phaser.GameObjects.Container {
     this.setDepth(10)
 
     // 添加到场景
-    scene.add.existing(this)
+    if (scene?.add?.existing) {
+      scene.add.existing(this)
+    }
   }
 
   /**

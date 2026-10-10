@@ -214,20 +214,50 @@ export class BattleSystem {
   }
 
   /**
-   * 开始战斗
+   * 初始化战前部署阶段
+   * 保持准备状态 (status = 'preparing')，出兵尚未开始 (isRunning = false)；
+   * 开放武将/兵种布防，并提前触发 Wave 1 开局自选锦囊
+   */
+  public initDeploymentPhase(): void {
+    this.isRunning = false
+    this.isPaused = false
+    this.battleState.status = 'preparing'
+
+    // 在战前部署阶段提前发放 Wave 1 开局自选锦囊（若直入 Wave 16+ 则已在构造时补齐 5 策）
+    if (this.lastNotifiedWave === 0) {
+      this.augmentManager.checkAndTriggerWaveAugment(1, 'start')
+    }
+    this.updateBattleState()
+  }
+
+  /**
+   * 是否处于战前部署准备阶段
+   */
+  public isPreparing(): boolean {
+    return this.battleState.status === 'preparing'
+  }
+
+  /**
+   * 开始战斗（部署完成，正式开始出兵）
    */
   startBattle(): void {
     this.isRunning = true
     this.isPaused = false
     this.battleState.status = 'running'
 
-    // Wave 1 开局赠送第 1 次三选一锦囊（若直入 Wave 16+ 则已在构造时补齐 5 策）
-    if (this.lastNotifiedWave === 0) {
+    // Wave 1 开局赠送第 1 次三选一锦囊（若部署阶段未触发，此处兜底触发）
+    if (
+      this.lastNotifiedWave === 0 &&
+      this.augmentManager.getActiveAugments().length === 0 &&
+      this.augmentManager.getReadyCount() === 0
+    ) {
       this.augmentManager.checkAndTriggerWaveAugment(1, 'start')
     }
 
     // 开始第一波（或设定起始波）
     this.waveManager.startNextWave()
+    this.battleState.currentWave = this.waveManager.getCurrentWave()
+    this.updateBattleState()
   }
 
   /**

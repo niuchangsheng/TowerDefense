@@ -66,6 +66,26 @@ export class InkSilhouetteRenderer {
     canvasTexture.refresh()
   }
 
+  private static safeEllipse(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    rotation: number = 0
+  ): void {
+    if (typeof ctx.ellipse === 'function') {
+      ctx.ellipse(x, y, rx, ry, rotation, 0, Math.PI * 2)
+    } else {
+      ctx.save()
+      ctx.translate(x, y)
+      if (rotation !== 0) ctx.rotate(rotation)
+      ctx.scale(1, ry / (rx || 1))
+      ctx.arc(0, 0, rx, 0, Math.PI * 2)
+      ctx.restore()
+    }
+  }
+
   // ==========================================
   // 1. 兵种剪影 (Spearman, Archer, Cavalry, Swordsman)
   // ==========================================
@@ -80,7 +100,7 @@ export class InkSilhouetteRenderer {
     // 地面水墨微晕
     ctx.fillStyle = 'rgba(40, 32, 28, 0.15)'
     ctx.beginPath()
-    ctx.ellipse(cx, cy + 24, 16, 4, 0, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx, cy + 24, 16, 4)
     ctx.fill()
 
     // 墨黑甲士双腿（稳实马步）
@@ -175,7 +195,7 @@ export class InkSilhouetteRenderer {
     // 阴影
     ctx.fillStyle = 'rgba(40, 32, 28, 0.15)'
     ctx.beginPath()
-    ctx.ellipse(cx, cy + 24, 14, 4, 0, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx, cy + 24, 14, 4)
     ctx.fill()
 
     // 双腿（侧身开立）
@@ -269,14 +289,14 @@ export class InkSilhouetteRenderer {
     // 扬蹄阴影
     ctx.fillStyle = 'rgba(40, 32, 28, 0.15)'
     ctx.beginPath()
-    ctx.ellipse(cx - 4, cy + 22, 22, 5, 0, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx - 4, cy + 22, 22, 5)
     ctx.fill()
 
     // 战马身躯（水墨俊马轮廓）
     ctx.fillStyle = '#2c221c'
     ctx.beginPath()
     // 马身中段
-    ctx.ellipse(cx - 4, cy + 4, 16, 10, -0.15, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx - 4, cy + 4, 16, 10, -0.15)
     ctx.fill()
 
     // 马颈与马头（扬起）
@@ -354,7 +374,7 @@ export class InkSilhouetteRenderer {
     // 阴影
     ctx.fillStyle = 'rgba(40, 32, 28, 0.15)'
     ctx.beginPath()
-    ctx.ellipse(cx, cy + 24, 16, 4, 0, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx, cy + 24, 16, 4)
     ctx.fill()
 
     // 双腿
@@ -436,7 +456,7 @@ export class InkSilhouetteRenderer {
     // 阴影
     ctx.fillStyle = 'rgba(40, 32, 28, 0.15)'
     ctx.beginPath()
-    ctx.ellipse(cx, cy + 24, 14, 4, 0, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx, cy + 24, 14, 4)
     ctx.fill()
 
     // 双腿行军迈步（前倾）
@@ -512,7 +532,7 @@ export class InkSilhouetteRenderer {
     // 阴影
     ctx.fillStyle = 'rgba(40, 32, 28, 0.22)'
     ctx.beginPath()
-    ctx.ellipse(cx, cy + 25, 18, 5, 0, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx, cy + 25, 18, 5)
     ctx.fill()
 
     // 背插血色小战旗
@@ -1101,11 +1121,11 @@ export class InkSilhouetteRenderer {
     const cy = h / 2
     ctx.fillStyle = '#22c55e'
     ctx.beginPath()
-    ctx.ellipse(cx, cy, 6, 3, -0.6, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx, cy, 6, 3, -0.6)
     ctx.fill()
     ctx.fillStyle = '#86efac'
     ctx.beginPath()
-    ctx.ellipse(cx, cy - 1, 3.5, 1.5, -0.6, 0, Math.PI * 2)
+    this.safeEllipse(ctx, cx, cy - 1, 3.5, 1.5, -0.6)
     ctx.fill()
   }
 
