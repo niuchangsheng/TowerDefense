@@ -3,19 +3,35 @@ import { WuXing } from '@/types'
 /**
  * 机制分类标签（五行状态与相生衍化已深度合并为统一的【五行相生】）
  */
-export type MechanicsTab = 'damage' | 'wuxing'
+export type MechanicsTab = 'wuxing' | 'damage' | 'attributes' | 'elemental' | 'reaction'
 
 export interface MechanicsTabDef {
-  key: string
+  key: MechanicsTab
   title: string
   seal: string
   subtitle: string
 }
 
-/**
- * 【乾坤经纬】统一机制图鉴无需多标签切换，全卷一体化呈现
- */
-export const MECHANICS_TABS: MechanicsTabDef[] = []
+export const MECHANICS_TABS: MechanicsTabDef[] = [
+  {
+    key: 'wuxing',
+    title: '五行相生',
+    seal: '生',
+    subtitle: '五行基础状态 · 双向化学连锁 · 160px相生阵脉'
+  },
+  {
+    key: 'attributes',
+    title: '五维对位',
+    seal: '位',
+    subtitle: '敌我基础属性 · 一对一精准对位 · 破韧破刚'
+  },
+  {
+    key: 'damage',
+    title: '乘区算法',
+    seal: '算',
+    subtitle: '四独立伤害乘区 · 防御抵扣 · 数值底线铁律'
+  }
+]
 
 /**
  * 五虎上将五行归属
@@ -315,73 +331,51 @@ export const REACTION_LIST: ReactionItem[] = [
 ]
 
 /**
- * 3. 端到端伤害结算细化步骤（全乘区与防御结算细化）
+ * 3. 五维攻防对位表
  */
-export interface FormulaStepItem {
-  id: string
-  step: string
-  name: string
-  formula: string
-  panelMapping: string
-  settlementLogic: string
+export interface AttributePair {
+  alliedStat: string
+  alliedDesc: string
+  enemyStat: string
+  enemyDesc: string
+  counterLogic: string
 }
 
-export const DAMAGE_FORMULA_STEPS: FormulaStepItem[] = [
+export const ATTRIBUTE_PAIRS: AttributePair[] = [
   {
-    id: 'base',
-    step: '① 基础伤害基数',
-    name: '基础基数 (Base)',
-    formula: 'Base = 攻击力 × 技能倍率',
-    panelMapping: '攻方面板 attack',
-    settlementLogic: '普攻取 attack × 1.0；战法取 attack × 战法倍率；相生取 max(A,B) + 0.25*min(A,B)；毒素按 enemy.maxHp × 2%'
+    alliedStat: '攻击力 (Attack)',
+    alliedDesc: '我方武将与神兵输出伤害基数。',
+    enemyStat: '生命 (HP)',
+    enemyDesc: '敌军所能承受的总体伤害上限。',
+    counterLogic: '【木·毒】专克【生命】。按最大生命值百分比腐蚀真伤，禁疗 50%。'
   },
   {
-    id: 'atk_boost',
-    step: '② 攻击力加成区',
-    name: '攻击加成 (AtkBoost)',
-    formula: 'Mult_atk = 1 + ∑攻击力加成',
-    panelMapping: 'attackBoostSum (局外上限 ≤ +50%)',
-    settlementLogic: '武将冲穴升级、神兵面板、宝石基础攻击、局内军令与攻击锦囊百分比累加（区内加算）'
+    alliedStat: '攻击速度 (AttackSpeed)',
+    alliedDesc: '普通攻击与元素印章附着频率。',
+    enemyStat: '防御 (Defense)',
+    enemyDesc: '敌军减免常规物理与法术伤害。',
+    counterLogic: '【金·裂】专克【防御】。撕裂 35% 护甲，移动时受 45% 流血真伤。'
   },
   {
-    id: 'dmg_inc',
-    step: '③ 增伤加成区',
-    name: '增伤加成 (DmgInc)',
-    formula: 'Mult_dmg = 1 + ∑增伤加成',
-    panelMapping: 'damageIncreaseSum',
-    settlementLogic: '五行生克(+20%) + 天时顺天(+20%) + 160px相生阵脉(+35%) + 锦囊增伤累加（区内加算）'
+    alliedStat: '攻击范围 (Range)',
+    alliedDesc: '武将索敌与相生阵脉覆盖半径。',
+    enemyStat: '移动速度 (MoveSpeed)',
+    enemyDesc: '敌军突进行军与冲破大营的速度。',
+    counterLogic: '【水·湿】专克【移速】。削减 35% 移速，全场唯一基础软控媒介。'
   },
   {
-    id: 'vuln',
-    step: '④ 易伤加成区',
-    name: '易伤加成 (Vuln)',
-    formula: 'Mult_vuln = 1 + ∑易伤加成',
-    panelMapping: 'vulnerabilitySum',
-    settlementLogic: 'Boss破壁瘫痪(+50%) + 《五气朝元》每态(+18%) + 受击易伤Debuff累加（区内加算，承伤放大）'
+    alliedStat: '暴击几率 (CritRate)',
+    alliedDesc: '触发高额暴击伤害的概率。',
+    enemyStat: '韧性 (Tenacity)',
+    enemyDesc: '直接抵扣我方的暴击几率（反暴率）。',
+    counterLogic: '【土·重】专克【韧性】。削减 25% 韧性，大幅解放我方暴击几率。'
   },
   {
-    id: 'crit',
-    step: '⑤ 暴击对抗区',
-    name: '暴击对抗 (CritMult)',
-    formula: '实暴率 = 暴率 - 有效韧性；暴伤 = 1 + max(0, 暴伤 - 100% - 有效刚毅)',
-    panelMapping: 'critRate vs tenacity / critDamage vs fortitude',
-    settlementLogic: '有效韧性与刚毅保底 ≥ 初始值 40%；未暴击时 Mult_crit = 1.0；暴击时计入超额暴伤倍率'
-  },
-  {
-    id: 'def_mit',
-    step: '⑥ 防御减免区',
-    name: '防御减免 (DefMit)',
-    formula: '有效防御 = 初始防御 × (1 - 破甲%)；减免率 = 有效防御 / (有效防御 + 200)',
-    panelMapping: 'defense (削减后保底 ≥ 初始值 40%)',
-    settlementLogic: '真实伤害(金·裂流血/金生水碎冰/木·毒腐蚀)减免率 = 0 直接穿透；常规伤害经护甲曲线折算'
-  },
-  {
-    id: 'final',
-    step: '⑦ 最终落地伤害',
-    name: '最终伤害 (Damage)',
-    formula: 'Damage = floor( Base × Mult_atk × Mult_dmg × Mult_vuln × Mult_crit × (1 - DefMit) )',
-    panelMapping: '最终扣除目标生命值',
-    settlementLogic: '四独立乘区严格乘算，真伤跳过护甲减免，单次伤害保底 ≥ 1 点'
+    alliedStat: '暴击伤害 (CritDamage)',
+    alliedDesc: '暴击时的伤害倍率加成。',
+    enemyStat: '刚毅 (Fortitude)',
+    enemyDesc: '直接抵扣我方的暴击伤害加成（反暴伤）。',
+    counterLogic: '【土·重】专克【刚毅】。削减 40% 刚毅，受暴击追 20% 负重内震。'
   }
 ]
 
@@ -390,7 +384,6 @@ export const DAMAGE_FORMULA_STEPS: FormulaStepItem[] = [
  */
 export const DAMAGE_FORMULA_GUIDE = {
   formula: '最终伤害 = floor( 基础基数 × (1 + ∑攻击加成) × (1 + ∑增伤) × (1 + ∑易伤) × (1 + 实际暴伤) × (1 - 防御减免率) )',
-  steps: DAMAGE_FORMULA_STEPS,
   coreComponents: [
     {
       title: '基础基数 (Base Damage)',
