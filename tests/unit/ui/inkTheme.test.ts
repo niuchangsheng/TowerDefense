@@ -84,8 +84,10 @@ describe('水墨文字系统与高清晰度渲染测试 (InkTheme Typography & S
     expect(capturedStyle).toBeDefined()
     // 11.5 应被圆整为 12px
     expect(capturedStyle.fontSize).toBe('12px')
-    // <=12px 应获得保底 3x 高清超采样
+    // <=14px 应获得保底 3x 高清超采样
     expect(capturedStyle.resolution).toBeGreaterThanOrEqual(3)
+    // 小字号未显式指定 bold 时，默认字重加粗防发虚
+    expect(capturedStyle.fontStyle).toBe('bold')
   })
 
   it('5. 显式提供描边时，描边属性正常透传且不产生 NaN', () => {
@@ -114,5 +116,30 @@ describe('水墨文字系统与高清晰度渲染测试 (InkTheme Typography & S
     expect(capturedStyle.stroke).toBe('#000000')
     expect(capturedStyle.strokeThickness).toBe(2.5)
     expect(isNaN(capturedStyle.strokeThickness)).toBe(false)
+  })
+
+  it('6. InkText.faint 与 InkColor.inkFaint 采用焦墨深褐，杜绝低对比度浅灰发虚', () => {
+    expect(InkText.faint).toBe('#484236')
+    expect(InkColor.inkFaint).toBe(0x484236)
+  })
+
+  it('7. inkText 小字号显式传入 bold: false 时尊重调用方设置', () => {
+    let capturedStyle: any = null
+    const mockTextObj = {
+      setOrigin: vi.fn().mockReturnThis(),
+      setWordWrapWidth: vi.fn().mockReturnThis(),
+      setShadow: vi.fn().mockReturnThis()
+    }
+    const mockScene: any = {
+      add: {
+        text: vi.fn((_x: number, _y: number, _content: string, style: any) => {
+          capturedStyle = style
+          return mockTextObj as any
+        })
+      }
+    }
+
+    inkText(mockScene, 10, 10, '细体小字', { size: 12, bold: false })
+    expect(capturedStyle.fontStyle).toBe('normal')
   })
 })

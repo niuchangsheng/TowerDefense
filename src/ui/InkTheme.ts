@@ -32,7 +32,7 @@ export const InkColor = {
   paperDeep: 0xd2c6a9,    // 悬停、按钮、槽位底色
   ink: 0x2a2a2a,          // 墨色（描边、进度条）
   inkStrong: 0x1a1a1a,    // 浓墨
-  inkFaint: 0x8a8577,     // 淡墨（次要信息）
+  inkFaint: 0x484236,     // 焦墨淡褐（高对比度次要信息，告别浅灰发虚）
   inkWash: 0x3a352a,      // 墨晕（分节标题）
   cinnabar: 0x9e2b25      // 印章红（选中、确认强调）
 } as const
@@ -42,7 +42,7 @@ export const InkColor = {
 export const InkText = {
   ink: '#2a2a2a',
   strong: '#1a1a1a',
-  faint: '#8a8577',
+  faint: '#484236',       // 焦墨深褐，对比度达 6:1+，保证宣纸底色上小字绝对清晰
   wash: '#3a352a',
   paper: '#e8e0cf',
   cinnabar: '#9e2b25',
@@ -106,7 +106,7 @@ export interface InkRarityStyle {
 }
 
 export const INK_RARITY: Record<Rarity, InkRarityStyle> = {
-  common:    { text: '#6b665c', border: 0x9a9384, tint: 0xded6c4 },
+  common:    { text: '#504a3e', border: 0x9a9384, tint: 0xded6c4 },
   rare:      { text: '#3f5f7a', border: 0x5a7a94, tint: 0xd6dde2 },
   epic:      { text: '#6d5a7d', border: 0x8a7399, tint: 0xdfd8e2 },
   legendary: { text: '#a0782f', border: 0xa0782f, tint: 0xe6dcc3 }
@@ -219,7 +219,7 @@ export function inkText(
   const {
     size = InkFontSize.md,
     color = InkText.ink,
-    bold = false,
+    bold,
     originX = 0,
     originY = 0.5,
     wrapWidth,
@@ -234,18 +234,22 @@ export function inkText(
   // 1. 强制整数字号，避免浮点字号（如 11.5px/13.5px）导致 Canvas 2D 亚像素网格失真与模糊
   const roundedSize = Math.max(1, Math.round(size))
 
-  // 2. 超采样策略：小字号 (<=12px) 汉字笔画复杂，给予保底 3x 超采样；常规字号保底 2x
+  // 2. 超采样策略：小字号 (<=14px) 汉字笔画复杂，给予保底 3x 超采样；常规字号保底 2x
   const effectiveResolution = resolution ?? (
-    roundedSize <= 12
+    roundedSize <= 14
       ? Math.max(INK_FONT_RESOLUTION, 3)
       : INK_FONT_RESOLUTION
   )
+
+  // 3. 字重加固：楷体在 <=14px 时细横线极细，容易被 Canvas 抗锯齿削弱发虚
+  // 若调用方未显式传入 bold，针对 <=14px 小字默认启用加粗，笔画清晰饱满
+  const isBold = bold !== undefined ? bold : (roundedSize <= 14)
 
   const textStyle: Phaser.Types.GameObjects.Text.TextStyle = {
     fontFamily: INK_FONT,
     fontSize: `${roundedSize}px`,
     color,
-    fontStyle: bold ? 'bold' : 'normal',
+    fontStyle: isBold ? 'bold' : 'normal',
     lineSpacing,
     resolution: effectiveResolution,
     padding: padding ?? { left: 2, right: 2, top: 1, bottom: 1 }

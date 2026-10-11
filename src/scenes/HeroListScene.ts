@@ -412,7 +412,7 @@ export default class HeroListScene extends Phaser.Scene {
       fill: canUpgrade ? InkColor.cinnabar : InkColor.paperDeep,
       hoverFill: canUpgrade ? 0xb2362e : 0xc5b795,
       textColor: canUpgrade ? InkText.paper : InkText.gold,
-      fontSize: 13.5,
+      fontSize: 14,
       stroke: canUpgrade ? InkColor.cinnabar : 0xa0782f,
       onClick: () => this.showStarDestinyDetailDialog(hero)
     })
@@ -424,7 +424,7 @@ export default class HeroListScene extends Phaser.Scene {
     const attachPct = Math.round(getStarAttachmentRate(hero.star) * 100)
     panel.add(
       inkText(this, 824, lvPillY, `军费 ${actualCost}   ·   普攻附着 ${attachPct}%`, {
-        size: 13.5,
+        size: 14,
         color: InkText.wash,
         bold: true,
         originX: 1
@@ -441,8 +441,8 @@ export default class HeroListScene extends Phaser.Scene {
         : `★ 已满 5★  ·  点击【Lv.${hero.level} 武道${realmName}】或【？ 属性明细】可查看数值构成`
     panel.add(
       inkText(this, 104, y + 48, quickSub, {
-        size: 11.5,
-        color: canUpgrade ? InkText.cinnabar : InkText.faint
+        size: 13,
+        color: canUpgrade ? InkText.cinnabar : InkText.wash
       })
     )
 
@@ -451,7 +451,7 @@ export default class HeroListScene extends Phaser.Scene {
       fill: InkColor.paperDeep,
       hoverFill: 0xc5b795,
       textColor: InkText.wash,
-      fontSize: 11.5,
+      fontSize: 12,
       stroke: InkColor.inkFaint,
       onClick: () => this.showStatBreakdownDialog(hero)
     })
@@ -533,14 +533,14 @@ export default class HeroListScene extends Phaser.Scene {
 
       panel.add(
         inkText(this, cx + 10, statRowY + 15, sc.label, {
-          size: 11.5,
+          size: 13,
           color: InkText.wash
         })
       )
       if (sc.gain) {
         panel.add(
           inkText(this, cx + cardW - 10, statRowY + 15, sc.gain, {
-            size: 11,
+            size: 12,
             color: InkText.green,
             bold: true,
             originX: 1
@@ -681,7 +681,7 @@ export default class HeroListScene extends Phaser.Scene {
 
     panel.add(
       inkText(this, x + 10, y + 14, slotName, {
-        size: 11.5,
+        size: 13,
         color: InkText.wash,
         bold: true
       })
@@ -698,7 +698,7 @@ export default class HeroListScene extends Phaser.Scene {
 
       panel.add(
         inkText(this, x + w - 10, y + 14, badge, {
-          size: 10.5,
+          size: 12,
           color: isExclusive ? InkText.cinnabar : InkText.gold,
           bold: true,
           originX: 1
@@ -739,7 +739,7 @@ export default class HeroListScene extends Phaser.Scene {
 
         panel.add(
           inkText(this, x + 10, y + 56, parts.slice(0, 2).join('  '), {
-            size: 11.5,
+            size: 12,
             color: InkText.ink
           })
         )
@@ -750,7 +750,7 @@ export default class HeroListScene extends Phaser.Scene {
         fill: InkColor.paper,
         hoverFill: InkColor.paperPanel,
         textColor: InkText.ink,
-        fontSize: 10.5,
+        fontSize: 12,
         stroke: InkColor.inkFaint,
         onClick: () => this.showEquipmentSelection(type, hero.id)
       })
@@ -758,7 +758,7 @@ export default class HeroListScene extends Phaser.Scene {
         fill: InkColor.paperPanel,
         hoverFill: 0xc5b795,
         textColor: InkText.cinnabar,
-        fontSize: 10.5,
+        fontSize: 12,
         stroke: InkColor.inkFaint,
         onClick: () => this.unequipEquipment(equipment.instanceId, hero.id)
       })
@@ -771,7 +771,7 @@ export default class HeroListScene extends Phaser.Scene {
       panel.add(
         inkText(this, x + w / 2, y + 42, '未装备', {
           size: 14,
-          color: InkText.faint,
+          color: InkText.wash,
           bold: true,
           originX: 0.5
         })
@@ -788,7 +788,7 @@ export default class HeroListScene extends Phaser.Scene {
           fill: idleCount > 0 ? InkColor.cinnabar : InkColor.paperDeep,
           hoverFill: idleCount > 0 ? 0xb2362e : InkColor.paper,
           textColor: idleCount > 0 ? InkText.paper : InkText.ink,
-          fontSize: 10.5,
+          fontSize: 12,
           stroke: idleCount > 0 ? InkColor.cinnabar : InkColor.inkFaint,
           onClick: () => this.showEquipmentSelection(type, hero.id)
         }
@@ -827,7 +827,7 @@ export default class HeroListScene extends Phaser.Scene {
 
     panel.add(
       inkText(this, x + 10, y + 14, slotName, {
-        size: 11.5,
+        size: 13,
         color: slotType === 'same' ? InkText.cinnabar : '#0277bd',
         bold: true
       })
@@ -835,7 +835,7 @@ export default class HeroListScene extends Phaser.Scene {
 
     panel.add(
       inkText(this, x + w - 10, y + 14, isStarUnlocked ? `${requiredStar}★已开` : '🔒', {
-        size: 10.5,
+        size: 12,
         color: isStarUnlocked ? InkText.green : '#b26a00',
         bold: true,
         originX: 1
@@ -846,7 +846,7 @@ export default class HeroListScene extends Phaser.Scene {
       panel.add(
         inkText(this, x + w / 2, y + 42, `需升至 ${requiredStar}★ 开启`, {
           size: 13,
-          color: InkText.faint,
+          color: InkText.wash,
           bold: true,
           originX: 0.5
         })
@@ -855,7 +855,7 @@ export default class HeroListScene extends Phaser.Scene {
         fill: InkColor.paperDeep,
         hoverFill: InkColor.paper,
         textColor: InkText.wash,
-        fontSize: 10.5,
+        fontSize: 12,
         stroke: InkColor.inkFaint,
         onClick: () => this.showStarDestinyDetailDialog(hero)
       })
@@ -867,7 +867,7 @@ export default class HeroListScene extends Phaser.Scene {
       panel.add(
         inkText(this, x + w / 2, y + 42, '需先佩带神兵', {
           size: 13,
-          color: InkText.faint,
+          color: InkText.wash,
           bold: true,
           originX: 0.5
         })
@@ -876,7 +876,7 @@ export default class HeroListScene extends Phaser.Scene {
         fill: InkColor.paperDeep,
         hoverFill: InkColor.paper,
         textColor: InkText.wash,
-        fontSize: 10.5,
+        fontSize: 12,
         stroke: InkColor.inkFaint,
         onClick: () => this.showEquipmentSelection('artifact', hero.id)
       })
@@ -902,7 +902,7 @@ export default class HeroListScene extends Phaser.Scene {
       const aff2 = socketedGem.affixes?.[1] ? this.formatGemAffixText(socketedGem.affixes[1]) : ''
       panel.add(
         inkText(this, x + 10, y + 58, [aff1, aff2].filter(Boolean).join(' · '), {
-          size: 11,
+          size: 12,
           color: InkText.ink
         })
       )
@@ -912,7 +912,7 @@ export default class HeroListScene extends Phaser.Scene {
         fill: InkColor.paperDeep,
         hoverFill: InkColor.paper,
         textColor: InkText.ink,
-        fontSize: 10.5,
+        fontSize: 12,
         stroke: wxStyle.border,
         onClick: () => this.showHeroGemSocketDialog(hero, artifact, slotType, slotWuXing)
       })
@@ -920,7 +920,7 @@ export default class HeroListScene extends Phaser.Scene {
         fill: InkColor.paperPanel,
         hoverFill: InkColor.paper,
         textColor: InkText.wash,
-        fontSize: 10.5,
+        fontSize: 12,
         stroke: InkColor.inkFaint,
         onClick: () => {
           this.equipmentManager.unsocketGemSlotFromArtifact(artifact.instanceId, slotType)
@@ -940,7 +940,7 @@ export default class HeroListScene extends Phaser.Scene {
       panel.add(
         inkText(this, x + w / 2, y + 42, '未镶嵌', {
           size: 14,
-          color: InkText.faint,
+          color: InkText.wash,
           bold: true,
           originX: 0.5
         })
@@ -957,7 +957,7 @@ export default class HeroListScene extends Phaser.Scene {
           fill: availCount > 0 ? InkColor.cinnabar : InkColor.paperDeep,
           hoverFill: availCount > 0 ? 0xb2362e : InkColor.paper,
           textColor: availCount > 0 ? InkText.paper : InkText.ink,
-          fontSize: 10.5,
+          fontSize: 12,
           stroke: availCount > 0 ? InkColor.cinnabar : InkColor.inkFaint,
           onClick: () => this.showHeroGemSocketDialog(hero, artifact, slotType, slotWuXing)
         }
@@ -1382,7 +1382,7 @@ export default class HeroListScene extends Phaser.Scene {
         actTopY + 15,
         `${activeTierBadge} · CD ${activeSkill?.cooldown || 8}s`,
         {
-          size: 11,
+          size: 12,
           color: isExclusiveEquipped ? InkText.cinnabar : InkText.wash,
           bold: true,
           originX: 1
@@ -1398,7 +1398,7 @@ export default class HeroListScene extends Phaser.Scene {
         : `${activeSkill?.name || '主动战法'}（原始战法）`
     panel.add(
       inkText(this, actX + 12, actTopY + 37, displayActiveName, {
-        size: 14.5,
+        size: 15,
         color: InkText.strong,
         bold: true
       })
@@ -1416,7 +1416,7 @@ export default class HeroListScene extends Phaser.Scene {
           fill: InkColor.paperPanel,
           hoverFill: 0xc5b795,
           textColor: InkText.cinnabar,
-          fontSize: 10.5,
+          fontSize: 12,
           stroke: InkColor.cinnabar,
           onClick: () => {
             this.activeSkillExpanded = !this.activeSkillExpanded
@@ -1435,7 +1435,7 @@ export default class HeroListScene extends Phaser.Scene {
 
     panel.add(
       inkText(this, actX + 12, actTopY + 52, shownActiveDesc, {
-        size: 11.5,
+        size: 13,
         color: InkText.ink,
         originX: 0,
         originY: 0,
@@ -1464,7 +1464,7 @@ export default class HeroListScene extends Phaser.Scene {
           : '★ 已达最高境界 · 四阶圣兽大招已激活'
     panel.add(
       inkText(this, actX + 14, actTopY + actCardH - 16, nextActiveStepText, {
-        size: 10.5,
+        size: 12,
         color: ultUnlocked ? InkText.green : '#a66300',
         bold: true
       })
@@ -1496,7 +1496,7 @@ export default class HeroListScene extends Phaser.Scene {
 
     panel.add(
       inkText(this, pasX + 12, pasTopY + 15, '🛡️ 被动技能', {
-        size: 12.5,
+        size: 13,
         color: '#6a1b9a',
         bold: true
       })
@@ -1514,7 +1514,7 @@ export default class HeroListScene extends Phaser.Scene {
           fill: InkColor.paperPanel,
           hoverFill: 0xc5b795,
           textColor: '#6a1b9a',
-          fontSize: 10.5,
+          fontSize: 12,
           stroke: 0x8e24aa,
           onClick: () => {
             this.passiveSkillExpanded = !this.passiveSkillExpanded
@@ -1532,7 +1532,7 @@ export default class HeroListScene extends Phaser.Scene {
         pasTopY + 15,
         hasStar3Trait ? '双被动全部激活' : '1/2 已激活',
         {
-          size: 11,
+          size: 12,
           color: hasStar3Trait ? InkText.green : InkText.wash,
           bold: true,
           originX: 1
@@ -1554,14 +1554,14 @@ export default class HeroListScene extends Phaser.Scene {
     )
     panel.add(
       inkText(this, pasX + statusW - 12, pasTopY + 38, '✓ 常驻生效', {
-        size: 10.5,
+        size: 12,
         color: InkText.green,
         bold: true,
         originX: 1
       })
     )
     const pas1TextObj = inkText(this, pasX + 14, pasTopY + 49, shownPas1, {
-      size: 11,
+      size: 12,
       color: InkText.ink,
       originX: 0,
       originY: 0,
@@ -1603,7 +1603,7 @@ export default class HeroListScene extends Phaser.Scene {
         pasTopY + traitTitleY,
         hasStar3Trait ? '✓ 3★已觉醒' : '🔒 需3★',
         {
-          size: 10.5,
+          size: 12,
           color: hasStar3Trait ? InkText.cinnabar : '#a66300',
           bold: true,
           originX: 1
@@ -1612,8 +1612,8 @@ export default class HeroListScene extends Phaser.Scene {
     )
     panel.add(
       inkText(this, pasX + 14, pasTopY + traitTitleY + 11, shownTrait, {
-        size: 11,
-        color: hasStar3Trait ? InkText.ink : InkText.faint,
+        size: 12,
+        color: hasStar3Trait ? InkText.ink : InkText.wash,
         originX: 0,
         originY: 0,
         wrapWidth: statusW - 28,
@@ -1832,7 +1832,7 @@ export default class HeroListScene extends Phaser.Scene {
         46,
         `当前拥有功勋：🎖️ ${hero.experience}   ·   点击穴位或右侧【冲穴学习】按钮消耗功勋依次贯通要穴`,
         {
-          size: 11.5,
+          size: 13,
           color: InkText.wash,
           originX: 0.5
         }
@@ -1982,7 +1982,7 @@ export default class HeroListScene extends Phaser.Scene {
 
       panel.add(
         inkText(this, lx, ly, `${pt.lv}·${pt.name.replace('穴', '')}`, {
-          size: 11,
+          size: 12,
           color: isUnlocked ? InkText.cinnabar : isNext ? InkText.gold : InkText.wash,
           bold: isUnlocked || isNext || isSelected,
           originX: 0.5,
@@ -2009,7 +2009,7 @@ export default class HeroListScene extends Phaser.Scene {
         chartY + chartH - 16,
         '● 朱砂已贯通    ◎ 金环可冲穴（再次点击直接冲穴）    ○ 未贯通',
         {
-          size: 10.5,
+          size: 12,
           color: InkText.wash,
           originX: 0.5
         }
@@ -2062,8 +2062,8 @@ export default class HeroListScene extends Phaser.Scene {
     )
     panel.add(
       inkText(this, rightX + rightW - 16, chartY + 16, statusBadge, {
-        size: 11.5,
-        color: isCurUnlocked ? InkText.green : isCurNext && canAffordCur ? InkText.cinnabar : InkText.faint,
+        size: 13,
+        color: isCurUnlocked ? InkText.green : isCurNext && canAffordCur ? InkText.cinnabar : InkText.wash,
         bold: true,
         originX: 1
       })
@@ -2097,7 +2097,7 @@ export default class HeroListScene extends Phaser.Scene {
     panel.add(effectBox)
     panel.add(
       inkText(this, rightX + 26, chartY + 138, `⚡ 冲穴效果：${curPt.effectText}`, {
-        size: 11.5,
+        size: 13,
         color: InkText.cinnabar,
         bold: true,
         originY: 0.5
@@ -2327,7 +2327,7 @@ export default class HeroListScene extends Phaser.Scene {
         45,
         '斗魁四星掌神兵与特质，斗柄三星定天命与列传 —— 点击任意星辰可查看详解或点亮命星',
         {
-          size: 11.5,
+          size: 13,
           color: InkText.wash,
           originX: 0.5
         }
@@ -2601,7 +2601,7 @@ export default class HeroListScene extends Phaser.Scene {
       const stateIcon = st.unlocked ? '★' : isNextToLight ? '✨' : '🔒'
       panel.add(
         inkText(this, st.x, descCardTop + 14, `${stateIcon}【${st.title}】`, {
-          size: 11.5,
+          size: 13,
           color: st.unlocked ? InkText.strong : isNextToLight ? InkText.cinnabar : InkText.wash,
           bold: true,
           originX: 0.5,
@@ -2619,13 +2619,13 @@ export default class HeroListScene extends Phaser.Scene {
       st.shortLines.forEach((line, lIdx) => {
         panel.add(
           inkText(this, st.x, descCardTop + 42 + lIdx * 22, line, {
-            size: 10.5,
+            size: 12,
             color:
               lIdx === 0 && st.unlocked
                 ? InkText.cinnabar
                 : st.unlocked
                   ? InkText.ink
-                  : InkText.faint,
+                  : InkText.wash,
             bold: lIdx === 0,
             originX: 0.5,
             originY: 0.5
@@ -2649,13 +2649,13 @@ export default class HeroListScene extends Phaser.Scene {
 
       panel.add(
         inkText(this, st.x, descCardTop + descCardH - 11, footText, {
-          size: 10,
+          size: 12,
           color:
             st.index === 5 || (isNextToLight && canUpgrade)
               ? InkText.cinnabar
               : st.unlocked
                 ? InkText.green
-                : InkText.faint,
+                : InkText.wash,
           bold: true,
           originX: 0.5,
           originY: 0.5
@@ -2690,7 +2690,7 @@ export default class HeroListScene extends Phaser.Scene {
 
     panel.add(
       inkText(this, 36, bannerY + 24, `${curStar.ancientTitle}  ｜  ${curStar.fullDetail}`, {
-        size: 11.5,
+        size: 13,
         color: InkText.ink,
         bold: true,
         originY: 0.5,
@@ -2850,21 +2850,21 @@ export default class HeroListScene extends Phaser.Scene {
 
       panel.add(
         inkText(this, 36, ry + 13, `${r.name}：${r.finalVal}`, {
-          size: 13.5,
+          size: 14,
           color: InkText.strong,
           bold: true
         })
       )
       panel.add(
         inkText(this, dialogW - 36, ry + 13, `初始基准：${r.baseVal}`, {
-          size: 11.5,
+          size: 13,
           color: InkText.wash,
           originX: 1
         })
       )
       panel.add(
         inkText(this, 36, ry + 32, r.detail, {
-          size: 11,
+          size: 13,
           color: InkText.ink
         })
       )
@@ -2968,7 +2968,7 @@ export default class HeroListScene extends Phaser.Scene {
           fill: active ? InkColor.cinnabar : InkColor.paperDeep,
           hoverFill: active ? 0xb2362e : InkColor.paper,
           textColor: active ? InkText.paper : InkText.ink,
-          fontSize: 11.5,
+          fontSize: 13,
           stroke: active ? InkColor.cinnabar : InkColor.inkFaint,
           onClick: () => {
             currentFocus = t.key
@@ -3900,7 +3900,7 @@ export default class HeroListScene extends Phaser.Scene {
         if (isExclusive) {
           popup.add(
             inkText(this, 184, rowY, '【本命专属】', {
-              size: 11,
+              size: 12,
               color: InkText.cinnabar,
               bold: true
             })
@@ -3908,14 +3908,14 @@ export default class HeroListScene extends Phaser.Scene {
         } else if (hasExclusiveConfig) {
           popup.add(
             inkText(this, 184, rowY, `【${detail.exclusiveHero || '他将'}专属】`, {
-              size: 11,
-              color: InkText.faint
+              size: 12,
+              color: InkText.wash
             })
           )
         } else {
           popup.add(
             inkText(this, 184, rowY, '【通用古宝】', {
-              size: 11,
+              size: 12,
               color: InkText.ink
             })
           )
@@ -3940,8 +3940,8 @@ export default class HeroListScene extends Phaser.Scene {
       }
       popup.add(
         inkText(this, panelW - 28, rowY, bParts.join(' '), {
-          size: 11,
-          color: InkText.faint,
+          size: 12,
+          color: InkText.wash,
           originX: 1
         })
       )

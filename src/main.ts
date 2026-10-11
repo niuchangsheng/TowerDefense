@@ -38,12 +38,17 @@ Phaser.GameObjects.GameObjectFactory.prototype.text = function (
     safeStyle.fontSize = sizeNum
   }
 
-  // 3. 高清超采样分辨率注入：小字号 (<=12px) 汉字笔画复杂，保底 3x；常规字号保底 2x
+  // 3. 高清超采样分辨率注入：小字号 (<=14px) 汉字笔画复杂，保底 3x；常规字号保底 2x
   if (!safeStyle.resolution || safeStyle.resolution <= 1) {
-    safeStyle.resolution = sizeNum <= 12 ? Math.max(INK_FONT_RESOLUTION, 3) : INK_FONT_RESOLUTION
+    safeStyle.resolution = sizeNum <= 14 ? Math.max(INK_FONT_RESOLUTION, 3) : INK_FONT_RESOLUTION
   }
 
-  // 4. 预留文字边缘微距 padding，防止书法笔锋及描边被 Canvas 边界裁切
+  // 4. 小字号字重增强：未指定 fontStyle 时，<=14px 默认加粗防止楷体细横线发虚断笔
+  if (!safeStyle.fontStyle && sizeNum <= 14) {
+    safeStyle.fontStyle = 'bold'
+  }
+
+  // 5. 预留文字边缘微距 padding，防止书法笔锋及描边被 Canvas 边界裁切
   if (!safeStyle.padding) {
     safeStyle.padding = { left: 2, right: 2, top: 1, bottom: 1 }
   }

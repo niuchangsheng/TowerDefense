@@ -564,7 +564,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     volRibbon.strokeRect(-w / 2 + 16, -h / 2 + 14, 18, 40)
     const volTxt = this.add.text(-w / 2 + 25, -h / 2 + 34, `${scrollNum[0]}\n${scrollNum[1]}`, {
       fontFamily: INK_FONT,
-      fontSize: '11px',
+      fontSize: '13px',
       color: '#f8f4ea',
       fontStyle: 'bold',
       lineSpacing: 2,
@@ -612,8 +612,8 @@ export default class LevelSelectScene extends Phaser.Scene {
       originY: 0.5
     })
     const subTxt = inkText(this, 0, -90, `· ${subTitle} ·`, {
-      size: 12,
-      color: InkText.faint,
+      size: 13,
+      color: InkText.wash,
       originX: 0.5,
       originY: 0.5
     })
@@ -625,8 +625,8 @@ export default class LevelSelectScene extends Phaser.Scene {
     const weakClean = meta ? meta.weaknessReactionName.replace(/[【】]/g, '') : '五行相生'
 
     const bossRoleTxt = inkText(this, 0, -50, bossTitleStr, {
-      size: 12,
-      color: InkText.faint,
+      size: 13,
+      color: InkText.wash,
       originX: 0.5,
       originY: 0.5
     })
@@ -652,7 +652,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     weakG.lineBetween(-weakW / 2, weakY + 13, weakW / 2, weakY + 13)
 
     const weakTxt = inkText(this, 0, weakY, `破壁 · ${weakClean}`, {
-      size: 12,
+      size: 13,
       color: InkText.cinnabar,
       bold: true,
       originX: 0.5,
@@ -662,8 +662,8 @@ export default class LevelSelectScene extends Phaser.Scene {
 
     // --- 锚点 3：宿命神兵 & 将魂题跋 ---
     const dropHeader = inkText(this, 0, 88, '─ 宿 命 神 兵 ─', {
-      size: 11,
-      color: InkText.faint,
+      size: 12,
+      color: InkText.wash,
       originX: 0.5,
       originY: 0.5
     })
@@ -683,7 +683,7 @@ export default class LevelSelectScene extends Phaser.Scene {
       originY: 0.5
     })
     const matSoulTxt = inkText(this, 0, 146, matSoulStr, {
-      size: 12,
+      size: 13,
       color: InkText.wash,
       originX: 0.5,
       originY: 0.5
@@ -956,8 +956,9 @@ export default class LevelSelectScene extends Phaser.Scene {
       originY: 0.5
     })
     const subTxt = inkText(this, 0, 13, subLabel, {
-      size: 11,
-      color: '#e8dbbe',
+      size: 13,
+      color: '#fff8ea',
+      bold: true,
       originX: 0.5,
       originY: 0.5
     })

@@ -732,8 +732,9 @@ export default class TitleScene extends Phaser.Scene {
     // 塔防注音小刻石
     const subDesc = this.add.text(0, 58, '【 战 塔 】', {
       fontFamily: INK_FONT,
-      fontSize: '11px',
-      color: InkText.faint
+      fontSize: '13px',
+      color: InkText.wash,
+      fontStyle: 'bold'
     }).setOrigin(0.5, 0.5)
 
     tower.add([tdText, subDesc])
@@ -857,9 +858,9 @@ export default class TitleScene extends Phaser.Scene {
     })
 
     const subTitle = inkText(this, 0, 16, '· 挥师破敌 · 15波破关与百战无尽烽火合一 ·', {
-      size: 11,
-      color: '#e8dbbe',
-      bold: false,
+      size: 13,
+      color: '#fff8ea',
+      bold: true,
       originX: 0.5,
       originY: 0.5
     })
@@ -943,8 +944,8 @@ export default class TitleScene extends Phaser.Scene {
     divG.fillCircle(centerX + 76, headerY, 2)
 
     const sectionLabel = inkText(this, centerX, headerY, '· 军 机 四 枢 ·', {
-      size: 12,
-      color: InkText.faint,
+      size: 13,
+      color: InkText.wash,
       bold: true,
       originX: 0.5,
       originY: 0.5
@@ -1067,8 +1068,9 @@ export default class TitleScene extends Phaser.Scene {
 
     const descText = this.add.text(-cardW / 2 + 45, 13, desc, {
       fontFamily: INK_FONT,
-      fontSize: '11px',
-      color: InkText.faint
+      fontSize: '13px',
+      color: InkText.wash,
+      fontStyle: 'bold'
     }).setOrigin(0, 0.5)
 
     container.add([badgeText, titleText, descText])
@@ -1120,12 +1122,12 @@ export default class TitleScene extends Phaser.Scene {
 
     // 最底部版权与水墨题款小注
     const footNote = inkText(this, centerX, 686, '水墨宣纸 · 五行连携 · 肉鸽策略塔防', {
-      size: 12,
-      color: InkText.faint,
+      size: 13,
+      color: InkText.wash,
       originX: 0.5,
       originY: 0.5
     })
-    footNote.setAlpha(0.65)
+    footNote.setAlpha(0.9)
     footNote.setDepth(10)
   }
 

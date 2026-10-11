@@ -313,7 +313,7 @@ export default class EquipmentScene extends Phaser.Scene {
           cursorY + 26,
           '击败战役第15波守关统帅必掉对应宿命主材，于顶部【蒲元铸剑】定向铸造（一生仅需1把）。',
           {
-            size: 11,
+            size: 12,
             color: InkText.wash,
             originY: 0,
             wrapWidth: EquipmentScene.LEFT_W - 20
@@ -440,7 +440,7 @@ export default class EquipmentScene extends Phaser.Scene {
       if (exclusiveName) {
         container.add(
           inkText(this, textX, 12, `专属：${exclusiveName}`, {
-            size: 11,
+            size: 12,
             color: InkText.wash
           })
         )
@@ -457,7 +457,7 @@ export default class EquipmentScene extends Phaser.Scene {
       const subTag = RarityNames[equip.rarity as Rarity] || '凡品'
       container.add(
         inkText(this, -W / 2 + 12, 12, subTag, {
-          size: 11,
+          size: 12,
           color: InkText.wash
         })
       )
@@ -466,7 +466,7 @@ export default class EquipmentScene extends Phaser.Scene {
         const heroName = this.equipmentManager.getEquippedHeroName(equip.equippedHeroId)
         container.add(
           inkText(this, W / 2 - 10, 12, `${heroName}佩带`, {
-            size: 11,
+            size: 12,
             color: InkText.cinnabar,
             bold: true,
             originX: 1
@@ -522,7 +522,7 @@ export default class EquipmentScene extends Phaser.Scene {
 
     container.add(
       inkText(this, -W / 2 + 44, 3, getGemName(gem), {
-        size: 11,
+        size: 12,
         color: InkText.ink
       })
     )
@@ -530,8 +530,8 @@ export default class EquipmentScene extends Phaser.Scene {
     const statusStr = socketLoc ? `已嵌·${socketLoc.artifactName.slice(0, 2)}` : '闲置'
     container.add(
       inkText(this, 0, 23, statusStr, {
-        size: 10,
-        color: socketLoc ? InkText.cinnabar : InkText.faint,
+        size: 12,
+        color: socketLoc ? InkText.cinnabar : InkText.wash,
         originX: 0.5
       })
     )
@@ -828,7 +828,7 @@ export default class EquipmentScene extends Phaser.Scene {
       frameY - frameSize / 2 + 13,
       sameWxStyle.label,
       {
-        size: 11,
+        size: 12,
         color: '#f4efe6',
         bold: true,
         originX: 0.5,
@@ -865,7 +865,7 @@ export default class EquipmentScene extends Phaser.Scene {
       row1Y,
       `${exclusiveName} · 本命专属`,
       {
-        size: 11.5,
+        size: 13,
         color: '#f4efe6',
         bold: true,
         originX: 0.5,
@@ -887,7 +887,7 @@ export default class EquipmentScene extends Phaser.Scene {
           fill: InkColor.paper,
           hoverFill: InkColor.paperPanel,
           textColor: InkText.cinnabar,
-          fontSize: 11.5,
+          fontSize: 13,
           stroke: InkColor.cinnabar,
           onClick: () => {
             this.autoSave()
@@ -933,7 +933,7 @@ export default class EquipmentScene extends Phaser.Scene {
       originY: 0
     })
     const sDesc = inkText(this, textX + 12, skillBoxTop + 26, skillDesc, {
-      size: 11.5,
+      size: 13,
       color: InkText.ink,
       originX: 0,
       originY: 0,
@@ -1052,7 +1052,7 @@ export default class EquipmentScene extends Phaser.Scene {
         ry + 20,
         `${qualityTag.text} (${rangeStr})`,
         {
-          size: 11,
+          size: 12,
           color: qualityTag.color,
           originX: 0,
           originY: 0.5
@@ -1098,7 +1098,7 @@ export default class EquipmentScene extends Phaser.Scene {
           fill: InkColor.paperDeep,
           hoverFill: InkColor.paperPanel,
           textColor: InkText.cinnabar,
-          fontSize: 11,
+          fontSize: 12,
           stroke: InkColor.cinnabar,
           onClick: () => {
             const res = this.equipmentManager.previewReforgeArtifactStat(equip.instanceId, idx)
@@ -1133,7 +1133,7 @@ export default class EquipmentScene extends Phaser.Scene {
       originY: 0.5
     })
     const dualHeaderHint = inkText(this, rightX + rightW - 14, y + 18, '数值对应 Lv.1/2/3/4/5 灵石', {
-      size: 11,
+      size: 12,
       color: InkText.wash,
       originX: 1,
       originY: 0.5
@@ -1182,7 +1182,7 @@ export default class EquipmentScene extends Phaser.Scene {
       // 顶部标题行（统一垂直中心 cy + 16）
       const sealCircle = this.add.circle(rightX + 22, cy + 16, 11, sc.wxStyle.border, 0.92)
       const sealChar = inkText(this, rightX + 22, cy + 16, sc.wxStyle.label, {
-        size: 11.5,
+        size: 12,
         color: '#f4efe6',
         bold: true,
         originX: 0.5,
@@ -1190,14 +1190,14 @@ export default class EquipmentScene extends Phaser.Scene {
       })
 
       const tTitle = inkText(this, rightX + 38, cy + 16, `${sc.slotTag} · ${sc.title}`, {
-        size: 13.5,
+        size: 14,
         color: sc.wxStyle.text,
         bold: true,
         originX: 0,
         originY: 0.5
       })
       const tReq = inkText(this, rightX + rightW - 12, cy + 16, sc.reqTag, {
-        size: 11,
+        size: 12,
         color: sc.wxStyle.text,
         bold: true,
         originX: 1,
@@ -1205,7 +1205,7 @@ export default class EquipmentScene extends Phaser.Scene {
       })
       // 多行说明强制设置 originY: 0，从 cy + 32 向下排版，小点自动换行
       const tDesc = inkText(this, rightX + 14, cy + 32, sc.desc, {
-        size: 11,
+        size: 12,
         color: InkText.ink,
         originX: 0,
         originY: 0,
@@ -1244,14 +1244,14 @@ export default class EquipmentScene extends Phaser.Scene {
 
     const ultName = resCfg?.ultimateName || resCfg?.hiddenSkillName || '《圣兽法相》'
     const ultTitle = inkText(this, rightX + 14, ultY + 16, `🐉 终极大招 · ${ultName}`, {
-      size: 13.5,
+      size: 14,
       color: '#fff8e1',
       bold: true,
       originX: 0,
       originY: 0.5
     })
     const ultCond = inkText(this, rightX + rightW - 12, ultY + 16, '双槽 Lv.5 觉醒', {
-      size: 11,
+      size: 12,
       color: '#ffe082',
       bold: true,
       originX: 1,
@@ -1261,7 +1261,7 @@ export default class EquipmentScene extends Phaser.Scene {
     // 多行大招说明强制设置 originY: 0，从丝带下方 ultY + 38 向下排版
     const ultDescClean = formatSlotDesc(resCfg?.ultimateDesc || '召唤五行圣兽法相降临战场')
     const ultDesc = inkText(this, rightX + 14, ultY + 38, ultDescClean, {
-      size: 11.5,
+      size: 13,
       color: InkText.strong,
       originX: 0,
       originY: 0,
@@ -1561,7 +1561,7 @@ export default class EquipmentScene extends Phaser.Scene {
         fill: InkColor.paperDeep,
         hoverFill: InkColor.paperPanel,
         textColor: InkText.cinnabar,
-        fontSize: 11,
+        fontSize: 12,
         stroke: InkColor.cinnabar,
         onClick: () => this.showGemStatRangesDialog(gem)
       }
@@ -1621,7 +1621,7 @@ export default class EquipmentScene extends Phaser.Scene {
 
         this.detailPanel!.add(
           inkText(this, pad + 18, ry + rowH / 2 + 11, rangeStr, {
-            size: 11,
+            size: 12,
             color: InkText.wash,
             originX: 0,
             originY: 0.5
@@ -1710,7 +1710,7 @@ export default class EquipmentScene extends Phaser.Scene {
             `🔒 属性槽 ${idx + 1}（5级灵石专属扩孔 · 开启后新增 1 条 Lv.5 基础属性）`,
             {
               size: 13,
-              color: isNextUnlock ? InkText.ink : InkText.faint,
+              color: isNextUnlock ? InkText.ink : InkText.wash,
               bold: isNextUnlock,
               originX: 0,
               originY: 0.5
@@ -1747,8 +1747,8 @@ export default class EquipmentScene extends Phaser.Scene {
         } else {
           this.detailPanel!.add(
             inkText(this, pad + contentW - 22, ry + rowH / 2, '请先开启上一槽位', {
-              size: 11.5,
-              color: InkText.faint,
+              size: 13,
+              color: InkText.wash,
               originX: 1,
               originY: 0.5
             })
@@ -2097,8 +2097,8 @@ export default class EquipmentScene extends Phaser.Scene {
 
         const checkTag = isSelected ? '☑ 已选保留' : '☐ 点击选择'
         const tagTxt = inkText(this, cx + colW - 12, cy + 18, checkTag, {
-          size: 11,
-          color: isSelected ? InkText.cinnabar : InkText.faint,
+          size: 12,
+          color: isSelected ? InkText.cinnabar : InkText.wash,
           bold: isSelected,
           originX: 1,
           originY: 0.5
@@ -2110,7 +2110,7 @@ export default class EquipmentScene extends Phaser.Scene {
           cy + 18,
           `${GEM_STAT_LABELS[cand.stat]} +${(cand.affix.value * 100).toFixed(1)}%`,
           {
-            size: 14.5,
+            size: 15,
             color: isSelected ? InkText.cinnabar : InkText.strong,
             bold: true,
             originX: 0,
@@ -2124,7 +2124,7 @@ export default class EquipmentScene extends Phaser.Scene {
           cy + 44,
           `灵石 #${cand.gemIdx}  ·  升至 Lv.${nextLv} 预计 +${(cand.expectedVal * 100).toFixed(1)}%`,
           {
-            size: 11,
+            size: 12,
             color: isSelected ? wxStyle.text : InkText.wash,
             originX: 0,
             originY: 0.5
@@ -2349,7 +2349,7 @@ export default class EquipmentScene extends Phaser.Scene {
 
           dynamicGroup.add(
             inkText(this, 76, ry + 46, `候选属性：${allStatsPreview}`, {
-              size: 11.5,
+              size: 13,
               color: InkText.wash,
               originX: 0,
               originY: 0.5
@@ -2367,7 +2367,7 @@ export default class EquipmentScene extends Phaser.Scene {
               fill: canSynth ? InkColor.paper : InkColor.paperDeep,
               hoverFill: InkColor.paperDeep,
               textColor: canSynth ? InkText.cinnabar : InkText.faint,
-              fontSize: 12.5,
+              fontSize: 13,
               stroke: canSynth ? InkColor.cinnabar : InkColor.inkFaint,
               onClick: () => {
                 if (!canSynth) {
@@ -2461,7 +2461,7 @@ export default class EquipmentScene extends Phaser.Scene {
           ry + 38,
           `主材：${r.materialName} (${matCount}/1)  ·  玄铁 ${r.ironCost}  ·  ${r.bossName}`,
           {
-            size: 11,
+            size: 12,
             color: InkText.wash
           }
         )
