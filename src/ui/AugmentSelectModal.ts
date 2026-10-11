@@ -169,7 +169,7 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
       72,
       `保底 1 张当前阵容契合卡  ·  已选 ${pickedCount}/5 策`,
       {
-        size: 13.5,
+        size: 14,
         color: '#e8dbbe',
         originX: 0.5
       }
@@ -319,7 +319,7 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     const loreOneLine = aug.historicalLore || aug.subtitle || ''
     const loreShort = loreOneLine.length > 22 ? `${loreOneLine.slice(0, 22)}…` : loreOneLine
     const loreText = inkText(scene, 0, -h / 2 + 124, `📜 ${loreShort}`, {
-      size: 11.5,
+      size: 12,
       color: InkText.faint,
       originX: 0.5
     })
@@ -337,14 +337,15 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
       .replace(/（严格归入[^）]*）/g, '')
       .trim()
 
-    const descText = scene.add.text(-w / 2 + 24, ruleY, conciseEffect, {
-      fontFamily: INK_FONT,
-      fontSize: '13.5px',
-      fontStyle: 'bold',
+    const descText = inkText(scene, -w / 2 + 24, ruleY, conciseEffect, {
+      size: 14,
+      bold: true,
       color: '#1e1b18',
-      wordWrap: { width: w - 48 },
-      lineSpacing: 5
-    }).setOrigin(0, 0.5)
+      wrapWidth: w - 48,
+      lineSpacing: 5,
+      originX: 0,
+      originY: 0.5
+    })
     c.add(descText)
 
     // 5. 醒目加成胶囊条
@@ -352,7 +353,7 @@ export class AugmentSelectModal extends Phaser.GameObjects.Container {
     const bucketBox = scene.add.rectangle(0, h / 2 - 114, w - 28, 32, 0xfbf5e6, 0.95)
     bucketBox.setStrokeStyle(1.2, 0xa0782f, 0.7)
     const bucketText = inkText(scene, 0, h / 2 - 114, bucketSummary, {
-      size: 12.5,
+      size: 13,
       color: '#8a5a14',
       bold: true,
       originX: 0.5

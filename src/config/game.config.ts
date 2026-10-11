@@ -16,7 +16,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   // 响应式自适应缩放
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    autoRound: true
   },
 
   // 物理系统配置（暂时不需要）
@@ -47,7 +48,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   // 渲染配置
   render: {
     pixelArt: false,  // 不使用像素艺术模式
-    antialias: true
+    antialias: true,
+    roundPixels: true // 整数像素采样，彻底杜绝亚像素浮点坐标导致的字体模糊
   },
 
   // 输入配置

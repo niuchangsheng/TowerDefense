@@ -4,7 +4,7 @@ import { EnemyEntity } from '@/entities/EnemyEntity'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { SkillManager } from './SkillManager'
 import { getSkill } from '@/data/skills'
-import { InkColor, InkText, inkText } from '@/ui/InkTheme'
+import { InkColor, InkText, inkText, INK_FONT } from '@/ui/InkTheme'
 import { DamageCalculator } from '../battle/DamageCalculator'
 import { ElementalReactionManager } from '../elemental/ElementalReactionManager'
 import { EquipmentManager } from '../equipment/EquipmentManager'
@@ -377,7 +377,7 @@ export class SkillExecutor {
 
     // 技能书法名号
     const text = this.scene.add.text(pos.x, pos.y - range - 22, `【${skillName}】`, {
-      fontFamily: 'serif',
+      fontFamily: INK_FONT,
       fontSize: '20px',
       color: `#${color.toString(16).padStart(6, '0')}`,
       fontStyle: 'bold'
@@ -428,7 +428,7 @@ export class SkillExecutor {
    */
   private playBuffEffect(pos: Point, skillName: string): void {
     const text = this.scene.add.text(pos.x, pos.y - 60, `【${skillName}】`, {
-      fontFamily: 'serif',
+      fontFamily: INK_FONT,
       fontSize: '15px',
       color: '#4caf50',
       fontStyle: 'bold'

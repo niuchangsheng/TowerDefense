@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { Point } from '@/types'
+import { INK_FONT } from '@/ui/InkTheme'
 
 /**
  * 文字攻击特效库（赵云与阿斗风格）
@@ -132,7 +133,7 @@ export class CharacterAttackFX {
 
     const proj = this.scene.add
       .text(from.x, from.y, char, {
-        fontFamily: '"STKaiti","KaiTi","Noto Serif SC",serif',
+        fontFamily: INK_FONT,
         fontSize: `${fontSize}px`,
         color,
         fontStyle: 'bold'
@@ -294,12 +295,12 @@ export class CharacterAttackFX {
 
     const text = this.scene.add
       .text(at.x + jitterX, at.y - 14, displayStr, {
-        fontFamily: '"STKaiti","KaiTi","Noto Serif SC",serif',
+        fontFamily: INK_FONT,
         fontSize,
         color: textColor,
         fontStyle: 'bold',
         stroke: '#1a1a1a',
-        strokeThickness: 3.5
+        strokeThickness: 3
       })
       .setOrigin(0.5)
       .setDepth(60)
@@ -351,7 +352,7 @@ export class CharacterAttackFX {
       const a = (i / chars.length) * Math.PI * 2 - Math.PI / 2
       const t = this.scene.add
         .text(center.x, center.y, c, {
-          fontFamily: '"STKaiti","KaiTi","Noto Serif SC",serif',
+          fontFamily: INK_FONT,
           fontSize: '26px',
           color,
           fontStyle: 'bold'

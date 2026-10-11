@@ -109,7 +109,7 @@ export class HeroEntity extends Phaser.GameObjects.Container {
     this.add(wxBadge)
 
     this.wuXingText = inkText(scene, -11, -12, wuxing.label, {
-      size: 7.5,
+      size: 8,
       color: wuxing.text,
       bold: true,
       originX: 0.5,

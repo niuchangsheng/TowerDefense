@@ -4,6 +4,7 @@ import { EnemyEntity } from '@/entities/EnemyEntity'
 import { HeroEntity } from '@/entities/HeroEntity'
 import { CharacterAttackFX } from './CharacterAttackFX'
 import { EnemyManager } from '@/core/enemy/EnemyManager'
+import { INK_FONT } from '@/ui/InkTheme'
 
 /**
  * 5级宝石终极攻击特效管理器
@@ -102,11 +103,11 @@ export class GemAttackEffectManager {
 
   private showFloatingEffectText(at: Point, text: string, color: string): void {
     const txt = this.scene.add.text(at.x, at.y - 28, text, {
-      fontFamily: 'KaiTi, 楷体, STKaiti, serif',
-      fontSize: '13px',
+      fontFamily: INK_FONT,
+      fontSize: '14px',
       color,
       stroke: '#141210',
-      strokeThickness: 3,
+      strokeThickness: 2.5,
       fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(45)
 

@@ -10,6 +10,7 @@ import { EnemyEntity } from '@/entities/EnemyEntity'
 import { EnemyManager } from '@/core/enemy/EnemyManager'
 import { CharacterAttackFX } from '@/effects/CharacterAttackFX'
 import { DamageCalculator } from '@/core/battle/DamageCalculator'
+import { INK_FONT } from '@/ui/InkTheme'
 
 export interface HandleAttackOptions {
   /** 攻击者武将ID */
@@ -603,12 +604,12 @@ export class ElementalReactionManager {
     if (!this.scene) return
 
     const label = this.scene.add.text(pos.x, pos.y - 28, text, {
-      fontFamily: 'STKaiti, KaiTi, SimKai, serif',
-      fontSize: '14px',
+      fontFamily: INK_FONT,
+      fontSize: '15px',
       fontStyle: 'bold',
       color,
       stroke: '#000000',
-      strokeThickness: 3
+      strokeThickness: 2.5
     }).setOrigin(0.5).setDepth(20)
 
     this.scene.tweens.add({

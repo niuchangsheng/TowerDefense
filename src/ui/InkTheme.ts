@@ -13,8 +13,16 @@ import { WuXing, Rarity, WuXingNames } from '@/types'
 
 // ===== 字体 =====
 
-/** 楷体字体栈（末尾 serif 兜底） */
-export const INK_FONT = '"STKaiti","KaiTi","Noto Serif SC",serif'
+/** 楷体/古典书风字体栈（严格对齐全平台中文系统字体与优雅回退） */
+export const INK_FONT = '"STKaiti", "华文楷体", "KaiTi", "楷体", "SimKai", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", "PingFang SC", serif'
+
+/**
+ * 水墨字体默认分辨率（DPI 超采样系数）
+ * 根据设备像素比动态计算，基准保底 2x，高分屏最高 3x，杜绝 Scale.FIT 拉伸模糊
+ */
+export const INK_FONT_RESOLUTION = (typeof window !== 'undefined' && window.devicePixelRatio)
+  ? Math.min(Math.max(Math.ceil(window.devicePixelRatio * 1.5), 2), 3)
+  : 2
 
 // ===== 调色板（十六进制数值，供 Graphics / Rectangle 使用） =====
 
@@ -184,10 +192,22 @@ export interface InkTextOptions {
   originY?: number
   wrapWidth?: number
   lineSpacing?: number
+  resolution?: number
+  padding?: Phaser.Types.GameObjects.Text.TextPadding
+  stroke?: string
+  strokeThickness?: number
+  shadow?: {
+    x?: number
+    y?: number
+    color?: string
+    blur?: number
+    stroke?: boolean
+    fill?: boolean
+  }
 }
 
 /**
- * 水墨风文字（自动套用楷体栈）。默认 origin (0, 0.5)。
+ * 水墨风文字（自动套用楷体栈与高分辨率超采样渲染）。默认 origin (0, 0.5)。
  */
 export function inkText(
   scene: Phaser.Scene,
@@ -203,19 +223,48 @@ export function inkText(
     originX = 0,
     originY = 0.5,
     wrapWidth,
-    lineSpacing
+    lineSpacing,
+    resolution,
+    padding,
+    stroke,
+    strokeThickness,
+    shadow
   } = options
 
-  const text = scene.add.text(x, y, content, {
+  // 1. 强制整数字号，避免浮点字号（如 11.5px/13.5px）导致 Canvas 2D 亚像素网格失真与模糊
+  const roundedSize = Math.max(1, Math.round(size))
+
+  // 2. 超采样策略：小字号 (<=12px) 汉字笔画复杂，给予保底 3x 超采样；常规字号保底 2x
+  const effectiveResolution = resolution ?? (
+    roundedSize <= 12
+      ? Math.max(INK_FONT_RESOLUTION, 3)
+      : INK_FONT_RESOLUTION
+  )
+
+  const text = scene.add.text(Math.round(x), Math.round(y), content, {
     fontFamily: INK_FONT,
-    fontSize: `${size}px`,
+    fontSize: `${roundedSize}px`,
     color,
     fontStyle: bold ? 'bold' : 'normal',
-    lineSpacing
+    lineSpacing,
+    resolution: effectiveResolution,
+    stroke,
+    strokeThickness,
+    padding: padding ?? { left: 2, right: 2, top: 1, bottom: 1 }
   })
   text.setOrigin(originX, originY)
   if (wrapWidth !== undefined) {
     text.setWordWrapWidth(wrapWidth, true)
+  }
+  if (shadow) {
+    text.setShadow(
+      shadow.x ?? 0,
+      shadow.y ?? 0,
+      shadow.color ?? '#000000',
+      shadow.blur ?? 0,
+      shadow.stroke ?? false,
+      shadow.fill ?? true
+    )
   }
   return text
 }
