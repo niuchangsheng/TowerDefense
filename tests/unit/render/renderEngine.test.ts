@@ -9,7 +9,10 @@ import {
   getGemAffixQualityTag,
   drawAffixPercentileBar,
   createExclusiveBadge,
-  drawUltimateBox
+  drawUltimateBox,
+  drawInkMeridianBody,
+  drawBaguaWatermark,
+  drawPracticeDummy
 } from '@/render'
 
 describe('水墨表现渲染引擎 (Render Engine Architecture Tests)', () => {
@@ -106,4 +109,43 @@ describe('水墨表现渲染引擎 (Render Engine Architecture Tests)', () => {
     const ultBox = drawUltimateBox(mockScene, 10, 20, 200, 100, '青龙偃月法相')
     expect(ultBox).toBeDefined()
   })
+
+  it('6. figures 子系统正确绘制盘坐经脉轮廓、八卦暗纹与沙盒木人桩', () => {
+    const mockGfx: any = {
+      fillStyle: vi.fn().mockReturnThis(),
+      lineStyle: vi.fn().mockReturnThis(),
+      fillRoundedRect: vi.fn().mockReturnThis(),
+      strokeRoundedRect: vi.fn().mockReturnThis(),
+      fillCircle: vi.fn().mockReturnThis(),
+      strokeCircle: vi.fn().mockReturnThis(),
+      fillRect: vi.fn().mockReturnThis(),
+      lineBetween: vi.fn().mockReturnThis()
+    }
+
+    drawInkMeridianBody(mockGfx, 215)
+    expect(mockGfx.fillCircle).toHaveBeenCalled()
+    expect(mockGfx.lineBetween).toHaveBeenCalled()
+
+    const baguaGfx: any = {
+      lineStyle: vi.fn().mockReturnThis(),
+      strokeCircle: vi.fn().mockReturnThis(),
+      lineBetween: vi.fn().mockReturnThis()
+    }
+    drawBaguaWatermark(baguaGfx, 215, 268)
+    expect(baguaGfx.strokeCircle).toHaveBeenCalledTimes(2)
+
+    const mockContainer = { add: vi.fn().mockReturnThis() }
+    const mockRect = { setStrokeStyle: vi.fn().mockReturnThis() }
+    const mockScene: any = {
+      add: {
+        rectangle: vi.fn().mockReturnValue(mockRect),
+        text: vi.fn().mockReturnValue({ setOrigin: vi.fn().mockReturnThis() })
+      }
+    }
+
+    drawPracticeDummy(mockScene, mockContainer as any, 130, 8)
+    expect(mockScene.add.rectangle).toHaveBeenCalledWith(130, 8, 36, 52, 0x6d4c41, 1)
+    expect(mockContainer.add).toHaveBeenCalled()
+  })
 })
+

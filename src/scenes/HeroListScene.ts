@@ -49,7 +49,10 @@ import {
   createPageBackButton,
   inkToast,
   createInkDialog,
-  createWuXingSeal
+  createWuXingSeal,
+  drawBaguaWatermark,
+  drawInkMeridianBody,
+  drawPracticeDummy
 } from '@/ui/InkTheme'
 
 /**
@@ -1839,58 +1842,10 @@ export default class HeroListScene extends Phaser.Scene {
     // 内框古籍折角装饰与背后的八卦太极水墨暗纹
     chartBg.lineStyle(1, InkColor.inkFaint, 0.28)
     chartBg.strokeRoundedRect(chartX + 6, chartY + 6, chartW - 12, chartH - 12, 4)
-    chartBg.strokeCircle(cx, 268, 138)
-    chartBg.strokeCircle(cx, 268, 102)
-    for (let i = 0; i < 8; i++) {
-      const ang = (i * Math.PI) / 4
-      chartBg.lineBetween(
-        cx + Math.cos(ang) * 102,
-        268 + Math.sin(ang) * 102,
-        cx + Math.cos(ang) * 138,
-        268 + Math.sin(ang) * 138
-      )
-    }
+    drawBaguaWatermark(chartBg, cx, 268, 102, 138)
 
-    // 绘制水墨人体盘坐武者轮廓
-    chartBg.fillStyle(InkColor.paperPanel, 0.72)
-    chartBg.lineStyle(1.8, InkColor.inkWash, 0.55)
-
-    // 1. 头颅与发髻
-    chartBg.fillRoundedRect(cx - 10, 84, 20, 12, 4)
-    chartBg.strokeRoundedRect(cx - 10, 84, 20, 12, 4)
-    chartBg.fillCircle(cx, 124, 24)
-    chartBg.strokeCircle(cx, 124, 24)
-
-    // 2. 颈部与双肩躯干
-    chartBg.fillRect(cx - 10, 146, 20, 18)
-    chartBg.fillRoundedRect(cx - 56, 164, 112, 168, 22)
-    chartBg.strokeRoundedRect(cx - 56, 164, 112, 168, 22)
-
-    // 3. 左臂与左掌（对应劳宫穴 x=124, y=256）
-    chartBg.lineStyle(16, InkColor.paperPanel, 0.85)
-    chartBg.lineBetween(cx - 52, 182, 134, 226)
-    chartBg.lineBetween(134, 226, 124, 256)
-    chartBg.lineStyle(1.6, InkColor.inkWash, 0.55)
-    chartBg.strokeCircle(124, 256, 12)
-
-    // 4. 右肩、右肘与右掌（对应肩井 x=268,y=180 与曲池 x=310,y=238）
-    chartBg.lineStyle(16, InkColor.paperPanel, 0.85)
-    chartBg.lineBetween(cx + 52, 182, 310, 238)
-    chartBg.lineBetween(310, 238, 290, 280)
-    chartBg.lineStyle(1.6, InkColor.inkWash, 0.55)
-    chartBg.strokeCircle(290, 280, 11)
-
-    // 5. 盘坐下盘与足底（对应关元 x=215,y=358 与涌泉 x=156,y=416）
-    chartBg.fillRoundedRect(cx - 88, 330, 176, 62, 26)
-    chartBg.strokeRoundedRect(cx - 88, 330, 176, 62, 26)
-    chartBg.fillRoundedRect(130, 392, 64, 34, 14)
-    chartBg.strokeRoundedRect(130, 392, 64, 34, 14)
-    chartBg.fillRoundedRect(236, 392, 64, 34, 14)
-    chartBg.strokeRoundedRect(236, 392, 64, 34, 14)
-
-    // 6. 体内任督二脉中轴线（水墨暗脉）
-    chartBg.lineStyle(1.2, InkColor.inkFaint, 0.45)
-    chartBg.lineBetween(cx, 100, cx, 366)
+    // 绘制水墨人体盘坐武者轮廓与任督二脉（展示引擎 figures 模块）
+    drawInkMeridianBody(chartBg, cx)
     panel.add(chartBg)
 
     // 绘制 10 个穴位节点与旁注名牌（仅点亮穴位，不画连线）
@@ -3281,15 +3236,7 @@ export default class HeroListScene extends Phaser.Scene {
 
       const targetX = 130
       const targetY = 8
-      const dummyTarget = this.add.rectangle(targetX, targetY, 36, 52, 0x6d4c41, 1)
-      dummyTarget.setStrokeStyle(1.5, 0xffca28, 0.9)
-      const dummyLabel = inkText(this, targetX, targetY, '木人\n机关', {
-        size: 11,
-        color: '#fff8e1',
-        originX: 0.5,
-        originY: 0.5
-      })
-      sbInner.add([dummyTarget, dummyLabel])
+      drawPracticeDummy(this, sbInner, targetX, targetY)
 
       const fxG = this.add.graphics()
       sbInner.add(fxG)

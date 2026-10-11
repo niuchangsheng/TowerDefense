@@ -6,3 +6,4 @@
 
 export * from './typography'
 export * from './items'
+export * from './figures'
