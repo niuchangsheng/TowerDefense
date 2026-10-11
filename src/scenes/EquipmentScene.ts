@@ -32,7 +32,11 @@ import {
   renderPageHeader,
   createPageBackButton,
   inkToast,
-  createInkDialog
+  createInkDialog,
+  createExclusiveBadge,
+  drawCornerBrackets,
+  getGemAffixQualityTag,
+  drawAffixPercentileBar
 } from '@/ui/InkTheme'
 
 /**
@@ -786,7 +790,7 @@ export default class EquipmentScene extends Phaser.Scene {
     const frameGfx = this.add.graphics()
     frameGfx.lineStyle(1, sameWxStyle.border, 0.35)
     frameGfx.strokeCircle(frameX, frameY, 36)
-    this.drawCornerBrackets(
+    drawCornerBrackets(
       frameGfx,
       frameX - frameSize / 2 + 4,
       frameY - frameSize / 2 + 4,
@@ -850,29 +854,8 @@ export default class EquipmentScene extends Phaser.Scene {
     this.detailPanel.add(titleTxt)
 
     const ownerBadgeX = textX + titleTxt.width + 14
-    const ownerBadgeW = 104
-    const ownerBadgeBg = this.add.rectangle(
-      ownerBadgeX + ownerBadgeW / 2,
-      row1Y,
-      ownerBadgeW,
-      22,
-      InkColor.cinnabar,
-      0.92
-    )
-    const ownerBadgeTxt = inkText(
-      this,
-      ownerBadgeX + ownerBadgeW / 2,
-      row1Y,
-      `${exclusiveName} · 本命专属`,
-      {
-        size: 13,
-        color: '#f4efe6',
-        bold: true,
-        originX: 0.5,
-        originY: 0.5
-      }
-    )
-    this.detailPanel.add([ownerBadgeBg, ownerBadgeTxt])
+    const ownerBadge = createExclusiveBadge(this, ownerBadgeX + 52, row1Y, exclusiveName)
+    this.detailPanel.add(ownerBadge)
 
     const heroId = resCfg?.heroId || detail.exclusiveHeroes?.[1]
     if (heroId) {
@@ -998,14 +981,7 @@ export default class EquipmentScene extends Phaser.Scene {
       const isHigh = pct >= 0.8
       const isMid = pct >= 0.5 && pct < 0.8
 
-      const qualityTag =
-        pct >= 0.85
-          ? { text: '仙品', color: InkText.cinnabar, fill: InkColor.cinnabar }
-          : pct >= 0.65
-            ? { text: '极品', color: '#b45309', fill: 0xd4a017 }
-            : pct >= 0.4
-              ? { text: '上品', color: '#4d6b3c', fill: 0x5f7a4a }
-              : { text: '凡品', color: InkText.wash, fill: InkColor.inkFaint }
+      const qualityTag = getGemAffixQualityTag(pct)
 
       const cardW = leftW - 20
       const cardX = pad + 10
@@ -1060,31 +1036,11 @@ export default class EquipmentScene extends Phaser.Scene {
       )
       this.detailPanel!.add([statNameTxt, statValTxt, rangeTxt])
 
-      // 第二行：精致水墨游标进度条
+      // 第二行：精致水墨游标进度条（来自展示引擎）
       const barW = 228
       const barX = cardX + 14
       const barY = ry + 48
-      const barBg = this.add.rectangle(
-        barX + barW / 2,
-        barY,
-        barW,
-        7,
-        InkColor.paperDeep,
-        1
-      )
-      barBg.setStrokeStyle(1, InkColor.inkFaint, 0.7)
-      const fillW = Math.max(6, Math.round(barW * pct))
-      const barFill = this.add.rectangle(
-        barX + fillW / 2,
-        barY,
-        fillW,
-        5,
-        qualityTag.fill,
-        0.92
-      )
-      const knob = this.add.circle(barX + fillW, barY, 5, qualityTag.fill, 1)
-      knob.setStrokeStyle(1.5, 0xf4efe6)
-      this.detailPanel!.add([barBg, barFill, knob])
+      drawAffixPercentileBar(this, this.detailPanel!, barX, barY, barW, 7, pct, qualityTag.fill)
 
       // 右侧：洗练按钮
       const reforgeBtn = createInkButton(
@@ -1240,7 +1196,7 @@ export default class EquipmentScene extends Phaser.Scene {
       0.92
     )
     const ultGfx = this.add.graphics()
-    this.drawCornerBrackets(ultGfx, rightX + 4, ultY + 4, rightW - 8, ultH - 8, 9, 0xd4a017)
+    drawCornerBrackets(ultGfx, rightX + 4, ultY + 4, rightW - 8, ultH - 8, 9, 0xd4a017)
 
     const ultName = resCfg?.ultimateName || resCfg?.hiddenSkillName || '《圣兽法相》'
     const ultTitle = inkText(this, rightX + 14, ultY + 16, `🐉 终极大招 · ${ultName}`, {
@@ -1270,33 +1226,6 @@ export default class EquipmentScene extends Phaser.Scene {
     })
 
     this.detailPanel.add([ultBg, ultRibbon, ultGfx, ultTitle, ultCond, ultDesc])
-  }
-
-  /**
-   * 绘制古典回纹抱角装饰线
-   */
-  private drawCornerBrackets(
-    gfx: Phaser.GameObjects.Graphics,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    len: number,
-    color: number
-  ): void {
-    gfx.lineStyle(1.5, color, 0.85)
-    // 左上
-    gfx.lineBetween(x, y, x + len, y)
-    gfx.lineBetween(x, y, x, y + len)
-    // 右上
-    gfx.lineBetween(x + w - len, y, x + w, y)
-    gfx.lineBetween(x + w, y, x + w, y + len)
-    // 左下
-    gfx.lineBetween(x, y + h - len, x, y + h)
-    gfx.lineBetween(x, y + h, x + len, y + h)
-    // 右下
-    gfx.lineBetween(x + w - len, y + h, x + w, y + h)
-    gfx.lineBetween(x + w, y + h - len, x + w, y + h)
   }
 
   private showArtifactReforgeChoiceDialog(
