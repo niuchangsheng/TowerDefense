@@ -13,7 +13,10 @@ import {
   drawInkMeridianBody,
   drawBaguaWatermark,
   drawPracticeDummy,
-  drawResonanceLeyline
+  drawResonanceLeyline,
+  InkSilhouetteRenderer,
+  GemIconRenderer,
+  WUXING_CYCLE_SVG_RAW
 } from '@/render'
 
 describe('水墨表现渲染引擎 (Render Engine Architecture Tests)', () => {
@@ -172,6 +175,14 @@ describe('水墨表现渲染引擎 (Render Engine Architecture Tests)', () => {
     // 中点金石节点圆
     expect(mockGfx.fillCircle).toHaveBeenCalledWith(180, 100, 7)
     expect(mockGfx.strokeCircle).toHaveBeenCalledWith(180, 100, 7)
+  })
+
+  it('8. 统一表现引擎完整收敛底层武将剪影、灵石图腾与五行生克相生图元', () => {
+    expect(InkSilhouetteRenderer).toBeDefined()
+    expect(typeof InkSilhouetteRenderer.init).toBe('function')
+    expect(GemIconRenderer).toBeDefined()
+    expect(typeof GemIconRenderer.init).toBe('function')
+    expect(WUXING_CYCLE_SVG_RAW).toContain('五行相生相克图')
   })
 })
 
