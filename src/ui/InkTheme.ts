@@ -11,113 +11,20 @@ import { WuXing, Rarity, WuXingNames } from '@/types'
  * 约定：所有文字一律经 inkText() 创建，保证楷体字体栈不丢失。
  */
 
-// ===== 字体 =====
+// 统一从展示引擎层 (src/render) 导入与导出
+import {
+  InkColor,
+  InkText,
+  InkFontSize,
+  InkRadius,
+  InkSpacing,
+  InkDepth,
+  cssColor,
+  inkText
+} from '@/render/typography'
 
-/** 楷体/古典书风字体栈（严格对齐全平台中文系统字体与优雅回退） */
-export const INK_FONT = '"STKaiti", "华文楷体", "KaiTi", "楷体", "SimKai", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", "PingFang SC", serif'
-
-/**
- * 水墨字体默认分辨率（DPI 超采样系数）
- * 根据设备像素比动态计算，基准保底 2x，高分屏最高 3x，杜绝 Scale.FIT 拉伸模糊
- */
-export const INK_FONT_RESOLUTION = (typeof window !== 'undefined' && window.devicePixelRatio)
-  ? Math.min(Math.max(Math.ceil(window.devicePixelRatio * 1.5), 2), 3)
-  : 2
-
-// ===== 调色板（十六进制数值，供 Graphics / Rectangle 使用） =====
-
-export const InkColor = {
-  paper: 0xe8e0cf,        // 宣纸底色（页面背景）
-  paperPanel: 0xded4bd,   // 面板、卡片底色
-  paperDeep: 0xd2c6a9,    // 悬停、按钮、槽位底色
-  ink: 0x2a2a2a,          // 墨色（描边、进度条）
-  inkStrong: 0x1a1a1a,    // 浓墨
-  inkFaint: 0x484236,     // 焦墨淡褐（高对比度次要信息，告别浅灰发虚）
-  inkWash: 0x3a352a,      // 墨晕（分节标题）
-  cinnabar: 0x9e2b25      // 印章红（选中、确认强调）
-} as const
-
-// ===== 调色板（CSS 字符串，供 TextStyle.color 使用） =====
-
-export const InkText = {
-  ink: '#2a2a2a',
-  strong: '#1a1a1a',
-  faint: '#484236',       // 焦墨深褐，对比度达 6:1+，保证宣纸底色上小字绝对清晰
-  wash: '#3a352a',
-  paper: '#e8e0cf',
-  cinnabar: '#9e2b25',
-  gold: '#a0782f',        // 星级 / 传说
-  green: '#5f7a4a'        // 可升星 / 成功
-} as const
-
-// ===== 尺寸常量 =====
-
-export const InkSpacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32
-} as const
-
-export const InkFontSize = {
-  xs: 12,
-  sm: 13,
-  md: 16,
-  lg: 20,
-  xl: 26,
-  title: 30
-} as const
-
-export const InkRadius = {
-  sm: 4,
-  md: 8
-} as const
-
-export const InkDepth = {
-  overlay: 49,   // 弹窗遮罩
-  popup: 50,     // 弹窗 / 对话框
-  toast: 100     // 消息提示
-} as const
-
-// ===== 五行配色（纸面友好的雅致色） =====
-
-export interface InkWuXingStyle {
-  label: string   // 单字（金/木/水/火/土）
-  text: string    // 文字色（CSS）
-  fill: number    // 徽章底色
-  border: number  // 徽章描边色
-}
-
-export const INK_WUXING: Record<WuXing, InkWuXingStyle> = {
-  metal: { label: WuXingNames.metal, text: '#66727a', fill: 0xdcd8ce, border: 0x8b9298 },
-  wood:  { label: WuXingNames.wood,  text: '#5f7a4a', fill: 0xdadfc9, border: 0x7d9464 },
-  water: { label: WuXingNames.water, text: '#3f5f7a', fill: 0xd3dbe0, border: 0x66839c },
-  fire:  { label: WuXingNames.fire,  text: '#a63d2f', fill: 0xe6d2ca, border: 0xb8675a },
-  earth: { label: WuXingNames.earth, text: '#9c6b2f', fill: 0xe3d8c3, border: 0xb08a52 }
-} as const
-
-// ===== 稀有度配色 =====
-
-export interface InkRarityStyle {
-  text: string    // 文字色（CSS）
-  border: number  // 描边色
-  tint: number    // 浅底色（弹窗列表行）
-}
-
-export const INK_RARITY: Record<Rarity, InkRarityStyle> = {
-  common:    { text: '#504a3e', border: 0x9a9384, tint: 0xded6c4 },
-  rare:      { text: '#3f5f7a', border: 0x5a7a94, tint: 0xd6dde2 },
-  epic:      { text: '#6d5a7d', border: 0x8a7399, tint: 0xdfd8e2 },
-  legendary: { text: '#a0782f', border: 0xa0782f, tint: 0xe6dcc3 }
-} as const
-
-// ===== 工具函数 =====
-
-/** 0xRRGGBB → '#rrggbb' */
-export function cssColor(hex: number): string {
-  return `#${hex.toString(16).padStart(6, '0')}`
-}
+export * from '@/render/typography'
+export * from '@/render/items'
 
 // ===== 绘制助手 =====
 
@@ -182,105 +89,6 @@ export function createPanel(
   }
   panel.add(bg)
   return panel
-}
-
-export interface InkTextOptions {
-  size?: number
-  color?: string
-  bold?: boolean
-  originX?: number
-  originY?: number
-  wrapWidth?: number
-  lineSpacing?: number
-  resolution?: number
-  padding?: Phaser.Types.GameObjects.Text.TextPadding
-  stroke?: string
-  strokeThickness?: number
-  shadow?: {
-    x?: number
-    y?: number
-    color?: string
-    blur?: number
-    stroke?: boolean
-    fill?: boolean
-  }
-}
-
-/**
- * 水墨风文字（自动套用楷体栈与高分辨率超采样渲染）。默认 origin (0, 0.5)。
- */
-export function inkText(
-  scene: Phaser.Scene,
-  x: number,
-  y: number,
-  content: string,
-  options: InkTextOptions = {}
-): Phaser.GameObjects.Text {
-  const {
-    size = InkFontSize.md,
-    color = InkText.ink,
-    bold,
-    originX = 0,
-    originY = 0.5,
-    wrapWidth,
-    lineSpacing,
-    resolution,
-    padding,
-    stroke,
-    strokeThickness,
-    shadow
-  } = options
-
-  // 1. 强制整数字号，避免浮点字号（如 11.5px/13.5px）导致 Canvas 2D 亚像素网格失真与模糊
-  const roundedSize = Math.max(1, Math.round(size))
-
-  // 2. 超采样策略：小字号 (<=14px) 汉字笔画复杂，给予保底 3x 超采样；常规字号保底 2x
-  const effectiveResolution = resolution ?? (
-    roundedSize <= 14
-      ? Math.max(INK_FONT_RESOLUTION, 3)
-      : INK_FONT_RESOLUTION
-  )
-
-  // 3. 字重加固：楷体在 <=14px 时细横线极细，容易被 Canvas 抗锯齿削弱发虚
-  // 若调用方未显式传入 bold，针对 <=14px 小字默认启用加粗，笔画清晰饱满
-  const isBold = bold !== undefined ? bold : (roundedSize <= 14)
-
-  const textStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-    fontFamily: INK_FONT,
-    fontSize: `${roundedSize}px`,
-    color,
-    fontStyle: isBold ? 'bold' : 'normal',
-    lineSpacing,
-    resolution: effectiveResolution,
-    padding: padding ?? { left: 2, right: 2, top: 1, bottom: 1 }
-  }
-
-  // 严禁将 undefined 的 stroke/strokeThickness 传入 Phaser TextStyle，
-  // 否则 Phaser 的 GetAdvancedValue 返回 undefined，导致 (undefined / 2) = NaN，
-  // 进而造成 linePositionY = NaN，文字在 Canvas 2D 上完全不可见！
-  if (stroke !== undefined) {
-    textStyle.stroke = stroke
-  }
-  if (strokeThickness !== undefined) {
-    textStyle.strokeThickness = strokeThickness
-  }
-
-  const text = scene.add.text(Math.round(x), Math.round(y), content, textStyle)
-  text.setOrigin(originX, originY)
-  if (wrapWidth !== undefined) {
-    text.setWordWrapWidth(wrapWidth, true)
-  }
-  if (shadow) {
-    text.setShadow(
-      shadow.x ?? 0,
-      shadow.y ?? 0,
-      shadow.color ?? '#000000',
-      shadow.blur ?? 0,
-      shadow.stroke ?? false,
-      shadow.fill ?? true
-    )
-  }
-  return text
 }
 
 /**
