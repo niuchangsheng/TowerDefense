@@ -241,17 +241,27 @@ export function inkText(
       : INK_FONT_RESOLUTION
   )
 
-  const text = scene.add.text(Math.round(x), Math.round(y), content, {
+  const textStyle: Phaser.Types.GameObjects.Text.TextStyle = {
     fontFamily: INK_FONT,
     fontSize: `${roundedSize}px`,
     color,
     fontStyle: bold ? 'bold' : 'normal',
     lineSpacing,
     resolution: effectiveResolution,
-    stroke,
-    strokeThickness,
     padding: padding ?? { left: 2, right: 2, top: 1, bottom: 1 }
-  })
+  }
+
+  // 严禁将 undefined 的 stroke/strokeThickness 传入 Phaser TextStyle，
+  // 否则 Phaser 的 GetAdvancedValue 返回 undefined，导致 (undefined / 2) = NaN，
+  // 进而造成 linePositionY = NaN，文字在 Canvas 2D 上完全不可见！
+  if (stroke !== undefined) {
+    textStyle.stroke = stroke
+  }
+  if (strokeThickness !== undefined) {
+    textStyle.strokeThickness = strokeThickness
+  }
+
+  const text = scene.add.text(Math.round(x), Math.round(y), content, textStyle)
   text.setOrigin(originX, originY)
   if (wrapWidth !== undefined) {
     text.setWordWrapWidth(wrapWidth, true)

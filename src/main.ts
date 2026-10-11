@@ -13,6 +13,13 @@ Phaser.GameObjects.GameObjectFactory.prototype.text = function (
 ) {
   const safeStyle: Phaser.Types.GameObjects.Text.TextStyle = { ...style }
 
+  // 严禁将含有 undefined 值的属性传给 Phaser TextStyle，防止 Phaser 内部 GetAdvancedValue 产生 NaN
+  for (const key of Object.keys(safeStyle)) {
+    if ((safeStyle as any)[key] === undefined) {
+      delete (safeStyle as any)[key]
+    }
+  }
+
   // 1. 若未指定字体或使用兜底 serif/Courier，统一应用水墨字体栈
   if (!safeStyle.fontFamily || safeStyle.fontFamily === 'Courier' || safeStyle.fontFamily === 'serif') {
     safeStyle.fontFamily = INK_FONT
