@@ -20,7 +20,8 @@ import {
   inkText,
   createInkButton,
   inkToast,
-  drawPaperBackground
+  drawPaperBackground,
+  drawResonanceLeyline
 } from '@/ui/InkTheme'
 import { InkSilhouetteRenderer } from '@/rendering/InkSilhouetteRenderer'
 import { EnergyGaugeBar } from '@/ui/EnergyGaugeBar'
@@ -1612,41 +1613,11 @@ export default class BattleScene extends Phaser.Scene {
       const h2 = heroMap.get(conn.targetHeroId)
       if (!h1 || !h2) continue
 
-      const x1 = h1.x
-      const y1 = h1.y
-      const x2 = h2.x
-      const y2 = h2.y
-
-      const c1 = INK_WUXING[conn.sourceWuXing]?.border ?? InkColor.cinnabar
-      const c2 = INK_WUXING[conn.targetWuXing]?.border ?? InkColor.cinnabar
-
-      // 外层水墨晕染底线
-      this.leylineGraphics.lineStyle(6, InkColor.ink, 0.18)
-      this.leylineGraphics.beginPath()
-      this.leylineGraphics.moveTo(x1, y1)
-      this.leylineGraphics.lineTo(x2, y2)
-      this.leylineGraphics.strokePath()
-
-      // 双色五行相生流光连线
-      this.leylineGraphics.lineStyle(2.5, c1, 0.78)
-      this.leylineGraphics.beginPath()
-      this.leylineGraphics.moveTo(x1, y1)
-      this.leylineGraphics.lineTo((x1 + x2) / 2, (y1 + y2) / 2)
-      this.leylineGraphics.strokePath()
-
-      this.leylineGraphics.lineStyle(2.5, c2, 0.78)
-      this.leylineGraphics.beginPath()
-      this.leylineGraphics.moveTo((x1 + x2) / 2, (y1 + y2) / 2)
-      this.leylineGraphics.lineTo(x2, y2)
-      this.leylineGraphics.strokePath()
-
-      // 连线中点阵脉金环节点
-      const mx = (x1 + x2) / 2
-      const my = (y1 + y2) / 2
-      this.leylineGraphics.fillStyle(InkColor.paperPanel, 0.92)
-      this.leylineGraphics.fillCircle(mx, my, 7)
-      this.leylineGraphics.lineStyle(1.5, InkColor.cinnabar, 0.85)
-      this.leylineGraphics.strokeCircle(mx, my, 7)
+      drawResonanceLeyline(
+        this.leylineGraphics,
+        { x: h1.x, y: h1.y, wuXing: conn.sourceWuXing },
+        { x: h2.x, y: h2.y, wuXing: conn.targetWuXing }
+      )
     }
   }
 

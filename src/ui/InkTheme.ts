@@ -26,6 +26,7 @@ import {
 export * from '@/render/typography'
 export * from '@/render/items'
 export * from '@/render/figures'
+export * from '@/render/effects'
 
 // ===== 绘制助手 =====
 

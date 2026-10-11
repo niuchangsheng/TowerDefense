@@ -12,7 +12,8 @@ import {
   drawUltimateBox,
   drawInkMeridianBody,
   drawBaguaWatermark,
-  drawPracticeDummy
+  drawPracticeDummy,
+  drawResonanceLeyline
 } from '@/render'
 
 describe('水墨表现渲染引擎 (Render Engine Architecture Tests)', () => {
@@ -146,6 +147,31 @@ describe('水墨表现渲染引擎 (Render Engine Architecture Tests)', () => {
     drawPracticeDummy(mockScene, mockContainer as any, 130, 8)
     expect(mockScene.add.rectangle).toHaveBeenCalledWith(130, 8, 36, 52, 0x6d4c41, 1)
     expect(mockContainer.add).toHaveBeenCalled()
+  })
+
+  it('7. effects 子系统正确绘制 160px 相生阵脉双色流光与中点节点', () => {
+    const mockGfx: any = {
+      lineStyle: vi.fn().mockReturnThis(),
+      beginPath: vi.fn().mockReturnThis(),
+      moveTo: vi.fn().mockReturnThis(),
+      lineTo: vi.fn().mockReturnThis(),
+      strokePath: vi.fn().mockReturnThis(),
+      fillStyle: vi.fn().mockReturnThis(),
+      fillCircle: vi.fn().mockReturnThis(),
+      strokeCircle: vi.fn().mockReturnThis()
+    }
+
+    drawResonanceLeyline(
+      mockGfx,
+      { x: 100, y: 100, wuXing: 'water' },
+      { x: 260, y: 100, wuXing: 'wood' }
+    )
+
+    // 底线 + 水前半段 + 木后半段
+    expect(mockGfx.strokePath).toHaveBeenCalledTimes(3)
+    // 中点金石节点圆
+    expect(mockGfx.fillCircle).toHaveBeenCalledWith(180, 100, 7)
+    expect(mockGfx.strokeCircle).toHaveBeenCalledWith(180, 100, 7)
   })
 })
 
