@@ -48,7 +48,8 @@ import {
   renderPageHeader,
   createPageBackButton,
   inkToast,
-  createInkDialog
+  createInkDialog,
+  createWuXingSeal
 } from '@/ui/InkTheme'
 
 /**
@@ -262,24 +263,7 @@ export default class HeroListScene extends Phaser.Scene {
     h: number
   ): void {
     const w = 44
-    const theme = INK_WUXING[wuXing]
-
-    const bg = this.add.graphics()
-    bg.fillStyle(theme.fill, 1)
-    bg.fillRoundedRect(x, y, w, h, InkRadius.sm)
-    bg.lineStyle(1, theme.border, 1)
-    bg.strokeRoundedRect(x, y, w, h, InkRadius.sm)
-    parent.add(bg)
-
-    parent.add(
-      inkText(this, x + w / 2, y + h / 2, theme.label, {
-        size: 13,
-        color: theme.text,
-        bold: true,
-        originX: 0.5,
-        originY: 0.5
-      })
-    )
+    parent.add(createWuXingSeal(this, x + w / 2, y + h / 2, wuXing, { width: w, height: h }))
   }
 
   private selectHero(heroId: string): void {

@@ -11,13 +11,15 @@ import { inkText } from '../typography'
 
 export interface WuXingBadgeOptions {
   size?: number
+  width?: number
+  height?: number
   fontSize?: number
   borderAlpha?: number
   fillAlpha?: number
 }
 
 /**
- * 绘制五行金石篆刻印章（方中带圆水墨印章，含单字徽标）
+ * 绘制五行金石篆刻印章（方印或矩形腰牌，含单字徽标）
  */
 export function createWuXingSeal(
   scene: Phaser.Scene,
@@ -26,17 +28,20 @@ export function createWuXingSeal(
   wuXing: WuXing,
   options: WuXingBadgeOptions = {}
 ): Phaser.GameObjects.Container {
-  const { size = 26, fontSize = 13, borderAlpha = 0.9, fillAlpha = 0.85 } = options
+  const { size = 26, width, height, fontSize = 13, borderAlpha = 0.9, fillAlpha = 0.85 } = options
+  const w = width ?? size
+  const h = height ?? size
   const wxStyle = INK_WUXING[wuXing]
   const container = scene.add.container(Math.round(x), Math.round(y))
 
   const g = scene.add.graphics()
+  const radius = Math.max(2, Math.round(Math.min(w, h) * 0.15))
   // 印泥晕染外框
   g.fillStyle(wxStyle.fill, fillAlpha)
-  g.fillRoundedRect(-size / 2, -size / 2, size, size, Math.max(2, Math.round(size * 0.15)))
+  g.fillRoundedRect(-w / 2, -h / 2, w, h, radius)
   // 刀痕金石边框
   g.lineStyle(1.5, wxStyle.border, borderAlpha)
-  g.strokeRoundedRect(-size / 2, -size / 2, size, size, Math.max(2, Math.round(size * 0.15)))
+  g.strokeRoundedRect(-w / 2, -h / 2, w, h, radius)
   container.add(g)
 
   // 篆刻文字
